@@ -95,6 +95,7 @@ jobs:
           sbom: true
 
       - name: Attest image provenance
+        if: ${{ github.event.repository.visibility == 'public' }}
         uses: actions/attest@v4
         with:
           subject-name: ${{ steps.image.outputs.name }}
