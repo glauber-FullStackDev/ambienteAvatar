@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.py[cod]
+data/cache/
+data/input/
+data/models/
+data/output/
+data/user/
+!data/.gitkeep

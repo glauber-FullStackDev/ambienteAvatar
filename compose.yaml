@@ -1,0 +1,55 @@
+x-comfy-image: &comfy-image
+  image: ${COMFYUI_IMAGE:-longcat-avatar-comfyui:1.5}
+  platform: linux/amd64
+  build:
+    context: .
+    args:
+      INSTALL_MANAGER: ${INSTALL_MANAGER:-1}
+      INSTALL_XFORMERS: ${INSTALL_XFORMERS:-0}
+      INSTALL_FLASH_ATTN: ${INSTALL_FLASH_ATTN:-0}
+
+x-comfy-volumes: &comfy-volumes
+  - ./data/models:/opt/ComfyUI/models
+  - ./data/input:/opt/ComfyUI/input
+  - ./data/output:/opt/ComfyUI/output
+  - ./data/user:/opt/ComfyUI/user
+  - ./data/cache:/data/cache
+
+services:
+  comfyui:
+    <<: *comfy-image
+    gpus: all
+    ports:
+      - "${COMFYUI_BIND:-127.0.0.1}:${COMFYUI_PORT:-8188}:8188"
+    volumes: *comfy-volumes
+    environment:
+      COMFYUI_ARGS: ${COMFYUI_ARGS:---preview-method auto}
+      COMFYUI_PORT: "8188"
+      DEFAULT_WEIGHT_MODE: ${MODEL_MODE:-official_int8_sharded}
+      HF_HOME: /data/cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+    shm_size: ${SHM_SIZE:-16gb}
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  download-models:
+    <<: *comfy-image
+    profiles: [tools]
+    command: ["download-models"]
+    volumes: *comfy-volumes
+    environment:
+      HF_HOME: /data/cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+      MODEL_MODE: ${MODEL_MODE:-official_int8_sharded}
+      TEXT_ENCODER_MODE: ${TEXT_ENCODER_MODE:-clip_fp8}
+      INCLUDE_VOCAL_SEPARATOR: ${INCLUDE_VOCAL_SEPARATOR:-1}
+
+  verify:
+    <<: *comfy-image
+    profiles: [tools]
+    command: ["verify"]
+    volumes: *comfy-volumes
+    environment:
+      MODEL_MODE: ${MODEL_MODE:-official_int8_sharded}
+      TEXT_ENCODER_MODE: ${TEXT_ENCODER_MODE:-clip_fp8}
+      INCLUDE_VOCAL_SEPARATOR: ${INCLUDE_VOCAL_SEPARATOR:-1}
