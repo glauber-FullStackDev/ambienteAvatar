@@ -4,6 +4,7 @@ x-comfy-image: &comfy-image
   build:
     context: .
     args:
+      PYTORCH_IMAGE: ${PYTORCH_IMAGE:-pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime}
       INSTALL_MANAGER: ${INSTALL_MANAGER:-1}
       INSTALL_XFORMERS: ${INSTALL_XFORMERS:-0}
       INSTALL_FLASH_ATTN: ${INSTALL_FLASH_ATTN:-0}

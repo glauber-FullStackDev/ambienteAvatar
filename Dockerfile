@@ -1,4 +1,5 @@
-FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel
+ARG PYTORCH_IMAGE=pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+FROM ${PYTORCH_IMAGE}
 
 ARG COMFYUI_REF=c1739380c6fab78e7e263cb665d04aafbfe24593
 ARG LONGCAT_NODE_REF=08b4daedfaed69abaf467097f8665615b2137331

@@ -83,6 +83,27 @@ make verify     # conferir a presença dos arquivos essenciais
 make down       # parar o ambiente sem apagar modelos ou saídas
 ```
 
+## Imagem publicada e Vast.ai
+
+Todo push em `main` que altera o Dockerfile, Compose, scripts ou a própria
+pipeline constrói uma imagem `linux/amd64` e publica no GitHub Container
+Registry com SBOM e attestação de procedência:
+
+```text
+ghcr.io/glauber-fullstackdev/ambienteavatar:1.5
+ghcr.io/glauber-fullstackdev/ambienteavatar:latest
+```
+
+A pipeline também pode ser executada manualmente em **Actions → Build and
+publish Docker image → Run workflow**, informando uma tag adicional. Depois da
+primeira publicação, configure a visibilidade do pacote como pública no GitHub
+para que o Vast.ai possa puxá-lo sem credenciais.
+
+No Vast.ai, edite o template **NVIDIA CUDA** e use a imagem acima em modo
+`Entrypoint/Args`, argumento `serve`, porta `8188`, CUDA `>=12.8` e pelo menos
+100 GB de disco. Para o modo INT8, uma GPU de 24 GB pode ser usada com streaming
+e offload; 48 GB ou mais é a opção recomendada.
+
 O serviço só publica em `127.0.0.1` por padrão. Em um servidor remoto, prefira
 um túnel SSH. Se realmente precisar expor diretamente, altere
 `COMFYUI_BIND=0.0.0.0` e proteja a porta com firewall e autenticação reversa.
@@ -102,7 +123,9 @@ Depois rode `make build` novamente e selecione o backend correspondente no node
 de carregamento. FlashAttention e SageAttention não são requisitos funcionais;
 as extensões são sensíveis à combinação de GPU, CUDA e PyTorch. O node pack
 também informa que `sageattn_3` ainda não possui o caminho completo de
-cross-attention do LongCat.
+cross-attention do LongCat. Para compilar FlashAttention, altere também
+`PYTORCH_IMAGE` para `pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel`; a imagem
+`runtime` padrão não inclui o compilador CUDA.
 
 ## Versões fixadas
 
