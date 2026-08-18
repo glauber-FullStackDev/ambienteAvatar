@@ -76,7 +76,15 @@ def main() -> None:
     import server
 
     if getattr(server.PromptServer, "instance", None) is None:
-        server.PromptServer.instance = SimpleNamespace(routes=server.web.RouteTableDef())
+        prompt_queue = SimpleNamespace(currently_running={}, put=lambda _item: None)
+        server.PromptServer.instance = SimpleNamespace(
+            routes=server.web.RouteTableDef(),
+            prompt_queue=prompt_queue,
+            number=0,
+            last_node_id=None,
+            client_id=None,
+            send_sync=lambda *_args, **_kwargs: None,
+        )
 
     assert_expression_controller()
     assert_pack(
