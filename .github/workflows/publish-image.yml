@@ -8,6 +8,7 @@ on:
       - .dockerignore
       - Dockerfile
       - compose.yaml
+      - custom_nodes/**
       - scripts/**
   workflow_dispatch:
     inputs:
@@ -75,7 +76,7 @@ jobs:
             type=sha,format=long
           labels: |
             org.opencontainers.image.title=LongCat Avatar 1.5 ComfyUI
-            org.opencontainers.image.description=CUDA ComfyUI environment for LongCat Video Avatar 1.5
+            org.opencontainers.image.description=CUDA ComfyUI environment for LongCat Avatar, expression control, LivePortrait and LatentSync
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 

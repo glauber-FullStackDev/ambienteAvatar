@@ -26,8 +26,11 @@ def prepare_directories() -> None:
         "models/audio_encoders",
         "models/clip",
         "models/diffusion_models",
+        "models/latentsync",
+        "models/liveportrait",
         "models/longcat",
         "models/loras",
+        "models/ultralytics",
         "models/vae",
         "user/default/workflows",
     )

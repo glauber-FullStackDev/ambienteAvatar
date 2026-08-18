@@ -1,9 +1,32 @@
 # LongCat Avatar 1.5 + ComfyUI em Docker
 
-Ambiente CUDA reproduzível com ComfyUI, ComfyUI Manager, o node pack
-`ComfyUI-LongCat-Avatar`, FFmpeg e todas as dependências Python de execução.
-Os pesos não entram na imagem: ficam em `data/models` e podem ser baixados pelo
-comando fornecido.
+Ambiente CUDA reproduzível com ComfyUI, ComfyUI Manager, LongCat Avatar,
+controle de expressão, ferramentas de vídeo, Advanced Live Portrait,
+LatentSync 1.6, FFmpeg e as dependências Python de execução. Os pesos não entram
+na imagem: ficam em armazenamento persistente ou são baixados depois que a
+instância inicia.
+
+## Componentes incluídos
+
+| Componente | Uso |
+| --- | --- |
+| `ComfyUI-LongCat-Avatar` | Geração principal do avatar por áudio |
+| `LongCat Avatar Motion Smoother` | Suaviza o condicionamento no tempo e controla a força da expressão |
+| `ComfyUI-VideoHelperSuite` | Carregamento, combinação e salvamento de vídeo |
+| `ComfyUI-AdvancedLivePortrait` | Controle e pós-processamento facial |
+| `ComfyUI-LatentSyncWrapper` | Lip-sync de acabamento com LatentSync 1.6 |
+| `ComfyUI-Manager` | Administração dos custom nodes |
+
+Todos os nodes e suas bibliotecas já fazem parte da imagem. Ainda é necessário
+baixar os checkpoints usados por LongCat, LivePortrait e LatentSync.
+
+Os checkpoints do LatentSync devem ficar em
+`/opt/ComfyUI/models/latentsync/`. A imagem liga esse diretório ao caminho
+interno esperado pelo wrapper, portanto os arquivos permanecem junto ao volume
+normal de modelos. Preserve a estrutura `vae/`, `whisper/`,
+`latentsync_unet.pt` e `stable_syncnet.pt` indicada pelo projeto do LatentSync.
+O Advanced Live Portrait usa `/opt/ComfyUI/models/liveportrait/` e o detector
+facial usa `/opt/ComfyUI/models/ultralytics/`.
 
 ## Requisitos
 
@@ -33,6 +56,15 @@ Abra <http://127.0.0.1:8188>. O workflow
 `longcat-avatar1.5-docker.json` aparece na pasta de workflows do usuário. Ele é
 uma cópia do exemplo do node pack ajustada para o modo escolhido e para o backend
 portável `sdpa`.
+
+Para reduzir movimentos exagerados, conecte `LongCat Avatar Motion Smoother`
+entre `LongCat Avatar Audio Encode` e `LongCat Avatar Sampler`. Um ponto inicial
+é `strength=0.75` e `smoothing_frames=7`; reduza `strength` gradualmente até o
+movimento ficar natural. O node trabalha sobre uma cópia do condicionamento e
+preserva os metadados de áudio, inclusive fluxos com mais de uma pessoa.
+
+O node do LatentSync aparece na busca como `LatentSync1.6 Node`; o auxiliar
+aparece como `Video Length Adjuster`.
 
 Os diretórios persistentes são:
 
@@ -142,6 +174,10 @@ cross-attention do LongCat. Para compilar FlashAttention, altere também
 - ComfyUI: `c1739380c6fab78e7e263cb665d04aafbfe24593`
 - ComfyUI-LongCat-Avatar: `08b4daedfaed69abaf467097f8665615b2137331`
 - ComfyUI Manager: `4f56cf3dfa7de5d8a8614dfe202ff8d613ba2244`
+- ComfyUI-VideoHelperSuite: `4ee72c065db22c9d96c2427954dc69e7b908444b`
+- ComfyUI-AdvancedLivePortrait: `3bba732915e22f18af0d221b9c5c282990181f1b`
+- ComfyUI-LatentSyncWrapper: `360d5283d7276aee68b4237b1387e594e4ce640e`
+- NumPy: `2.2.6`
 
 Esses pins tornam a imagem repetível. Atualize-os de forma deliberada no
 `Dockerfile`, reconstrua e valide o workflow antes de usar uma versão mais nova.

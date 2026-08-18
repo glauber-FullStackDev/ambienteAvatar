@@ -4,6 +4,9 @@ FROM ${PYTORCH_IMAGE}
 ARG COMFYUI_REF=c1739380c6fab78e7e263cb665d04aafbfe24593
 ARG LONGCAT_NODE_REF=08b4daedfaed69abaf467097f8665615b2137331
 ARG COMFYUI_MANAGER_REF=4f56cf3dfa7de5d8a8614dfe202ff8d613ba2244
+ARG VIDEO_HELPER_SUITE_REF=4ee72c065db22c9d96c2427954dc69e7b908444b
+ARG ADVANCED_LIVE_PORTRAIT_REF=3bba732915e22f18af0d221b9c5c282990181f1b
+ARG LATENT_SYNC_WRAPPER_REF=360d5283d7276aee68b4237b1387e594e4ce640e
 ARG INSTALL_MANAGER=1
 ARG INSTALL_XFORMERS=0
 ARG INSTALL_FLASH_ATTN=0
@@ -49,6 +52,32 @@ RUN if [ "${INSTALL_MANAGER}" = "1" ]; then \
         && pip install -r requirements.txt; \
     fi
 
+# Packs used by the avatar refinement and lip-sync workflows. Revisions are
+# pinned so rebuilding the image does not silently change node contracts.
+RUN git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-VideoHelperSuite" \
+    && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-VideoHelperSuite" \
+    && git checkout --detach "${VIDEO_HELPER_SUITE_REF}" \
+    && pip install -r requirements.txt \
+    && git clone https://github.com/PowerHouseMan/ComfyUI-AdvancedLivePortrait.git \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-AdvancedLivePortrait" \
+    && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-AdvancedLivePortrait" \
+    && git checkout --detach "${ADVANCED_LIVE_PORTRAIT_REF}" \
+    && pip install -r requirements.txt \
+    && git clone https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper.git \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
+    && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
+    && git checkout --detach "${LATENT_SYNC_WRAPPER_REF}" \
+    && pip install -r requirements.txt \
+    && pip install pytorch-lightning accelerate "numpy==2.2.6" \
+    && rm -rf "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
+    && mkdir -p "${COMFYUI_HOME}/models/latentsync" \
+    && ln -s "${COMFYUI_HOME}/models/latentsync" \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
+    && ln -s "${COMFYUI_HOME}/models/latentsync" /root/.latentsync16_models \
+    && touch /root/.latentsync16_dependencies_installed \
+    && pip check
+
 # Optional acceleration is deliberately opt-in: the correct wheels/toolchain depend
 # on the target GPU architecture. The seeded workflow uses portable PyTorch SDPA.
 RUN if [ "${INSTALL_XFORMERS}" = "1" ]; then \
@@ -59,6 +88,8 @@ RUN if [ "${INSTALL_XFORMERS}" = "1" ]; then \
         && MAX_JOBS=4 pip install --no-build-isolation flash-attn==2.7.4.post1; \
     fi
 
+COPY custom_nodes/ComfyUI-LongCat-Expression-Control \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LongCat-Expression-Control
 COPY scripts /opt/avatar-scripts
 
 RUN chmod +x /opt/avatar-scripts/entrypoint.py \
@@ -69,8 +100,11 @@ RUN chmod +x /opt/avatar-scripts/entrypoint.py \
         "${COMFYUI_HOME}/models/audio_encoders" \
         "${COMFYUI_HOME}/models/clip" \
         "${COMFYUI_HOME}/models/diffusion_models" \
+        "${COMFYUI_HOME}/models/latentsync" \
+        "${COMFYUI_HOME}/models/liveportrait" \
         "${COMFYUI_HOME}/models/longcat" \
         "${COMFYUI_HOME}/models/loras" \
+        "${COMFYUI_HOME}/models/ultralytics" \
         "${COMFYUI_HOME}/models/vae" \
         "${COMFYUI_HOME}/output" \
         "${COMFYUI_HOME}/user/default/workflows" \
@@ -78,7 +112,9 @@ RUN chmod +x /opt/avatar-scripts/entrypoint.py \
         /opt/defaults/workflows/longcat-avatar1.5.json \
     && python -m compileall -q \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LongCat-Avatar" \
-        /opt/avatar-scripts
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LongCat-Expression-Control" \
+        /opt/avatar-scripts \
+    && python /opt/avatar-scripts/smoke_custom_nodes.py
 
 WORKDIR /opt/ComfyUI
 EXPOSE 8188
