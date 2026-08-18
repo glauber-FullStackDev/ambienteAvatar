@@ -94,6 +94,22 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Build and push Vast.ai compatibility image
+        id: push-vast
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:vast
+            ${{ steps.image.outputs.name }}:1.5-vast
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=longcat-avatar
+          provenance: false
+          sbom: false
+
       - name: Attest image provenance
         if: ${{ github.event.repository.visibility == 'public' }}
         uses: actions/attest@v4
@@ -113,4 +129,6 @@ jobs:
             echo '```'
             echo
             echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo
+            echo "Vast.ai compatibility digest: \`${{ steps.push-vast.outputs.digest }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

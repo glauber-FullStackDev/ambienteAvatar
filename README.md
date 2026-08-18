@@ -94,12 +94,21 @@ ghcr.io/glauber-fullstackdev/ambienteavatar:1.5
 ghcr.io/glauber-fullstackdev/ambienteavatar:latest
 ```
 
+Para hosts do Vast.ai que não processam corretamente índices OCI com
+attestations, a mesma pipeline também publica imagens `linux/amd64` sem os
+manifestos auxiliares. O conteúdo, o CUDA e as dependências são os mesmos:
+
+```text
+ghcr.io/glauber-fullstackdev/ambienteavatar:vast
+ghcr.io/glauber-fullstackdev/ambienteavatar:1.5-vast
+```
+
 A pipeline também pode ser executada manualmente em **Actions → Build and
 publish Docker image → Run workflow**, informando uma tag adicional. Depois da
 primeira publicação, configure a visibilidade do pacote como pública no GitHub
 para que o Vast.ai possa puxá-lo sem credenciais.
 
-No Vast.ai, edite o template **NVIDIA CUDA** e use a imagem acima em modo
+No Vast.ai, edite o template **NVIDIA CUDA** e use a tag `:vast` em modo
 `Entrypoint/Args`, argumento `serve`, porta `8188`, CUDA `>=12.8` e pelo menos
 100 GB de disco. Para o modo INT8, uma GPU de 24 GB pode ser usada com streaming
 e offload; 48 GB ou mais é a opção recomendada.
