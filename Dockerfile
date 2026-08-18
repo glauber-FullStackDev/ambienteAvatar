@@ -75,8 +75,7 @@ RUN git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git \
     && ln -s "${COMFYUI_HOME}/models/latentsync" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
     && ln -s "${COMFYUI_HOME}/models/latentsync" /root/.latentsync16_models \
-    && touch /root/.latentsync16_dependencies_installed \
-    && pip check
+    && touch /root/.latentsync16_dependencies_installed
 
 # Optional acceleration is deliberately opt-in: the correct wheels/toolchain depend
 # on the target GPU architecture. The seeded workflow uses portable PyTorch SDPA.
@@ -114,6 +113,7 @@ RUN chmod +x /opt/avatar-scripts/entrypoint.py \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LongCat-Avatar" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LongCat-Expression-Control" \
         /opt/avatar-scripts \
+    && python /opt/avatar-scripts/check_dependencies.py \
     && python /opt/avatar-scripts/smoke_custom_nodes.py
 
 WORKDIR /opt/ComfyUI

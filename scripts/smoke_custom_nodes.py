@@ -7,6 +7,7 @@ import sys
 from types import SimpleNamespace
 
 import torch
+import decord
 
 
 COMFYUI_HOME = Path("/opt/ComfyUI")
@@ -62,6 +63,7 @@ def assert_expression_controller() -> None:
 
 def main() -> None:
     sys.path.insert(0, str(COMFYUI_HOME))
+    print(f"OK decord import: {decord.__version__}")
     # Some packs register HTTP routes during import. ComfyUI normally creates
     # this object before loading custom nodes; the build smoke test provides the
     # smallest equivalent route registry.
