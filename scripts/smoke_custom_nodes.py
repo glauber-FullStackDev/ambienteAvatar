@@ -64,6 +64,9 @@ def assert_expression_controller() -> None:
 def main() -> None:
     sys.path.insert(0, str(COMFYUI_HOME))
     print(f"OK decord import: {decord.__version__}")
+    # GitHub-hosted Docker builders do not expose a GPU. This flag affects only
+    # the import smoke test; the final image still starts ComfyUI in CUDA mode.
+    sys.argv = [sys.argv[0], "--cpu"]
     # Some packs register HTTP routes during import. ComfyUI normally creates
     # this object before loading custom nodes; the build smoke test provides the
     # smallest equivalent route registry.
