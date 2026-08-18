@@ -1,25 +1,21 @@
-name: Build and publish LongCat image
+name: Build and publish InfiniteTalk image
 
 on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/publish-image.yml
-      - .dockerignore
-      - Dockerfile
-      - compose.yaml
-      - custom_nodes/**
-      - scripts/**
+      - .github/workflows/publish-infinitetalk-image.yml
+      - infinitetalk/**
   workflow_dispatch:
     inputs:
       image_tag:
         description: Additional image tag
         required: false
-        default: "1.5"
+        default: ""
         type: string
 
 concurrency:
-  group: publish-longcat-avatar-image
+  group: publish-infinitetalk-image
   cancel-in-progress: false
 
 env:
@@ -51,7 +47,7 @@ jobs:
         id: image
         shell: bash
         run: |
-          image_name="${GITHUB_REPOSITORY,,}"
+          image_name="${GITHUB_REPOSITORY,,}-infinitetalk"
           echo "name=${REGISTRY}/${image_name}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -70,13 +66,12 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=1.5
             type=raw,value=latest
             type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
             type=sha,format=long
           labels: |
-            org.opencontainers.image.title=LongCat Avatar 1.5 ComfyUI
-            org.opencontainers.image.description=CUDA ComfyUI environment for LongCat Avatar, expression control, LivePortrait and LatentSync
+            org.opencontainers.image.title=InfiniteTalk ComfyUI
+            org.opencontainers.image.description=CUDA ComfyUI environment for InfiniteTalk image-to-video on Vast.ai
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
@@ -84,14 +79,14 @@ jobs:
         id: push
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./infinitetalk
+          file: ./infinitetalk/Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=longcat-avatar
-          cache-to: type=gha,mode=max,scope=longcat-avatar
+          cache-from: type=gha,scope=infinitetalk
+          cache-to: type=gha,mode=max,scope=infinitetalk
           provenance: mode=max
           sbom: true
 
@@ -99,15 +94,13 @@ jobs:
         id: push-vast
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./infinitetalk
+          file: ./infinitetalk/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: |
-            ${{ steps.image.outputs.name }}:vast
-            ${{ steps.image.outputs.name }}:1.5-vast
+          tags: ${{ steps.image.outputs.name }}:vast
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=longcat-avatar
+          cache-from: type=gha,scope=infinitetalk
           provenance: false
           sbom: false
 
@@ -123,10 +116,11 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## LongCat Avatar image published"
+            echo "## InfiniteTalk image published"
             echo
             echo '```text'
             echo "${{ steps.meta.outputs.tags }}"
+            echo "${{ steps.image.outputs.name }}:vast"
             echo '```'
             echo
             echo "Digest: \`${{ steps.push.outputs.digest }}\`"
