@@ -75,7 +75,7 @@ def main() -> None:
     # smallest equivalent route registry.
     import server
 
-    if server.PromptServer.instance is None:
+    if getattr(server.PromptServer, "instance", None) is None:
         server.PromptServer.instance = SimpleNamespace(routes=server.web.RouteTableDef())
 
     assert_expression_controller()
