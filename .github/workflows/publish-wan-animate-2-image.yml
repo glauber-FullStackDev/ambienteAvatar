@@ -1,0 +1,129 @@
+name: Build and publish Wan Animate 2 image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-wan-animate-2-image.yml
+      - wan-animate-2/**
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Additional image tag
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: publish-wan-animate-2-image
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build linux/amd64 and push to GHCR
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Reclaim runner disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          docker system prune --all --force
+          df -h /
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Normalize GHCR image name
+        id: image
+        shell: bash
+        run: |
+          image_name="${GITHUB_REPOSITORY,,}-wan-animate-2"
+          echo "name=${REGISTRY}/${image_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
+            type=sha,format=long
+          labels: |
+            org.opencontainers.image.title=Wan-Animate-2
+            org.opencontainers.image.description=Official Wan-Animate-2 modular Diffusers runtime with Gradio for Vast.ai
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./wan-animate-2
+          file: ./wan-animate-2/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=wan-animate-2
+          cache-to: type=gha,mode=max,scope=wan-animate-2
+          provenance: mode=max
+          sbom: true
+
+      - name: Build and push Vast.ai compatibility image
+        id: push-vast
+        uses: docker/build-push-action@v7
+        with:
+          context: ./wan-animate-2
+          file: ./wan-animate-2/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.name }}:vast
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=wan-animate-2
+          provenance: false
+          sbom: false
+
+      - name: Attest image provenance
+        if: ${{ github.event.repository.visibility == 'public' }}
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Publish summary
+        shell: bash
+        run: |
+          {
+            echo "## Wan-Animate-2 image published"
+            echo
+            echo '```text'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo "${{ steps.image.outputs.name }}:vast"
+            echo '```'
+            echo
+            echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo
+            echo "Vast.ai digest: \`${{ steps.push-vast.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
