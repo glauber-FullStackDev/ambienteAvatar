@@ -1,0 +1,51 @@
+x-comfy-image: &comfy-image
+  image: ${COMFYUI_IMAGE:-wan-animate-comfyui:latest}
+  platform: linux/amd64
+  build:
+    context: .
+    args:
+      PYTORCH_IMAGE: ${PYTORCH_IMAGE:-pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime}
+      INSTALL_MANAGER: ${INSTALL_MANAGER:-1}
+
+x-comfy-volumes: &comfy-volumes
+  - ./data/models:/opt/ComfyUI/models
+  - ./data/input:/opt/ComfyUI/input
+  - ./data/output:/opt/ComfyUI/output
+  - ./data/user:/opt/ComfyUI/user
+  - ./data/cache:/data/cache
+
+services:
+  comfyui:
+    <<: *comfy-image
+    gpus: all
+    ports:
+      - "${COMFYUI_BIND:-127.0.0.1}:${COMFYUI_PORT:-8188}:8188"
+    volumes: *comfy-volumes
+    environment:
+      COMFYUI_ARGS: ${COMFYUI_ARGS:---preview-method auto}
+      COMFYUI_PORT: "8188"
+      DOWNLOAD_MODELS_ON_START: ${DOWNLOAD_MODELS_ON_START:-0}
+      HF_HOME: /data/cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+      MODEL_VARIANT: ${MODEL_VARIANT:-e4m3fn}
+    shm_size: ${SHM_SIZE:-16gb}
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  download-models:
+    <<: *comfy-image
+    profiles: [tools]
+    command: ["download-models"]
+    volumes: *comfy-volumes
+    environment:
+      HF_HOME: /data/cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+      MODEL_VARIANT: ${MODEL_VARIANT:-e4m3fn}
+
+  verify:
+    <<: *comfy-image
+    profiles: [tools]
+    command: ["verify"]
+    volumes: *comfy-volumes
+    environment:
+      MODEL_VARIANT: ${MODEL_VARIANT:-e4m3fn}

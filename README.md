@@ -1,9 +1,11 @@
 # LongCat Avatar 1.5 + ComfyUI em Docker
 
-Este repositorio publica duas imagens independentes. A raiz continua sendo o
-ambiente LongCat; o ambiente InfiniteTalk fica em [`infinitetalk/`](infinitetalk/README.md).
-Cada imagem possui sua propria pipeline com filtro por caminho, portanto uma
-alteracao restrita a `infinitetalk/**` nao reconstrói o LongCat, e vice-versa.
+Este repositorio publica tres imagens independentes. A raiz continua sendo o
+ambiente LongCat; o InfiniteTalk fica em [`infinitetalk/`](infinitetalk/README.md)
+e a geracao de video-base por movimento fica em
+[`wan-animate/`](wan-animate/README.md). Cada imagem possui sua propria pipeline
+com filtro por caminho, portanto uma alteracao em um ambiente nao reconstrói os
+outros.
 
 Ambiente CUDA reproduzível com ComfyUI, ComfyUI Manager, LongCat Avatar,
 controle de expressão, ferramentas de vídeo, Advanced Live Portrait,
