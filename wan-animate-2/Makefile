@@ -2,7 +2,7 @@
 
 setup:
 	@test -f .env || cp .env.example .env
-	@mkdir -p data/cache data/models data/output
+	@mkdir -p data/cache data/input data/models data/output data/user
 
 build: setup
 	docker compose build wan-animate-2

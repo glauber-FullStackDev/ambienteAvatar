@@ -1,0 +1,7 @@
+wan_animate_2:
+  base_path: /models
+  diffusion_models: diffusion_models
+  loras: loras
+  text_encoders: text_encoders
+  clip_vision: clip_vision
+  vae: vae

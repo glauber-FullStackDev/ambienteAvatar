@@ -6,75 +6,90 @@ import os
 from pathlib import Path
 import sys
 
-from huggingface_hub import snapshot_download
+from huggingface_hub import hf_hub_download
 
 
-MODEL_ROOT = Path(os.environ.get("MODEL_ROOT", "/models"))
+MODEL_ROOT = Path(os.environ.get("COMFYUI_MODELS", "/models"))
 TOKEN = os.environ.get("HF_TOKEN") or None
 
-MODELS = {
-    "base": (
-        "Wan-AI/Wan2.2-Animate-2-14B-Diffusers",
-        "7d48412d7b903ff3a89f4f5a960d99e1899605a1",
-    ),
-    "distilled": (
-        "Wan-AI/Wan2.2-Animate-2-14B-Distilled-Diffusers",
-        "59e4141466bcb1bf9733eca1bc78be6891c9fbdf",
-    ),
-}
+MODEL_REPO = "Comfy-Org/Wan-Animate-2"
+MODEL_REVISION = "ed158470869ff31fa51cf56012dac33fb00f494b"
 
-REQUIRED_FILES = (
-    "modular_model_index.json",
-    "transformer/diffusion_pytorch_model.safetensors.index.json",
-    "transformer/diffusion_pytorch_model-00001-of-00004.safetensors",
-    "transformer/diffusion_pytorch_model-00002-of-00004.safetensors",
-    "transformer/diffusion_pytorch_model-00003-of-00004.safetensors",
-    "transformer/diffusion_pytorch_model-00004-of-00004.safetensors",
-    "text_encoder/model.safetensors.index.json",
-    "text_encoder/model-00001-of-00003.safetensors",
-    "text_encoder/model-00002-of-00003.safetensors",
-    "text_encoder/model-00003-of-00003.safetensors",
-    "vae/diffusion_pytorch_model.safetensors",
-    "image_encoder/model.safetensors",
+# Os tamanhos vem dos metadados LFS da revisao fixada. A verificacao impede que
+# um download interrompido seja aceito apenas porque o arquivo existe.
+MODEL_FILES = (
+    (
+        "diffusion_models/wan_animate_2_int8_convrot.safetensors",
+        16_653_175_528,
+        "Wan-Animate-2 Base INT8 ConvRot",
+    ),
+    (
+        "loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+        738_005_744,
+        "Lightx2v LoRA oficial",
+    ),
+    (
+        "text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+        6_735_906_897,
+        "UMT5 XXL FP8",
+    ),
+    (
+        "clip_vision/clip_vision_h.safetensors",
+        1_264_219_396,
+        "CLIP Vision H",
+    ),
+    (
+        "vae/Wan2_1_VAE_bf16.safetensors",
+        253_806_278,
+        "Wan 2.1 VAE BF16",
+    ),
 )
 
 
-def verify(variant: str) -> bool:
-    model_dir = MODEL_ROOT / variant
-    missing = [
-        model_dir / relative
-        for relative in REQUIRED_FILES
-        if not (model_dir / relative).is_file()
-        or (model_dir / relative).stat().st_size == 0
-    ]
-    print(f"\nVerificacao do Wan-Animate-2 {variant} em {model_dir}:")
-    if missing:
-        for path in missing:
-            print(f"  [FALTA] {path}")
+def download() -> None:
+    MODEL_ROOT.mkdir(parents=True, exist_ok=True)
+    for remote_path, _expected_size, label in MODEL_FILES:
+        target = MODEL_ROOT / remote_path
+        if target.is_file() and target.stat().st_size == _expected_size:
+            print(f"OK existente: {label}: {target}")
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Baixando {label}: {MODEL_REPO}/{remote_path} -> {target}")
+        hf_hub_download(
+            repo_id=MODEL_REPO,
+            revision=MODEL_REVISION,
+            filename=remote_path,
+            local_dir=MODEL_ROOT,
+            token=TOKEN,
+        )
+
+
+def verify() -> bool:
+    failures: list[Path] = []
+    total_size = 0
+    print(f"\nVerificacao dos modelos Wan-Animate-2 INT8 em {MODEL_ROOT}:")
+    for remote_path, expected_size, label in MODEL_FILES:
+        target = MODEL_ROOT / remote_path
+        actual_size = target.stat().st_size if target.is_file() else 0
+        if actual_size == expected_size:
+            print(f"  [OK] {label}: {target}")
+            total_size += actual_size
+        else:
+            print(
+                f"  [FALTA/INVALIDO] {label}: {target} "
+                f"({actual_size} de {expected_size} bytes)"
+            )
+            failures.append(target)
+    if failures:
+        print(f"\nFaltam ou estao incompletos {len(failures)} arquivo(s).")
         return False
-    print("  [OK] checkpoint Diffusers completo")
+    print(f"\nConjunto completo: {total_size / 1_000_000_000:.2f} GB.")
     return True
 
 
-def download(variant: str) -> None:
-    repo_id, revision = MODELS[variant]
-    target = MODEL_ROOT / variant
-    target.mkdir(parents=True, exist_ok=True)
-    print(f"Baixando {repo_id}@{revision} -> {target}")
-    snapshot_download(
-        repo_id=repo_id,
-        revision=revision,
-        local_dir=target,
-        token=TOKEN,
-    )
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Baixa o Wan-Animate-2")
-    parser.add_argument(
-        "--variant",
-        choices=tuple(MODELS),
-        default=os.environ.get("MODEL_VARIANT", "base").strip().lower(),
+    parser = argparse.ArgumentParser(
+        description="Baixa o Wan-Animate-2 INT8 ConvRot para o ComfyUI"
     )
     parser.add_argument("--verify-only", action="store_true")
     return parser.parse_args()
@@ -83,8 +98,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if not args.verify_only:
-        download(args.variant)
-    return 0 if verify(args.variant) else 1
+        download()
+    return 0 if verify() else 1
 
 
 if __name__ == "__main__":

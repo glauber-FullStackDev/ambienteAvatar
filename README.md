@@ -3,8 +3,8 @@
 Este repositorio publica quatro imagens independentes. A raiz continua sendo o
 ambiente LongCat; o InfiniteTalk fica em [`infinitetalk/`](infinitetalk/README.md)
 e a geracao de video-base por movimento fica em
-[`wan-animate/`](wan-animate/README.md). O sucessor Wan-Animate-2, mais pesado e
-voltado a GPUs de 80 GB, fica separado em
+[`wan-animate/`](wan-animate/README.md). O sucessor Wan-Animate-2 em ComfyUI,
+com modelo INT8 ConvRot e encoder FP8, fica separado em
 [`wan-animate-2/`](wan-animate-2/README.md). Cada imagem possui sua propria
 pipeline com filtro por caminho, portanto uma alteracao em um ambiente nao
 reconstrói os outros.

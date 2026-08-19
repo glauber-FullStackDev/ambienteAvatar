@@ -1,46 +1,50 @@
-# Wan-Animate-2 em Docker
+# Wan-Animate-2 INT8 em Docker
 
-Quarta imagem independente do projeto. Ela nao substitui nem altera o ambiente
-[`wan-animate/`](../wan-animate/README.md), que continua oferecendo Wan 2.2
-Animate no ComfyUI. Este ambiente usa o sucessor oficial Wan-Animate-2 por meio
-da integracao modular do Diffusers e uma interface Gradio dedicada.
+Quarta imagem independente do projeto. Ela nao substitui nem altera a geracao
+de imagem da raiz ou o ambiente [`wan-animate/`](../wan-animate/README.md), que
+continua oferecendo o Wan 2.2 Animate anterior.
+
+Este fluxo usa o suporte nativo do ComfyUI ao Wan-Animate-2 e o workflow oficial
+de Motion Transfer. O modelo principal e
+`wan_animate_2_int8_convrot.safetensors`; o encoder UMT5 usa FP8.
 
 ## O que entra e o que sai
 
-- imagem final: identidade, rosto, roupa e fundo;
+- imagem final: identidade, rosto, roupa e fundo desejados;
 - video-guia: movimentos, gestos e expressoes;
-- prompt: descricao objetiva da aparencia e do fundo;
-- saida: video-base sem copiar o audio do video-guia.
+- prompt principal: descricao objetiva da aparencia, roupa e fundo;
+- prompt de pose: descricao da acao do video-guia;
+- saida: video-base visual para ser usado depois no InfiniteTalk.
 
-O Wan-Animate-2 processa o video diretamente e nao usa ViTPose, YOLO ou SAM2.
+O workflow semeado remove o audio do video-guia e desativa por padrao a
+comparacao lado a lado do template oficial. O restante do grafo oficial,
+incluindo o processamento direto do video, e preservado. O cache de contexto
+continua em INT8, mas usa CPU/RAM por padrao para reduzir picos de VRAM.
 
-## Hardware
+## Modelos
 
-Este modelo e substancialmente mais pesado que o Wan 2.2 Animate anterior. O
-checkpoint ocupa aproximadamente 46 GB em disco. Com group offload, o consumo
-documentado pelo Diffusers e aproximadamente:
+`make models` baixa somente o conjunto recomendado pelo workflow oficial:
 
-| Area de saida | Memoria aproximada |
-| --- | ---: |
-| 480x320 | 55 GB |
-| 640x480 | 63 GB |
-| 800x640 | 72 GB |
+| Arquivo | Precisao | Tamanho |
+| --- | --- | ---: |
+| `wan_animate_2_int8_convrot.safetensors` | INT8 ConvRot | 16.65 GB |
+| `umt5_xxl_fp8_e4m3fn_scaled.safetensors` | FP8 | 6.74 GB |
+| `clip_vision_h.safetensors` | checkpoint oficial | 1.26 GB |
+| `lightx2v_..._bf16.safetensors` | LoRA BF16 | 0.74 GB |
+| `Wan2_1_VAE_bf16.safetensors` | BF16 | 0.25 GB |
 
-Use A100 80 GB, H100 80 GB ou equivalente e pelo menos 128 GB de RAM. GPUs de
-24/48 GB nao sao o alvo funcional deste fluxo atual. Reserve pelo menos 130 GB
-de disco por variante baixada.
+O conjunto ocupa 25.65 GB. Reserve pelo menos 40 GB no volume de modelos para
+downloads temporarios, cache e futuras atualizacoes. Os pesos nao fazem parte da
+imagem Docker.
 
-## Variantes
+INT8 reduz os pesos do DiT pela metade em relacao ao BF16, mas o cache temporal
+do Wan-Animate-2 ainda cresce com a resolucao e o comprimento do segmento. Para
+o primeiro teste, use o tamanho e os 81 frames do workflow oficial. Se faltar
+VRAM, reduza a resolucao antes de reduzir o segmento. Reserve bastante RAM para
+o cache em CPU; para priorizar velocidade em uma GPU maior, troque `cache_device`
+para `gpu` no subgrafo Motion Transfer.
 
-| `MODEL_VARIANT` | Passos | Uso |
-| --- | ---: | --- |
-| `base` | 40 | Padrao; melhor qualidade |
-| `distilled` | 10 | Mais rapido; checkpoint separado |
-
-Somente a variante selecionada e baixada. Para manter as duas, execute o
-download uma vez com cada valor; elas ocupam cerca de 92 GB juntas.
-
-## Uso
+## Uso local
 
 ```bash
 cd wan-animate-2
@@ -50,35 +54,48 @@ make verify
 make up
 ```
 
-Abra <http://127.0.0.1:8188>. A primeira geracao compila os blocos de atencao e
-pode demorar mais que as seguintes.
+Abra <http://127.0.0.1:8188> e carregue o workflow
+`wan-animate-2-int8-docker.json`, que aparece na pasta de workflows do usuario.
+Troque a imagem e o video de exemplo pelos arquivos desejados. Para gerar apenas
+o video-base, mantenha o subgrafo `Video Stitch` desativado.
 
-O prompt deve descrever objetivamente personagem, roupa e fundo, sem narrar a
-acao do video-guia. O modelo preserva a proporcao da imagem; largura e altura
-definem a area-alvo.
+Os dados persistentes ficam em:
+
+```text
+data/
+├── cache/   # cache do Hugging Face
+├── input/   # imagem e video enviados
+├── models/  # checkpoints (montado em /models)
+├── output/  # video-base gerado
+└── user/    # configuracoes e workflows do ComfyUI
+```
 
 ## Vast.ai
 
-Depois que a pipeline for publicada, use:
+Use a imagem publicada:
 
 ```text
 ghcr.io/glauber-fullstackdev/ambienteavatar-wan-animate-2:vast
 ```
 
-Configure o template com argumento `serve`, porta 8188, uma GPU de 80 GB e
-volume persistente em `/models`. Na primeira inicializacao defina
-`DOWNLOAD_MODELS_ON_START=1`; depois volte para `0`.
+Configure argumento `serve`, porta 8188 e um volume persistente em `/models`.
+Na primeira inicializacao, defina `DOWNLOAD_MODELS_ON_START=1`; depois que os
+25.65 GB forem verificados, volte para `0` para nao consultar os arquivos a cada
+boot.
 
 Variaveis principais:
 
-- `MODEL_VARIANT=base` ou `distilled`;
+- `DOWNLOAD_MODELS_ON_START=0` ou `1`;
 - `HF_TOKEN`, se necessario;
-- `DOWNLOAD_MODELS_ON_START=0`;
-- `APP_PORT=8188`.
+- `COMFYUI_PORT=8188`;
+- `COMFYUI_ARGS=--preview-method auto`.
 
 ## Fontes fixadas
 
-- Wan-Animate-2 oficial: `3ad2fef7d61d6200c9c653e0fe47be7616b323f3`;
-- Diffusers com pipeline modular: `360bef807475899c2e4d7d99c2f371148a78b1a7`;
-- checkpoint Base: `7d48412d7b903ff3a89f4f5a960d99e1899605a1`;
-- checkpoint Distilled: `59e4141466bcb1bf9733eca1bc78be6891c9fbdf`.
+- ComfyUI com nodes nativos do Wan-Animate-2:
+  `c67885b14556cf3e4e061862925282d403d09862`;
+- workflow oficial do Comfy-Org:
+  `55818c64caf6d28309ddee204827e51a2c45f4dd`;
+- modelos `Comfy-Org/Wan-Animate-2`:
+  `ed158470869ff31fa51cf56012dac33fb00f494b`;
+- ComfyUI Manager: `f39cbd56fecae0b27a446c0cd450cd591f3a8bea`.

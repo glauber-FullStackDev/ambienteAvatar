@@ -4,12 +4,14 @@ x-wan-animate-2-image: &wan-animate-2-image
   build:
     context: .
     args:
-      PYTORCH_DEVEL_IMAGE: ${PYTORCH_DEVEL_IMAGE:-pytorch/pytorch:2.7.1-cuda12.6-cudnn9-devel}
-      PYTORCH_RUNTIME_IMAGE: ${PYTORCH_RUNTIME_IMAGE:-pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime}
+      PYTORCH_IMAGE: ${PYTORCH_IMAGE:-pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime}
+      INSTALL_MANAGER: ${INSTALL_MANAGER:-1}
 
 x-wan-animate-2-volumes: &wan-animate-2-volumes
   - ./data/models:/models
-  - ./data/output:/outputs
+  - ./data/input:/opt/ComfyUI/input
+  - ./data/output:/opt/ComfyUI/output
+  - ./data/user:/opt/ComfyUI/user
   - ./data/cache:/data/cache
 
 services:
@@ -20,12 +22,12 @@ services:
       - "${WAN_ANIMATE_2_BIND:-127.0.0.1}:${WAN_ANIMATE_2_PORT:-8188}:8188"
     volumes: *wan-animate-2-volumes
     environment:
-      APP_PORT: "8188"
+      COMFYUI_ARGS: ${COMFYUI_ARGS:---preview-method auto}
+      COMFYUI_MODELS: /models
+      COMFYUI_PORT: "8188"
       DOWNLOAD_MODELS_ON_START: ${DOWNLOAD_MODELS_ON_START:-0}
       HF_HOME: /data/cache/huggingface
       HF_TOKEN: ${HF_TOKEN:-}
-      MODEL_VARIANT: ${MODEL_VARIANT:-base}
-      OUTPUT_DIR: /outputs
     shm_size: ${SHM_SIZE:-32gb}
     restart: unless-stopped
     stop_grace_period: 30s
@@ -36,9 +38,9 @@ services:
     command: ["download-models"]
     volumes: *wan-animate-2-volumes
     environment:
+      COMFYUI_MODELS: /models
       HF_HOME: /data/cache/huggingface
       HF_TOKEN: ${HF_TOKEN:-}
-      MODEL_VARIANT: ${MODEL_VARIANT:-base}
 
   verify:
     <<: *wan-animate-2-image
@@ -46,4 +48,4 @@ services:
     command: ["verify"]
     volumes: *wan-animate-2-volumes
     environment:
-      MODEL_VARIANT: ${MODEL_VARIANT:-base}
+      COMFYUI_MODELS: /models
