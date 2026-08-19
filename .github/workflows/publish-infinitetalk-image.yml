@@ -71,7 +71,7 @@ jobs:
             type=sha,format=long
           labels: |
             org.opencontainers.image.title=InfiniteTalk ComfyUI
-            org.opencontainers.image.description=CUDA ComfyUI environment for InfiniteTalk image-to-video on Vast.ai
+            org.opencontainers.image.description=CUDA ComfyUI environment for InfiniteTalk image-to-video and video-to-video on Vast.ai
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 

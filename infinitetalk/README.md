@@ -1,6 +1,6 @@
 # InfiniteTalk + ComfyUI no Vast.ai
 
-Imagem CUDA separada do LongCat, baseada no workflow I2V oficial do
+Imagem CUDA separada do LongCat, baseada nos workflows I2V e V2V oficiais do
 `ComfyUI-WanVideoWrapper`. Os pesos nao entram na imagem Docker: ficam no volume
 persistente montado em `/opt/ComfyUI/models`.
 
@@ -14,8 +14,10 @@ make verify
 make up
 ```
 
-O workflow `infinitetalk-i2v-docker.json` e criado automaticamente em
-`user/default/workflows`. O padrao `q4_k_m` e o ponto inicial para GPUs com
+Os workflows `infinitetalk-i2v-docker.json` e
+`infinitetalk-v2v-docker.json` sao criados automaticamente em
+`user/default/workflows`. O V2V ja vem configurado para salvar o MP4 em
+`output/InfiniteTalk_V2V_*.mp4`. O padrao `q4_k_m` e o ponto inicial para GPUs com
 menos VRAM; altere `MODEL_QUANTIZATION` para `q6_k` ou `q8` antes de baixar os
 modelos se quiser priorizar qualidade.
 

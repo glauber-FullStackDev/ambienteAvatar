@@ -14,6 +14,11 @@ SCRIPTS_HOME = Path(__file__).resolve().parent
 DEFAULT_WORKFLOW = Path(
     os.environ.get("DEFAULT_WORKFLOW", "/opt/defaults/workflows/infinitetalk-i2v.json")
 )
+DEFAULT_V2V_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_V2V_WORKFLOW", "/opt/defaults/workflows/infinitetalk-v2v.json"
+    )
+)
 
 MODEL_FILES = {
     "q4_k_m": (
@@ -86,13 +91,8 @@ def replace_wav2vec_download_node(workflow: dict) -> None:
             output["links"] = moved_links
 
 
-def seed_workflow() -> None:
-    target = COMFYUI_HOME / "user/default/workflows/infinitetalk-i2v-docker.json"
-    if target.exists() or not DEFAULT_WORKFLOW.exists():
-        return
-
+def patch_workflow(workflow: dict, output_prefix: str | None = None) -> None:
     base_model, infinitetalk_model = MODEL_FILES[model_quantization()]
-    workflow = json.loads(DEFAULT_WORKFLOW.read_text(encoding="utf-8"))
     replacements = {
         "WanVideoModelLoader": [base_model, None, None, None, "sdpa"],
         "MultiTalkModelLoader": [infinitetalk_model],
@@ -110,15 +110,42 @@ def seed_workflow() -> None:
     for node in workflow.get("nodes", []):
         desired = replacements.get(node.get("type"))
         values = node.get("widgets_values")
-        if not desired or not isinstance(values, list):
-            continue
-        for index, value in enumerate(desired):
-            if value is not None and index < len(values):
-                values[index] = value
+        if desired and isinstance(values, list):
+            for index, value in enumerate(desired):
+                if value is not None and index < len(values):
+                    values[index] = value
+
+        if (
+            output_prefix
+            and node.get("type") == "VHS_VideoCombine"
+            and isinstance(values, dict)
+        ):
+            values["filename_prefix"] = output_prefix
+            values["format"] = "video/h264-mp4"
+            values["pix_fmt"] = "yuv420p"
+            values["save_output"] = True
 
     replace_wav2vec_download_node(workflow)
+
+
+def seed_workflow(source: Path, target_name: str, output_prefix: str | None = None) -> None:
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if target.exists() or not source.exists():
+        return
+
+    workflow = json.loads(source.read_text(encoding="utf-8"))
+    patch_workflow(workflow, output_prefix)
     target.write_text(json.dumps(workflow, ensure_ascii=False), encoding="utf-8")
     print(f"Workflow inicial criado em {target}")
+
+
+def seed_workflows() -> None:
+    seed_workflow(DEFAULT_WORKFLOW, "infinitetalk-i2v-docker.json")
+    seed_workflow(
+        DEFAULT_V2V_WORKFLOW,
+        "infinitetalk-v2v-docker.json",
+        "InfiniteTalk_V2V",
+    )
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -137,7 +164,7 @@ def run_downloader(verify_only: bool = False) -> int:
 
 def serve(extra_args: list[str]) -> None:
     prepare_directories()
-    seed_workflow()
+    seed_workflows()
     if env_flag("DOWNLOAD_MODELS_ON_START"):
         result = run_downloader()
         if result != 0:

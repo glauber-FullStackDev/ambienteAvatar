@@ -83,6 +83,8 @@ RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
         "${COMFYUI_HOME}/user/default/workflows" \
     && cp "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper/example_workflows/wanvideo_2_1_14B_I2V_InfiniteTalk_example_03.json" \
         /opt/defaults/workflows/infinitetalk-i2v.json \
+    && cp "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper/example_workflows/wanvideo_2_1_14B_V2V_InfiniteTalk_example_02.json" \
+        /opt/defaults/workflows/infinitetalk-v2v.json \
     && python -m compileall -q \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-KJNodes" \
