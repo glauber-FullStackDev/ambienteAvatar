@@ -42,6 +42,8 @@ QUANTIZED_MODELS = {
     ),
 }
 
+LIGHTX2V_LORAS = (64, 128, 256)
+
 
 def download_as(repo: str, revision: str, remote_path: str, target: Path) -> None:
     if target.exists() and target.stat().st_size > 0:
@@ -65,7 +67,7 @@ def download_as(repo: str, revision: str, remote_path: str, target: Path) -> Non
 def model_files(quantization: str) -> list[tuple[str, str, str, Path, str]]:
     base_name, infinitetalk_path = QUANTIZED_MODELS[quantization]
     infinitetalk_name = Path(infinitetalk_path).name
-    return [
+    files = [
         (
             BASE_REPO,
             BASE_REVISION,
@@ -95,14 +97,6 @@ def model_files(quantization: str) -> list[tuple[str, str, str, Path, str]]:
             "UMT5 XXL",
         ),
         (
-            WAN_REPO,
-            WAN_REVISION,
-            "Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-            MODELS
-            / "loras/WanVideo/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-            "Lightx2v I2V LoRA",
-        ),
-        (
             COMFY_REPO,
             COMFY_REVISION,
             "split_files/clip_vision/clip_vision_h.safetensors",
@@ -124,6 +118,20 @@ def model_files(quantization: str) -> list[tuple[str, str, str, Path, str]]:
             "MelBand RoFormer",
         ),
     ]
+    for rank in LIGHTX2V_LORAS:
+        filename = (
+            f"lightx2v_I2V_14B_480p_cfg_step_distill_rank{rank}_bf16.safetensors"
+        )
+        files.append(
+            (
+                WAN_REPO,
+                WAN_REVISION,
+                f"Lightx2v/{filename}",
+                MODELS / "loras/WanVideo/Lightx2v" / filename,
+                f"Lightx2v I2V LoRA rank{rank}",
+            )
+        )
+    return files
 
 
 def verify(quantization: str) -> bool:

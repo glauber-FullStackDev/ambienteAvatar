@@ -91,7 +91,134 @@ def replace_wav2vec_download_node(workflow: dict) -> None:
             output["links"] = moved_links
 
 
-def patch_workflow(workflow: dict, output_prefix: str | None = None) -> None:
+def keep_generated_video_only(workflow: dict) -> bool:
+    """Bypass the V2V before/after concat in the saved video output."""
+    nodes = {
+        node.get("id"): node
+        for node in workflow.get("nodes", [])
+        if node.get("id") is not None
+    }
+    links = {
+        link[0]: link
+        for link in workflow.get("links", [])
+        if isinstance(link, list) and len(link) >= 5
+    }
+
+    def has_upstream_type(node_id: object, node_type: str, seen: set[object]) -> bool:
+        if node_id in seen:
+            return False
+        seen.add(node_id)
+        node = nodes.get(node_id)
+        if not node:
+            return False
+        if node.get("type") == node_type:
+            return True
+        for node_input in node.get("inputs", []):
+            link = links.get(node_input.get("link"))
+            if link and has_upstream_type(link[1], node_type, seen):
+                return True
+        return False
+
+    changed = False
+    for output_node in workflow.get("nodes", []):
+        if output_node.get("type") != "VHS_VideoCombine":
+            continue
+        image_input = next(
+            (
+                node_input
+                for node_input in output_node.get("inputs", [])
+                if node_input.get("name") == "images"
+            ),
+            None,
+        )
+        output_link = links.get(image_input.get("link")) if image_input else None
+        concat_node = nodes.get(output_link[1]) if output_link else None
+        if not concat_node or concat_node.get("type") != "ImageConcatMulti":
+            continue
+
+        generated_link = None
+        for concat_input in concat_node.get("inputs", []):
+            candidate = links.get(concat_input.get("link"))
+            if candidate and has_upstream_type(candidate[1], "WanVideoDecode", set()):
+                generated_link = candidate
+                break
+        if not generated_link:
+            continue
+
+        old_source = nodes.get(output_link[1])
+        if old_source:
+            for output in old_source.get("outputs", []):
+                output_links = output.get("links")
+                if isinstance(output_links, list) and output_link[0] in output_links:
+                    output["links"] = [
+                        link_id for link_id in output_links if link_id != output_link[0]
+                    ]
+
+        output_link[1] = generated_link[1]
+        output_link[2] = generated_link[2]
+        generated_source = nodes.get(generated_link[1])
+        if generated_source:
+            source_output = generated_source.get("outputs", [])[generated_link[2]]
+            source_links = source_output.get("links")
+            if not isinstance(source_links, list):
+                source_links = []
+            if output_link[0] not in source_links:
+                source_output["links"] = [*source_links, output_link[0]]
+        concat_node["mode"] = 2
+        changed = True
+
+    return changed
+
+
+def env_number(
+    name: str,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise SystemExit(f"{name} invalido: {raw_value!r}; informe um numero") from error
+    if not minimum <= value <= maximum:
+        raise SystemExit(
+            f"{name} invalido: {value}; use um valor entre {minimum} e {maximum}"
+        )
+    return value
+
+
+def tune_v2v_quality(workflow: dict) -> bool:
+    """Apply conservative, configurable V2V quality defaults."""
+    audio_scale = env_number("INFINITETALK_AUDIO_SCALE", 1.5, 0.0, 4.0)
+    audio_cfg_scale = env_number("INFINITETALK_AUDIO_CFG_SCALE", 1.2, 1.0, 4.0)
+    output_crf = round(env_number("INFINITETALK_OUTPUT_CRF", 16, 0, 51))
+    changed = False
+
+    for node in workflow.get("nodes", []):
+        values = node.get("widgets_values")
+        if node.get("type") == "MultiTalkWav2VecEmbeds" and isinstance(values, list):
+            # Widget order from the pinned WanVideoWrapper: normalize, frames,
+            # fps, audio strength, audio CFG, multi-audio mode.
+            for index, desired in ((3, audio_scale), (4, audio_cfg_scale)):
+                if index < len(values) and values[index] != desired:
+                    values[index] = desired
+                    changed = True
+        if node.get("type") == "VHS_VideoCombine" and isinstance(values, dict):
+            if values.get("crf") != output_crf:
+                values["crf"] = output_crf
+                changed = True
+
+    return changed
+
+
+def patch_workflow(
+    workflow: dict,
+    output_prefix: str | None = None,
+    generated_only: bool = False,
+) -> None:
     base_model, infinitetalk_model = MODEL_FILES[model_quantization()]
     replacements = {
         "WanVideoModelLoader": [base_model, None, None, None, "sdpa"],
@@ -126,15 +253,33 @@ def patch_workflow(workflow: dict, output_prefix: str | None = None) -> None:
             values["save_output"] = True
 
     replace_wav2vec_download_node(workflow)
+    if generated_only:
+        keep_generated_video_only(workflow)
+        tune_v2v_quality(workflow)
 
 
-def seed_workflow(source: Path, target_name: str, output_prefix: str | None = None) -> None:
+def seed_workflow(
+    source: Path,
+    target_name: str,
+    output_prefix: str | None = None,
+    generated_only: bool = False,
+) -> None:
     target = COMFYUI_HOME / "user/default/workflows" / target_name
-    if target.exists() or not source.exists():
+    if target.exists():
+        if not generated_only:
+            return
+        workflow = json.loads(target.read_text(encoding="utf-8"))
+        output_changed = keep_generated_video_only(workflow)
+        quality_changed = tune_v2v_quality(workflow)
+        if output_changed or quality_changed:
+            target.write_text(json.dumps(workflow, ensure_ascii=False), encoding="utf-8")
+            print(f"Workflow V2V atualizado em {target}")
+        return
+    if not source.exists():
         return
 
     workflow = json.loads(source.read_text(encoding="utf-8"))
-    patch_workflow(workflow, output_prefix)
+    patch_workflow(workflow, output_prefix, generated_only)
     target.write_text(json.dumps(workflow, ensure_ascii=False), encoding="utf-8")
     print(f"Workflow inicial criado em {target}")
 
@@ -145,6 +290,7 @@ def seed_workflows() -> None:
         DEFAULT_V2V_WORKFLOW,
         "infinitetalk-v2v-docker.json",
         "InfiniteTalk_V2V",
+        generated_only=True,
     )
 
 
