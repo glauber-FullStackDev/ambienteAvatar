@@ -16,7 +16,8 @@ DEFAULT_WORKFLOW = Path(
 )
 DEFAULT_V2V_WORKFLOW = Path(
     os.environ.get(
-        "DEFAULT_V2V_WORKFLOW", "/opt/defaults/workflows/infinitetalk-v2v.json"
+        "DEFAULT_V2V_WORKFLOW",
+        "/opt/defaults/workflows/infinitetalk-v2v-docker.json",
     )
 )
 
@@ -37,7 +38,7 @@ MODEL_FILES = {
 
 
 def model_quantization() -> str:
-    value = os.environ.get("MODEL_QUANTIZATION", "q4_k_m").strip().lower()
+    value = os.environ.get("MODEL_QUANTIZATION", "q8").strip().lower()
     if value not in MODEL_FILES:
         choices = ", ".join(MODEL_FILES)
         raise SystemExit(f"MODEL_QUANTIZATION invalido: {value!r}; use {choices}")
@@ -263,8 +264,18 @@ def seed_workflow(
     target_name: str,
     output_prefix: str | None = None,
     generated_only: bool = False,
+    preserve_source: bool = False,
 ) -> None:
     target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if preserve_source:
+        if not source.exists():
+            return
+        source_text = source.read_text(encoding="utf-8")
+        json.loads(source_text)
+        target.write_text(source_text, encoding="utf-8")
+        print(f"Workflow inicial preservado em {target}")
+        return
+
     if target.exists():
         if not generated_only:
             return
@@ -291,6 +302,7 @@ def seed_workflows() -> None:
         "infinitetalk-v2v-docker.json",
         "InfiniteTalk_V2V",
         generated_only=True,
+        preserve_source=True,
     )
 
 

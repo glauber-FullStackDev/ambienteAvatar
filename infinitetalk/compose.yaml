@@ -30,7 +30,7 @@ services:
       INFINITETALK_AUDIO_CFG_SCALE: ${INFINITETALK_AUDIO_CFG_SCALE:-1.2}
       INFINITETALK_AUDIO_SCALE: ${INFINITETALK_AUDIO_SCALE:-1.5}
       INFINITETALK_OUTPUT_CRF: ${INFINITETALK_OUTPUT_CRF:-16}
-      MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q4_k_m}
+      MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q8}
     shm_size: ${SHM_SIZE:-16gb}
     restart: unless-stopped
     stop_grace_period: 30s
@@ -43,7 +43,7 @@ services:
     environment:
       HF_HOME: /data/cache/huggingface
       HF_TOKEN: ${HF_TOKEN:-}
-      MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q4_k_m}
+      MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q8}
 
   verify:
     <<: *comfy-image
@@ -51,4 +51,4 @@ services:
     command: ["verify"]
     volumes: *comfy-volumes
     environment:
-      MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q4_k_m}
+      MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q8}

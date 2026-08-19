@@ -30,6 +30,7 @@ required_paths = (
     comfyui_home / "custom_nodes/ComfyUI-VideoHelperSuite/__init__.py",
     Path("/opt/defaults/workflows/infinitetalk-i2v.json"),
     Path("/opt/defaults/workflows/infinitetalk-v2v.json"),
+    Path("/opt/defaults/workflows/infinitetalk-v2v-docker.json"),
 )
 missing_paths = [str(path) for path in required_paths if not path.exists()]
 if missing_paths:

@@ -155,7 +155,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--quantization",
         choices=tuple(QUANTIZED_MODELS),
-        default=os.environ.get("MODEL_QUANTIZATION", "q4_k_m").lower(),
+        default=os.environ.get("MODEL_QUANTIZATION", "q8").lower(),
     )
     parser.add_argument("--verify-only", action="store_true")
     return parser.parse_args()

@@ -66,6 +66,7 @@ RUN if [ "${INSTALL_MANAGER}" = "1" ]; then \
     fi
 
 COPY scripts /opt/infinitetalk-scripts
+COPY defaults /opt/defaults
 
 RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
     && mkdir -p \
