@@ -149,14 +149,52 @@ publish Docker image → Run workflow**, informando uma tag adicional. Depois da
 primeira publicação, configure a visibilidade do pacote como pública no GitHub
 para que o Vast.ai possa puxá-lo sem credenciais.
 
-No Vast.ai, edite o template **NVIDIA CUDA** e use a tag `:vast` em modo
-`Entrypoint/Args`, argumento `serve`, porta `8188`, CUDA `>=12.8` e pelo menos
-100 GB de disco. Para o modo INT8, uma GPU de 24 GB pode ser usada com streaming
-e offload; 48 GB ou mais é a opção recomendada.
+No Vast.ai, edite o template **NVIDIA CUDA** ou crie um template a partir de
+[`vast/longcat-avatar-template.json`](vast/longcat-avatar-template.json). Use a
+tag `:vast` em modo `Entrypoint/Args`, argumento `serve`, porta `8188`, CUDA
+`>=12.8` e pelo menos 100 GB de disco. Para o modo INT8, uma GPU de 24 GB pode
+ser usada com streaming e offload; 48 GB ou mais é a opção recomendada.
 
-O serviço só publica em `127.0.0.1` por padrão. Em um servidor remoto, prefira
-um túnel SSH. Se realmente precisar expor diretamente, altere
-`COMFYUI_BIND=0.0.0.0` e proteja a porta com firewall e autenticação reversa.
+Campos principais do template:
+
+```text
+Image: ghcr.io/glauber-fullstackdev/ambienteavatar
+Tag: vast
+Launch mode: Entrypoint/Args
+Args: serve
+Docker options: -p 8188:8188 -e COMFYUI_PORT=8188 -e COMFYUI_ARGS="--preview-method auto" -e DEFAULT_WEIGHT_MODE=official_int8_sharded -e MODEL_MODE=official_int8_sharded -e TEXT_ENCODER_MODE=clip_fp8 -e INCLUDE_VOCAL_SEPARATOR=1 -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface
+Disk: 120 GB recomendado
+Persistent volume: /opt/ComfyUI/models
+```
+
+Para usar JupyterLab/SSH no Vast.ai, crie o template a partir de
+[`vast/longcat-avatar-jupyter-template.json`](vast/longcat-avatar-jupyter-template.json)
+ou preencha:
+
+```text
+Image: ghcr.io/glauber-fullstackdev/ambienteavatar
+Tag: vast
+Launch mode: Jupyter-python notebook + SSH
+Use JupyterLab: yes
+Direct connection: yes
+Jupyter directory: /opt/ComfyUI
+Docker options: -p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS="--preview-method auto" -e DEFAULT_WEIGHT_MODE=official_int8_sharded -e MODEL_MODE=official_int8_sharded -e TEXT_ENCODER_MODE=clip_fp8 -e INCLUDE_VOCAL_SEPARATOR=1 -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface
+On-start script:
+env >> /etc/environment || true
+mkdir -p /opt/ComfyUI/models /opt/ComfyUI/input /opt/ComfyUI/output /opt/ComfyUI/user /opt/ComfyUI/models/.cache/huggingface /tmp/longcat
+cd /opt/ComfyUI
+nohup python /opt/avatar-scripts/entrypoint.py serve > /tmp/longcat/comfyui.log 2>&1 &
+```
+
+A imagem baixa e verifica os pesos no boot por padrão
+(`DOWNLOAD_MODELS_ON_START=1`) e só inicia o ComfyUI depois que o downloader
+terminar. Os downloads são grandes; depois que o volume persistente já tiver os
+modelos, use `DOWNLOAD_MODELS_ON_START=0` se quiser inicializações mais rápidas.
+
+No compose local, o serviço só publica em `127.0.0.1` por padrão. Em um
+servidor remoto fora do Vast.ai, prefira um túnel SSH. Se realmente precisar
+expor diretamente, altere `COMFYUI_BIND=0.0.0.0` e proteja a porta com firewall
+e autenticação reversa.
 
 ## Aceleração opcional
 

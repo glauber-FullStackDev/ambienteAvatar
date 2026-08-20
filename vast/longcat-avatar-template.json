@@ -1,0 +1,28 @@
+{
+  "name": "Ambiente Avatar - LongCat Avatar 1.5",
+  "image": "ghcr.io/glauber-fullstackdev/ambienteavatar",
+  "tag": "vast",
+  "desc": "ComfyUI CUDA para LongCat Avatar 1.5 com Expression Control, LivePortrait e LatentSync.",
+  "readme": "Abra a porta HTTP 8188 do Vast para acessar o ComfyUI. Configure volume persistente em /opt/ComfyUI/models. A imagem baixa/verifica todos os modelos no boot antes de iniciar o ComfyUI. Depois do primeiro download, defina DOWNLOAD_MODELS_ON_START=0 se quiser iniciar mais rapido. O workflow longcat-avatar1.5-docker.json e criado em user/default/workflows.",
+  "env": "-p 8188:8188 -e COMFYUI_PORT=8188 -e COMFYUI_ARGS=\"--preview-method auto\" -e DEFAULT_WEIGHT_MODE=official_int8_sharded -e MODEL_MODE=official_int8_sharded -e TEXT_ENCODER_MODE=clip_fp8 -e INCLUDE_VOCAL_SEPARATOR=1 -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface",
+  "runtype": "args",
+  "args_str": "serve",
+  "recommended_disk_space": 120,
+  "extra_filters": {
+    "cuda_max_good": {
+      "gte": 12.8
+    },
+    "gpu_ram": {
+      "gte": 24
+    },
+    "num_gpus": {
+      "gte": 1
+    },
+    "disk_space": {
+      "gte": 100
+    }
+  },
+  "private": true,
+  "href": "https://github.com/glauber-fullstackdev/ambienteAvatar",
+  "repo": "glauber-fullstackdev/ambienteAvatar"
+}

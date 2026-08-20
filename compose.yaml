@@ -27,6 +27,7 @@ services:
       COMFYUI_ARGS: ${COMFYUI_ARGS:---preview-method auto}
       COMFYUI_PORT: "8188"
       DEFAULT_WEIGHT_MODE: ${MODEL_MODE:-official_int8_sharded}
+      DOWNLOAD_MODELS_ON_START: ${DOWNLOAD_MODELS_ON_START:-1}
       HF_HOME: /data/cache/huggingface
       HF_TOKEN: ${HF_TOKEN:-}
     shm_size: ${SHM_SIZE:-16gb}

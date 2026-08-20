@@ -19,6 +19,13 @@ DEFAULT_WORKFLOW = Path(
 )
 
 
+def env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def prepare_directories() -> None:
     paths = (
         "input",
@@ -57,15 +64,19 @@ def seed_workflow() -> None:
     print(f"Workflow inicial criado em {target}")
 
 
-def run_downloader(verify_only: bool = False) -> None:
+def run_downloader(verify_only: bool = False) -> int:
     command = [sys.executable, str(SCRIPTS_HOME / "download_models.py")]
     if verify_only:
         command.append("--verify-only")
-    raise SystemExit(subprocess.call(command))
+    return subprocess.call(command)
 
 
 def serve(extra_args: list[str]) -> None:
     prepare_directories()
+    if env_flag("DOWNLOAD_MODELS_ON_START", True):
+        return_code = run_downloader()
+        if return_code != 0:
+            raise SystemExit(return_code)
     seed_workflow()
     port = os.environ.get("COMFYUI_PORT", "8188")
     env_args = shlex.split(os.environ.get("COMFYUI_ARGS", ""))
@@ -88,10 +99,10 @@ def main() -> None:
         serve(extra_args)
     if action == "download-models":
         prepare_directories()
-        run_downloader()
+        raise SystemExit(run_downloader())
     if action == "verify":
         prepare_directories()
-        run_downloader(verify_only=True)
+        raise SystemExit(run_downloader(verify_only=True))
     os.execvp(action, [action, *extra_args])
 
 

@@ -16,7 +16,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/data/cache/huggingface \
-    COMFYUI_HOME=/opt/ComfyUI
+    COMFYUI_HOME=/opt/ComfyUI \
+    DOWNLOAD_MODELS_ON_START=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -36,7 +37,7 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git "${COMFYUI_HOME}" \
     && cd "${COMFYUI_HOME}" \
     && git checkout --detach "${COMFYUI_REF}" \
     && pip install -r requirements.txt \
-    && pip install "huggingface_hub[hf_xet]>=0.34,<2"
+    && pip install "huggingface_hub[hf_xet]>=0.34,<2" jupyterlab
 
 RUN git clone https://github.com/rookiestar28/ComfyUI-LongCat-Avatar.git \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LongCat-Avatar" \
@@ -117,7 +118,7 @@ RUN chmod +x /opt/avatar-scripts/entrypoint.py \
     && python /opt/avatar-scripts/smoke_custom_nodes.py
 
 WORKDIR /opt/ComfyUI
-EXPOSE 8188
+EXPOSE 8188 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8188/system_stats', timeout=3)" || exit 1
