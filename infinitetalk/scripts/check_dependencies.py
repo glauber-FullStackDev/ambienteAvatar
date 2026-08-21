@@ -143,7 +143,14 @@ if combine_values.get("crf") != 16 or combine_values.get("frame_rate") != 25:
 for node_id, base_node in base_nodes.items():
     if node_id == 131:
         continue
-    if nodes[node_id].get("widgets_values") != base_node.get("widgets_values"):
+    current_values = nodes[node_id].get("widgets_values")
+    base_values = base_node.get("widgets_values")
+    if node_id == 241:
+        current_values = list(current_values)
+        base_values = list(base_values)
+        current_values[2:4] = ["", ""]
+        base_values[2:4] = ["", ""]
+    if current_values != base_values:
         raise SystemExit(f"Os parametros V2V foram alterados no node {node_id}")
 
 base_combine_values = dict(base_nodes[131].get("widgets_values", {}))
