@@ -20,6 +20,12 @@ DEFAULT_V2V_WORKFLOW = Path(
         "/opt/defaults/workflows/infinitetalk-v2v-docker.json",
     )
 )
+DEFAULT_V2V_LATENTSYNC_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_V2V_LATENTSYNC_WORKFLOW",
+        "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-docker.json",
+    )
+)
 
 MODEL_FILES = {
     "q4_k_m": (
@@ -53,6 +59,8 @@ def prepare_directories() -> None:
         "models/diffusion_models/MelBandRoFormer",
         "models/diffusion_models/WanVideo/InfiniteTalk",
         "models/loras/WanVideo/Lightx2v",
+        "models/latentsync/vae",
+        "models/latentsync/whisper",
         "models/text_encoders",
         "models/vae/wanvideo",
         "models/wav2vec2",
@@ -268,6 +276,8 @@ def seed_workflow(
 ) -> None:
     target = COMFYUI_HOME / "user/default/workflows" / target_name
     if preserve_source:
+        if target.exists():
+            return
         if not source.exists():
             return
         source_text = source.read_text(encoding="utf-8")
@@ -302,6 +312,11 @@ def seed_workflows() -> None:
         "infinitetalk-v2v-docker.json",
         "InfiniteTalk_V2V",
         generated_only=True,
+        preserve_source=True,
+    )
+    seed_workflow(
+        DEFAULT_V2V_LATENTSYNC_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-docker.json",
         preserve_source=True,
     )
 

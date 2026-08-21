@@ -1,20 +1,33 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 from importlib.util import find_spec
 from pathlib import Path
 
 
 required_modules = (
+    "DeepCache",
     "accelerate",
+    "decord",
     "diffusers",
     "einops",
+    "face_alignment",
+    "ffmpeg",
     "gguf",
     "huggingface_hub",
+    "mediapipe",
+    "omegaconf",
     "peft",
     "pyloudnorm",
+    "pytorch_lightning",
     "rotary_embedding_torch",
+    "safetensors",
     "sentencepiece",
+    "soundfile",
+    "torchaudio",
+    "transformers",
+    "cv2",
 )
 
 missing_modules = [name for name in required_modules if find_spec(name) is None]
@@ -28,12 +41,63 @@ required_paths = (
     comfyui_home / "custom_nodes/ComfyUI-KJNodes/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-MelBandRoFormer/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-VideoHelperSuite/__init__.py",
+    comfyui_home / "custom_nodes/ComfyUI-LatentSyncWrapper/__init__.py",
     Path("/opt/defaults/workflows/infinitetalk-i2v.json"),
     Path("/opt/defaults/workflows/infinitetalk-v2v.json"),
     Path("/opt/defaults/workflows/infinitetalk-v2v-docker.json"),
+    Path(
+        "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-docker.json"
+    ),
 )
 missing_paths = [str(path) for path in required_paths if not path.exists()]
 if missing_paths:
     raise SystemExit(f"Arquivos da imagem ausentes: {', '.join(missing_paths)}")
 
-print("OK: dependencias e custom nodes do InfiniteTalk presentes")
+base_workflow_path = Path("/opt/defaults/workflows/infinitetalk-v2v-docker.json")
+latentsync_workflow_path = Path(
+    "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-docker.json"
+)
+base_workflow = json.loads(base_workflow_path.read_text(encoding="utf-8"))
+latentsync_workflow = json.loads(
+    latentsync_workflow_path.read_text(encoding="utf-8")
+)
+
+if any(node.get("type") == "LatentSyncNode" for node in base_workflow["nodes"]):
+    raise SystemExit("O workflow V2V base nao pode conter LatentSyncNode")
+
+nodes = {node["id"]: node for node in latentsync_workflow["nodes"]}
+base_nodes = {node["id"]: node for node in base_workflow["nodes"]}
+links = {link[0]: link for link in latentsync_workflow["links"]}
+expected_links = {
+    545: [545, 130, 0, 307, 0, "IMAGE"],
+    449: [449, 254, 0, 307, 1, "AUDIO"],
+    559: [559, 307, 1, 131, 1, "AUDIO"],
+    560: [560, 307, 0, 300, 0, "IMAGE"],
+}
+if nodes.get(307, {}).get("type") != "LatentSyncNode":
+    raise SystemExit("LatentSyncNode ausente do novo workflow V2V")
+for link_id, expected in expected_links.items():
+    if links.get(link_id) != expected:
+        raise SystemExit(f"Conexao LatentSync invalida no link {link_id}")
+
+combine = nodes[131]
+combine_values = combine.get("widgets_values", {})
+if combine_values.get("filename_prefix") != "InfiniteTalk_V2V_LatentSync16":
+    raise SystemExit("Prefixo de saida LatentSync invalido")
+if combine_values.get("crf") != 16 or combine_values.get("frame_rate") != 25:
+    raise SystemExit("O novo workflow deve preservar CRF 16 e 25 FPS")
+for node_id, base_node in base_nodes.items():
+    if node_id == 131:
+        continue
+    if nodes[node_id].get("widgets_values") != base_node.get("widgets_values"):
+        raise SystemExit(f"Os parametros V2V foram alterados no node {node_id}")
+
+base_combine_values = dict(base_nodes[131].get("widgets_values", {}))
+new_combine_values = dict(combine_values)
+for values in (base_combine_values, new_combine_values):
+    values.pop("filename_prefix", None)
+    values.pop("videopreview", None)
+if new_combine_values != base_combine_values:
+    raise SystemExit("Os parametros de codificacao do V2V foram alterados")
+
+print("OK: dependencias e custom nodes do InfiniteTalk + LatentSync 1.6 presentes")

@@ -26,6 +26,12 @@ WAV2VEC_REPO = "Kijai/wav2vec2_safetensors"
 WAV2VEC_REVISION = "87847d3bc53702afda44078249e7c33e867827c4"
 MELBAND_REPO = "Kijai/MelBandRoFormer_comfy"
 MELBAND_REVISION = "7dc5fa7824f1f3089a5c4b130d767004ccc1ed12"
+LATENTSYNC_REPO = "ByteDance/LatentSync-1.6"
+LATENTSYNC_REVISION = "c42c7e6c8e9c213626389fa7d9a3c444b8536353"
+LATENTSYNC_VAE_REPO = "stabilityai/sd-vae-ft-mse"
+LATENTSYNC_VAE_REVISION = "31f26fdeee1355a5c34592e401dd41e45d25a493"
+SADTALKER_REPO = "vinthony/SadTalker"
+SADTALKER_REVISION = "4aedd064359e623398a2d73eb8c253ebb2bd516c"
 
 QUANTIZED_MODELS = {
     "q4_k_m": (
@@ -131,12 +137,51 @@ def model_files(quantization: str) -> list[tuple[str, str, str, Path, str]]:
                 f"Lightx2v I2V LoRA rank{rank}",
             )
         )
+    files.extend(
+        [
+            (
+                LATENTSYNC_REPO,
+                LATENTSYNC_REVISION,
+                "latentsync_unet.pt",
+                MODELS / "latentsync/latentsync_unet.pt",
+                "LatentSync 1.6 UNet 512x512",
+            ),
+            (
+                LATENTSYNC_REPO,
+                LATENTSYNC_REVISION,
+                "whisper/tiny.pt",
+                MODELS / "latentsync/whisper/tiny.pt",
+                "LatentSync Whisper tiny",
+            ),
+            (
+                LATENTSYNC_VAE_REPO,
+                LATENTSYNC_VAE_REVISION,
+                "config.json",
+                MODELS / "latentsync/vae/config.json",
+                "LatentSync VAE config",
+            ),
+            (
+                LATENTSYNC_VAE_REPO,
+                LATENTSYNC_VAE_REVISION,
+                "diffusion_pytorch_model.safetensors",
+                MODELS / "latentsync/vae/diffusion_pytorch_model.safetensors",
+                "LatentSync VAE",
+            ),
+            (
+                SADTALKER_REPO,
+                SADTALKER_REVISION,
+                "hub/checkpoints/s3fd-619a316812.pth",
+                MODELS / "latentsync/s3fd-e19a316812.pth",
+                "LatentSync S3FD face detector",
+            ),
+        ]
+    )
     return files
 
 
 def verify(quantization: str) -> bool:
     missing = []
-    print("\nVerificacao dos modelos InfiniteTalk:")
+    print("\nVerificacao dos modelos InfiniteTalk + LatentSync 1.6:")
     for _repo, _revision, _remote_path, target, label in model_files(quantization):
         if target.exists() and target.stat().st_size > 0:
             print(f"  [OK] {label}: {target}")
@@ -151,7 +196,9 @@ def verify(quantization: str) -> bool:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Baixa os modelos do InfiniteTalk")
+    parser = argparse.ArgumentParser(
+        description="Baixa os modelos do InfiniteTalk e LatentSync 1.6"
+    )
     parser.add_argument(
         "--quantization",
         choices=tuple(QUANTIZED_MODELS),
