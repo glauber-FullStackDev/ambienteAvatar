@@ -26,6 +26,12 @@ DEFAULT_V2V_LATENTSYNC_WORKFLOW = Path(
         "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-docker.json",
     )
 )
+DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW",
+        "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-stable-docker.json",
+    )
+)
 
 MODEL_FILES = {
     "q4_k_m": (
@@ -317,6 +323,11 @@ def seed_workflows() -> None:
     seed_workflow(
         DEFAULT_V2V_LATENTSYNC_WORKFLOW,
         "infinitetalk-v2v-latentsync16-docker.json",
+        preserve_source=True,
+    )
+    seed_workflow(
+        DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-stable-docker.json",
         preserve_source=True,
     )
 

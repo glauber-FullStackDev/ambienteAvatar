@@ -41,12 +41,49 @@ O node abre com o modelo oficial LatentSync 1.6 de 512x512, seed 1247,
 acabamento; Q8, LoRA Lightx2v rank256, escalas de audio, resolucao, quantidade
 de frames e sampler do InfiniteTalk permanecem iguais aos do V2V salvo.
 
+Um quarto preset, `infinitetalk-v2v-latentsync16-stable-docker.json`, mantem
+todos os anteriores e troca apenas o acabamento pelo `LatentSyncStableNode`.
+Ele abre com `lips_expression=1.2`, 30 passos e controles conservadores para
+reduzir manchas durante movimento de cabeca. A saida usa o prefixo
+`InfiniteTalk_V2V_LatentSync16_Stable`, H.264 MP4, 25 FPS e CRF 16.
+
+O node estabilizado expoe os seguintes grupos de ajuste:
+
+- transformacao facial: modo (`median_gaussian`, `median` ou `gaussian`),
+  janela, forca e chaves independentes para translacao, rotacao e escala;
+- limites de seguranca: correcao maxima de translacao em pixels, rotacao em
+  graus e escala em fracao;
+- composicao: expansao ou contracao da mascara, feather e opacidade;
+- protecao de movimento: limiar, sensibilidade, intensidade minima aplicada
+  pelo LatentSync e suavizacao temporal;
+- nucleo da boca: raio e forca preservada para manter o lip sync mesmo quando
+  a borda da mascara e reduzida;
+- acabamento: blur proporcional ao movimento e correspondencia de cor na
+  transicao entre a regiao gerada e o rosto original;
+- `debug_log`, que registra no log do ComfyUI os escores de movimento e a menor
+  intensidade de composicao encontrada.
+
+Os controles so ficam ativos dentro do `LatentSyncStableNode`. O
+`LatentSyncNode` original continua com o comportamento do wrapper fixado. Para
+isolar uma causa, use `0` na forca correspondente: estabilizacao, feather,
+blur ou correspondencia de cor. `motion_protection=false` desliga toda a
+reducao adaptativa durante movimento.
+
 O downloader instala as LoRAs Lightx2v I2V rank64, rank128 e rank256. A rank256
 e o padrao do workflow V2V preservado; as outras duas ficam disponiveis no node
 `WanVideo LoRA Select` para comparacao com a mesma seed e os mesmos parametros.
 Ele tambem instala no volume persistente `models/latentsync` o UNet oficial do
-LatentSync 1.6, Whisper tiny, VAE do Stable Diffusion e o detector facial S3FD.
-Assim, o node nao precisa buscar checkpoints durante a primeira geracao.
+LatentSync 1.6, Whisper tiny, VAE do Stable Diffusion, o detector facial S3FD e
+o pacote InsightFace `buffalo_l`. Assim, o node nao precisa buscar checkpoints
+durante a primeira geracao.
+A imagem inclui InsightFace 1.0.1 e ONNX Runtime GPU 1.26.0, fixado na ultima
+serie compativel com CUDA 12.8. O smoke test de build importa o pipeline de
+inferencia completo e exige o provider `CUDAExecutionProvider`.
+O runtime inclui cuBLAS 12.8 e os extras CUDA/cuDNN do ONNX, carregados com
+`preload_dlls()` antes de o InsightFace criar as sessoes dos modelos.
+O detector usa explicitamente
+`/opt/ComfyUI/models/latentsync/auxiliary/models/buffalo_l`, sem depender do
+diretorio de trabalho do processo ComfyUI.
 
 ## Vast.ai
 
