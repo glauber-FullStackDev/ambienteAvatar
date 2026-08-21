@@ -90,6 +90,35 @@ stable_workflow = json.loads(stable_workflow_path.read_text(encoding="utf-8"))
 if any(node.get("type") == "LatentSyncNode" for node in base_workflow["nodes"]):
     raise SystemExit("O workflow V2V base nao pode conter LatentSyncNode")
 
+
+def workflow_prompts(workflow: dict) -> tuple[str, str]:
+    node = next(
+        node
+        for node in workflow["nodes"]
+        if node.get("type") == "WanVideoTextEncodeCached"
+    )
+    values = node.get("widgets_values", [])
+    named = node.get("widgets_values_named", {})
+    positive = named.get("positive_prompt", "")
+    negative = named.get("negative_prompt", "")
+    if len(values) < 4 or values[2] != positive or values[3] != negative:
+        raise SystemExit("Representacoes de prompt do workflow estao divergentes")
+    return positive, negative
+
+
+base_positive, base_negative = workflow_prompts(base_workflow)
+latentsync_positive, latentsync_negative = workflow_prompts(latentsync_workflow)
+stable_positive, stable_negative = workflow_prompts(stable_workflow)
+if base_positive or base_negative:
+    raise SystemExit("O workflow InfiniteTalk V2V sem LatentSync deve manter prompts vazios")
+if not latentsync_positive or not latentsync_negative:
+    raise SystemExit("Prompts InfiniteTalk + LatentSync nao podem ficar vazios")
+if (stable_positive, stable_negative) != (
+    latentsync_positive,
+    latentsync_negative,
+):
+    raise SystemExit("Os workflows LatentSync devem usar os mesmos prompts")
+
 nodes = {node["id"]: node for node in latentsync_workflow["nodes"]}
 base_nodes = {node["id"]: node for node in base_workflow["nodes"]}
 links = {link[0]: link for link in latentsync_workflow["links"]}

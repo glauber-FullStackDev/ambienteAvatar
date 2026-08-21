@@ -69,6 +69,13 @@ isolar uma causa, use `0` na forca correspondente: estabilizacao, feather,
 blur ou correspondencia de cor. `motion_protection=false` desliga toda a
 reducao adaptativa durante movimento.
 
+Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
+negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,
+camera estavel e expressoes naturais. Os presets InfiniteTalk sem LatentSync
+continuam com os prompts originais vazios. Na inicializacao, a imagem tambem
+preenche esses prompts em workflows LatentSync ja semeados quando os campos
+ainda estao vazios; qualquer prompt personalizado pelo usuario e preservado.
+
 O downloader instala as LoRAs Lightx2v I2V rank64, rank128 e rank256. A rank256
 e o padrao do workflow V2V preservado; as outras duas ficam disponiveis no node
 `WanVideo LoRA Select` para comparacao com a mesma seed e os mesmos parametros.
