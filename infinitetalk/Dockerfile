@@ -7,6 +7,7 @@ ARG COMFYUI_MANAGER_REF=d5992a117ee98663b6e93fb040c1e43ee3b25d68
 ARG VIDEO_HELPER_SUITE_REF=4ee72c065db22c9d96c2427954dc69e7b908444b
 ARG KJ_NODES_REF=3f20054214fec9f9234fd3841ae6f1e4287948f6
 ARG MELBAND_ROFORMER_REF=92c86854e6654f4aacc97484471af95c98ea16d4
+ARG LATENT_SYNC_WRAPPER_REF=360d5283d7276aee68b4237b1387e594e4ce640e
 ARG INSTALL_MANAGER=1
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -14,6 +15,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/data/cache/huggingface \
+    XDG_CACHE_HOME=/opt/ComfyUI/models/latentsync \
     COMFYUI_HOME=/opt/ComfyUI
 
 RUN apt-get update \
@@ -55,7 +57,19 @@ RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-VideoHelperSuite" \
     && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-VideoHelperSuite" \
     && git checkout --detach "${VIDEO_HELPER_SUITE_REF}" \
-    && pip install -r requirements.txt
+    && pip install -r requirements.txt \
+    && git clone https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper.git \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
+    && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
+    && git checkout --detach "${LATENT_SYNC_WRAPPER_REF}" \
+    && pip install -r requirements.txt \
+    && pip install pytorch-lightning accelerate "numpy==2.2.6" \
+    && rm -rf "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
+    && mkdir -p "${COMFYUI_HOME}/models/latentsync" \
+    && ln -s "${COMFYUI_HOME}/models/latentsync" \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
+    && ln -s "${COMFYUI_HOME}/models/latentsync" /root/.latentsync16_models \
+    && touch /root/.latentsync16_dependencies_installed
 
 RUN if [ "${INSTALL_MANAGER}" = "1" ]; then \
         git clone https://github.com/Comfy-Org/ComfyUI-Manager.git \
@@ -77,6 +91,8 @@ RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
         "${COMFYUI_HOME}/models/diffusion_models/MelBandRoFormer" \
         "${COMFYUI_HOME}/models/diffusion_models/WanVideo/InfiniteTalk" \
         "${COMFYUI_HOME}/models/loras/WanVideo/Lightx2v" \
+        "${COMFYUI_HOME}/models/latentsync/vae" \
+        "${COMFYUI_HOME}/models/latentsync/whisper" \
         "${COMFYUI_HOME}/models/text_encoders" \
         "${COMFYUI_HOME}/models/vae/wanvideo" \
         "${COMFYUI_HOME}/models/wav2vec2" \
@@ -90,8 +106,10 @@ RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-KJNodes" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-MelBandRoFormer" \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
         /opt/infinitetalk-scripts \
-    && python /opt/infinitetalk-scripts/check_dependencies.py
+    && python /opt/infinitetalk-scripts/check_dependencies.py \
+    && python /opt/infinitetalk-scripts/smoke_custom_nodes.py
 
 WORKDIR /opt/ComfyUI
 EXPOSE 8188

@@ -26,6 +26,7 @@ services:
       COMFYUI_PORT: "8188"
       DOWNLOAD_MODELS_ON_START: ${DOWNLOAD_MODELS_ON_START:-0}
       HF_HOME: /data/cache/huggingface
+      XDG_CACHE_HOME: /opt/ComfyUI/models/latentsync
       HF_TOKEN: ${HF_TOKEN:-}
       INFINITETALK_AUDIO_CFG_SCALE: ${INFINITETALK_AUDIO_CFG_SCALE:-1.2}
       INFINITETALK_AUDIO_SCALE: ${INFINITETALK_AUDIO_SCALE:-1.5}
@@ -42,6 +43,7 @@ services:
     volumes: *comfy-volumes
     environment:
       HF_HOME: /data/cache/huggingface
+      XDG_CACHE_HOME: /opt/ComfyUI/models/latentsync
       HF_TOKEN: ${HF_TOKEN:-}
       MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q8}
 
