@@ -41,6 +41,14 @@ O node abre com o modelo oficial LatentSync 1.6 de 512x512, seed 1247,
 acabamento; Q8, LoRA Lightx2v rank256, escalas de audio, resolucao, quantidade
 de frames e sampler do InfiniteTalk permanecem iguais aos do V2V salvo.
 
+Nos dois presets LatentSync, o audio continua passando pelo MelBand RoFormer e
+pelo Wav2Vec para condicionar a animacao. Na saida, porem, o
+`VHS_VideoCombine` recebe diretamente o `input_audio` original, sem usar o
+audio de 16 kHz devolvido pelo LatentSync. O boot corrige essa ligacao tambem
+nos workflows ja persistidos, mas somente quando a entrada de audio do combine
+ainda estiver conectada ao node LatentSync; uma ligacao personalizada e
+preservada.
+
 Um quarto preset, `infinitetalk-v2v-latentsync16-stable-docker.json`, mantem
 todos os anteriores e troca apenas o acabamento pelo `LatentSyncStableNode`.
 Ele abre com `lips_expression=1.8`, 20 passos e controles conservadores para
@@ -123,12 +131,42 @@ o ComfyUI so inicia depois que terminarem. Nas proximas inicializacoes, volte a
 variavel para `0`.
 
 Todo o boot, download de modelos e log do ComfyUI e duplicado em
-`/var/log/portal/comfyui.log`. Dentro do terminal da instancia Vast, acompanhe
-com:
+`/var/log/portal/comfyui.log`. Abra um Terminal no Jupyter da instancia Vast e
+use os comandos abaixo.
+
+Acompanhar o boot e os logs novos em tempo real:
 
 ```bash
 tail -n 200 -f /var/log/portal/comfyui.log
 ```
+
+Ver apenas as ultimas 300 linhas, sem manter o comando aberto:
+
+```bash
+tail -n 300 /var/log/portal/comfyui.log
+```
+
+Filtrar erros de inicializacao ou execucao:
+
+```bash
+grep -Ei 'error|exception|traceback|failed' /var/log/portal/comfyui.log | tail -n 100
+```
+
+Confirmar que o processo do ComfyUI foi iniciado:
+
+```bash
+pgrep -af '/opt/ComfyUI/main.py'
+```
+
+Confirmar que a API esta respondendo na porta interna 8188:
+
+```bash
+curl -fsS http://127.0.0.1:8188/system_stats | python3 -m json.tool
+```
+
+Durante o primeiro boot com download de modelos, o processo `main.py` ainda
+pode nao aparecer. Nesse caso, o `tail -f` acima mostra qual arquivo esta sendo
+baixado; o healthcheck passa somente depois que o ComfyUI termina de iniciar.
 
 Com `DOWNLOAD_MODELS_ON_START=1`, o mesmo boot baixa tanto os modelos do
 InfiniteTalk quanto os do LatentSync 1.6. Todos ficam no volume montado em

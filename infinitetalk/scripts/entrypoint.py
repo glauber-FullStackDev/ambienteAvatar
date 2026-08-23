@@ -229,6 +229,77 @@ def tune_v2v_quality(workflow: dict) -> bool:
     return changed
 
 
+def route_original_audio_to_output(workflow: dict) -> bool:
+    """Send the untouched input audio to the final LatentSync video mux."""
+    nodes = {
+        node.get("id"): node
+        for node in workflow.get("nodes", [])
+        if node.get("id") is not None
+    }
+    links = {
+        link[0]: link
+        for link in workflow.get("links", [])
+        if isinstance(link, list) and len(link) >= 6
+    }
+    input_audio_node = next(
+        (
+            node
+            for node in workflow.get("nodes", [])
+            if node.get("type") == "GetNode"
+            and isinstance(node.get("widgets_values"), list)
+            and node["widgets_values"]
+            and node["widgets_values"][0] == "input_audio"
+        ),
+        None,
+    )
+    if not input_audio_node:
+        return False
+
+    input_audio_outputs = input_audio_node.get("outputs", [])
+    if not input_audio_outputs:
+        return False
+    input_audio_output = input_audio_outputs[0]
+    changed = False
+
+    for combine in workflow.get("nodes", []):
+        if combine.get("type") != "VHS_VideoCombine":
+            continue
+        audio_input = next(
+            (
+                node_input
+                for node_input in combine.get("inputs", [])
+                if node_input.get("name") == "audio"
+            ),
+            None,
+        )
+        audio_link = links.get(audio_input.get("link")) if audio_input else None
+        source_node = nodes.get(audio_link[1]) if audio_link else None
+        if not source_node or source_node.get("type") not in {
+            "LatentSyncNode",
+            "LatentSyncStableNode",
+        }:
+            continue
+
+        for output in source_node.get("outputs", []):
+            output_links = output.get("links")
+            if isinstance(output_links, list) and audio_link[0] in output_links:
+                remaining = [
+                    link_id for link_id in output_links if link_id != audio_link[0]
+                ]
+                output["links"] = remaining or None
+
+        audio_link[1] = input_audio_node["id"]
+        audio_link[2] = 0
+        output_links = input_audio_output.get("links")
+        if not isinstance(output_links, list):
+            output_links = []
+        if audio_link[0] not in output_links:
+            input_audio_output["links"] = [*output_links, audio_link[0]]
+        changed = True
+
+    return changed
+
+
 def patch_workflow(
     workflow: dict,
     output_prefix: str | None = None,
@@ -402,6 +473,20 @@ def upgrade_stable_workflow(source: Path, target_name: str) -> None:
     )
 
 
+def upgrade_latentsync_audio_route(target_name: str) -> None:
+    """Migrate persisted presets without replacing other user changes."""
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if not target.exists():
+        return
+
+    workflow = json.loads(target.read_text(encoding="utf-8"))
+    if not route_original_audio_to_output(workflow):
+        return
+
+    target.write_text(json.dumps(workflow, ensure_ascii=False), encoding="utf-8")
+    print(f"Audio original conectado a saida LatentSync em {target}")
+
+
 def seed_workflows() -> None:
     seed_workflow(DEFAULT_WORKFLOW, "infinitetalk-i2v-docker.json")
     seed_workflow(
@@ -424,6 +509,12 @@ def seed_workflows() -> None:
     upgrade_stable_workflow(
         DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
         "infinitetalk-v2v-latentsync16-stable-docker.json",
+    )
+    upgrade_latentsync_audio_route(
+        "infinitetalk-v2v-latentsync16-docker.json"
+    )
+    upgrade_latentsync_audio_route(
+        "infinitetalk-v2v-latentsync16-stable-docker.json"
     )
     inject_missing_prompt_defaults(
         DEFAULT_V2V_LATENTSYNC_WORKFLOW,

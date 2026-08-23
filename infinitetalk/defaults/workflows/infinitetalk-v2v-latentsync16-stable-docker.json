@@ -562,7 +562,8 @@
           "name": "AUDIO",
           "type": "AUDIO",
           "links": [
-            449
+            449,
+            559
           ]
         }
       ],
@@ -2894,9 +2895,7 @@
         {
           "name": "audio",
           "type": "AUDIO",
-          "links": [
-            559
-          ],
+          "links": null,
           "slot_index": 1
         }
       ],
@@ -3319,8 +3318,8 @@
     ],
     [
       559,
-      307,
-      1,
+      254,
+      0,
       131,
       1,
       "AUDIO"

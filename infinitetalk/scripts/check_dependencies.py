@@ -133,7 +133,7 @@ links = {link[0]: link for link in latentsync_workflow["links"]}
 expected_links = {
     545: [545, 130, 0, 307, 0, "IMAGE"],
     449: [449, 254, 0, 307, 1, "AUDIO"],
-    559: [559, 307, 1, 131, 1, "AUDIO"],
+    559: [559, 254, 0, 131, 1, "AUDIO"],
     560: [560, 307, 0, 300, 0, "IMAGE"],
 }
 if nodes.get(307, {}).get("type") != "LatentSyncNode":
