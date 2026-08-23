@@ -46,6 +46,12 @@ ffmpeg_encoders = subprocess.run(
 ).stdout
 if "libx264" not in ffmpeg_encoders:
     raise SystemExit("FFmpeg sem encoder libx264 para a saida H.264 MP4")
+subprocess.run(
+    ["ffprobe", "-v", "error", "-version"],
+    check=True,
+    capture_output=True,
+    text=True,
+)
 
 comfyui_home = Path("/opt/ComfyUI")
 required_paths = (
@@ -59,6 +65,8 @@ required_paths = (
     / "custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_node.py",
     comfyui_home
     / "custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_runtime.py",
+    comfyui_home
+    / "custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_video_io.py",
     comfyui_home / "checkpoints/auxiliary",
     Path("/opt/defaults/workflows/infinitetalk-i2v.json"),
     Path("/opt/defaults/workflows/infinitetalk-v2v.json"),

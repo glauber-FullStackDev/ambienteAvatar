@@ -97,6 +97,8 @@ COPY patches/latentsync_stable_runtime.py \
     ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_runtime.py
 COPY patches/latentsync_stable_node.py \
     ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_node.py
+COPY patches/latentsync_video_io.py \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_video_io.py
 COPY patches/latentsync_wrapper_init.py \
     ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/__init__.py
 

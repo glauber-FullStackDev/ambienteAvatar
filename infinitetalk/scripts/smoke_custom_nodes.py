@@ -59,6 +59,17 @@ def main() -> None:
     stable_runtime = importlib.import_module(
         "latent_sync_wrapper.latentsync_stable_runtime"
     )
+    stable_video_io = importlib.import_module(
+        "latent_sync_wrapper.latentsync_video_io"
+    )
+    from torchvision import io as torchvision_io
+
+    if not getattr(torchvision_io.read_video, "_infinitetalk_resilient", False):
+        raise SystemExit("Fallback FFmpeg do LatentSync nao foi instalado")
+    if not stable_video_io._is_scaler_resource_error(
+        BlockingIOError(11, "swscaler scaling graph resource temporarily unavailable")
+    ):
+        raise SystemExit("Falha de recurso do PyAV nao foi reconhecida")
     settings = stable_runtime.StableSettings(
         stabilization_strength=0.5,
         motion_protection=True,

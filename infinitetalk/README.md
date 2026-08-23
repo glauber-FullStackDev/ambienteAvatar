@@ -77,6 +77,9 @@ O preset Stable abre pronto com `lips_expression=1.8`, 20 passos,
 `pose_protection=true`, `max_head_yaw=25`, `resume_head_yaw=18` e dois frames
 de guarda em cada lado do fallback. O boot migra somente o node Stable de
 workflows persistidos em schemas anteriores, preservando o restante do grafo.
+Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
+automaticamente uma segunda leitura via FFmpeg limitada a uma thread, evitando
+perder uma inferencia concluida por esgotamento temporario de recursos.
 
 Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
 negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,

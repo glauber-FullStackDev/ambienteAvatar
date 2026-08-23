@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from .nodes import LatentSyncNode
 from .latentsync_stable_runtime import StableSettings, stable_context
+from .latentsync_video_io import install_resilient_read_video
+
+
+install_resilient_read_video()
 
 
 class LatentSyncStableNode(LatentSyncNode):
