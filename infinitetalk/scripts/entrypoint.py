@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -64,6 +65,7 @@ def prepare_directories() -> None:
         "models/clip_vision",
         "models/diffusion_models/MelBandRoFormer",
         "models/diffusion_models/WanVideo/InfiniteTalk",
+        "models/FlashVSR",
         "models/loras/WanVideo/Lightx2v",
         "models/latentsync/vae",
         "models/latentsync/whisper",
@@ -517,6 +519,158 @@ def upgrade_latentsync_audio_route(target_name: str) -> None:
     print(f"Audio original conectado a saida LatentSync em {target}")
 
 
+def upgrade_stable_flashvsr(source: Path, target_name: str) -> None:
+    """Append the versioned FlashVSR branch without replacing user changes."""
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if not source.exists() or not target.exists():
+        return
+
+    source_workflow = json.loads(source.read_text(encoding="utf-8"))
+    target_workflow = json.loads(target.read_text(encoding="utf-8"))
+    source_schema = int(
+        source_workflow.get("extra", {}).get("infinitetalk_flashvsr_schema", 0)
+    )
+    target_extra = target_workflow.setdefault("extra", {})
+    target_schema = int(target_extra.get("infinitetalk_flashvsr_schema", 0))
+    if source_schema <= 0 or target_schema >= source_schema:
+        return
+
+    fullhd_prefix = "InfiniteTalk_V2V_LatentSync16_Stable_FullHD"
+    base_prefix = "InfiniteTalk_V2V_LatentSync16_Stable"
+
+    def combine_by_prefix(workflow: dict, prefix: str) -> dict | None:
+        return next(
+            (
+                node
+                for node in workflow.get("nodes", [])
+                if node.get("type") == "VHS_VideoCombine"
+                and node.get("widgets_values", {}).get("filename_prefix")
+                == prefix
+            ),
+            None,
+        )
+
+    if combine_by_prefix(target_workflow, fullhd_prefix):
+        target_extra["infinitetalk_flashvsr_schema"] = source_schema
+        target.write_text(
+            json.dumps(target_workflow, ensure_ascii=False), encoding="utf-8"
+        )
+        return
+
+    source_fullhd = combine_by_prefix(source_workflow, fullhd_prefix)
+    target_base = combine_by_prefix(target_workflow, base_prefix)
+    if not source_fullhd or not target_base:
+        print(f"AVISO: nao foi possivel adicionar FlashVSR em {target}")
+        return
+
+    source_nodes = {
+        node.get("id"): node for node in source_workflow.get("nodes", [])
+    }
+    source_links = {
+        link[0]: link
+        for link in source_workflow.get("links", [])
+        if isinstance(link, list) and len(link) >= 6
+    }
+    target_nodes = {
+        node.get("id"): node for node in target_workflow.get("nodes", [])
+    }
+    target_links = {
+        link[0]: link
+        for link in target_workflow.get("links", [])
+        if isinstance(link, list) and len(link) >= 6
+    }
+
+    try:
+        target_image_link = target_links[target_base["inputs"][0]["link"]]
+        target_audio_link = target_links[target_base["inputs"][1]["link"]]
+        source_resize_link = source_links[source_fullhd["inputs"][0]["link"]]
+        source_resize = source_nodes[source_resize_link[1]]
+        source_flash_link = source_links[source_resize["inputs"][0]["link"]]
+        source_flash = source_nodes[source_flash_link[1]]
+    except (KeyError, IndexError, TypeError):
+        print(f"AVISO: grafo Stable incompativel com a migracao FlashVSR em {target}")
+        return
+
+    existing_node_ids = [
+        int(node["id"])
+        for node in target_workflow.get("nodes", [])
+        if isinstance(node.get("id"), int)
+    ]
+    existing_link_ids = [
+        int(link[0])
+        for link in target_workflow.get("links", [])
+        if isinstance(link, list) and link and isinstance(link[0], int)
+    ]
+    next_node = max(existing_node_ids, default=0) + 1
+    next_link = max(existing_link_ids, default=0) + 1
+    flash_id, resize_id, combine_id = range(next_node, next_node + 3)
+    image_in, flash_out, resize_out, audio_in = range(next_link, next_link + 4)
+    max_order = max(
+        (
+            int(node.get("order", 0))
+            for node in target_workflow.get("nodes", [])
+            if isinstance(node.get("order", 0), int)
+        ),
+        default=0,
+    )
+
+    flash = copy.deepcopy(source_flash)
+    resize = copy.deepcopy(source_resize)
+    combine = copy.deepcopy(source_fullhd)
+    flash.update({"id": flash_id, "order": max_order + 1})
+    resize.update({"id": resize_id, "order": max_order + 2})
+    combine.update({"id": combine_id, "order": max_order + 3})
+    flash["inputs"][0]["link"] = image_in
+    flash["inputs"][1]["link"] = None
+    flash["outputs"][0]["links"] = [flash_out]
+    flash["outputs"][1]["links"] = None
+    resize["inputs"][0]["link"] = flash_out
+    resize["inputs"][1]["link"] = None
+    resize["outputs"][0]["links"] = [resize_out]
+    for output in resize["outputs"][1:]:
+        output["links"] = None
+    combine["inputs"][0]["link"] = resize_out
+    combine["inputs"][1]["link"] = audio_in
+    for output in combine.get("outputs", []):
+        output["links"] = None
+
+    image_source_id, image_source_slot = target_image_link[1], target_image_link[2]
+    audio_source_id, audio_source_slot = target_audio_link[1], target_audio_link[2]
+    try:
+        image_output = target_nodes[image_source_id]["outputs"][image_source_slot]
+        audio_output = target_nodes[audio_source_id]["outputs"][audio_source_slot]
+    except (KeyError, IndexError, TypeError):
+        print(f"AVISO: saidas Stable incompativeis com FlashVSR em {target}")
+        return
+    if not isinstance(image_output.get("links"), list):
+        image_output["links"] = []
+    if not isinstance(audio_output.get("links"), list):
+        audio_output["links"] = []
+    image_output["links"].append(image_in)
+    audio_output["links"].append(audio_in)
+
+    target_workflow["nodes"].extend((flash, resize, combine))
+    target_workflow["links"].extend(
+        (
+            [image_in, image_source_id, image_source_slot, flash_id, 0, "IMAGE"],
+            [flash_out, flash_id, 0, resize_id, 0, "IMAGE"],
+            [resize_out, resize_id, 0, combine_id, 0, "IMAGE"],
+            [audio_in, audio_source_id, audio_source_slot, combine_id, 1, "AUDIO"],
+        )
+    )
+    target_workflow["last_node_id"] = max(
+        int(target_workflow.get("last_node_id", 0)), combine_id
+    )
+    target_workflow["last_link_id"] = max(
+        int(target_workflow.get("last_link_id", 0)), audio_in
+    )
+    target_extra["infinitetalk_flashvsr_schema"] = source_schema
+    target.write_text(
+        json.dumps(target_workflow, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"FlashVSR FullHD schema {source_schema} adicionado em {target}")
+
+
 def seed_workflows() -> None:
     seed_workflow(DEFAULT_WORKFLOW, "infinitetalk-i2v-docker.json")
     seed_workflow(
@@ -545,6 +699,10 @@ def seed_workflows() -> None:
     )
     upgrade_latentsync_audio_route(
         "infinitetalk-v2v-latentsync16-stable-docker.json"
+    )
+    upgrade_stable_flashvsr(
+        DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-stable-docker.json",
     )
     inject_missing_prompt_defaults(
         DEFAULT_V2V_LATENTSYNC_WORKFLOW,

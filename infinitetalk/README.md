@@ -88,6 +88,24 @@ O preset Stable abre pronto com `audio_scale=1`, `audio_cfg_scale=1`,
 do fallback. O boot migra os parametros versionados dos nodes Stable e
 MultiTalk em workflows persistidos de schemas anteriores, preservando o
 restante do grafo.
+
+O preset Stable tambem mantem a saida atual em 480x832 e acrescenta uma
+segunda ramificacao em memoria: `LatentSync Stable -> FlashVSR Full 2x ->
+ImageResizeKJv2 -> VHS Video Combine`. O FlashVSR gera 960x1664; o resize em
+CPU usa Lanczos e crop central para chegar exatamente a 1080x1920, sem barras
+e sem deformar a imagem. A nova saida usa o prefixo
+`InfiniteTalk_V2V_LatentSync16_Stable_FullHD`, H.264, `yuv420p`, 25 FPS e CRF
+16. Os dois combinadores recebem diretamente o mesmo audio original.
+
+O FlashVSR Advanced abre em `Full (Best Quality)`, escala 2x, tiling 384 com
+overlap 64, `speed_optimization=2`, `quality_boost=3`, estabilidade 11,
+correcao de cor e VAE tiling ligados, descarregamento do modelo ligado,
+SageAttention desligado, dispositivo automatico, `bf16` e seed fixa 1. Esse
+preset exige pelo menos 21 frames e tem como alvo oficial uma GPU com 48 GB de
+VRAM. Para validar na Vast, rode primeiro 81 frames e depois o video completo.
+O boot usa o marcador `infinitetalk_flashvsr_schema=1` para acrescentar essa
+ramificacao uma unica vez em workflows Stable persistidos, alocando IDs livres
+e preservando os demais nodes e parametros editados pelo usuario.
 Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
 automaticamente uma segunda leitura via FFmpeg limitada a uma thread, evitando
 perder uma inferencia concluida por esgotamento temporario de recursos.
@@ -133,9 +151,22 @@ primeiro teste, defina `DOWNLOAD_MODELS_ON_START=1`; os downloads sao grandes e
 o ComfyUI so inicia depois que terminarem. Nas proximas inicializacoes, volte a
 variavel para `0`.
 
-Todo o boot, download de modelos e log do ComfyUI e duplicado em
+Todo o boot, download de modelos e log do ComfyUI e duplicado no caminho de
+`COMFYUI_LOG_PATH`, cujo padrao desta imagem e
 `/var/log/portal/comfyui.log`. Abra um Terminal no Jupyter da instancia Vast e
-use os comandos abaixo.
+descubra primeiro o arquivo usado pela instancia:
+
+```bash
+COMFY_PID="$(pgrep -f '/opt/ComfyUI/main.py|infinitetalk-scripts/entrypoint.py' | head -n 1)"
+printf 'PID=%s\n' "$COMFY_PID"
+readlink -f "/proc/$COMFY_PID/fd/1"
+readlink -f "/proc/$COMFY_PID/fd/2"
+find /tmp /var/log -maxdepth 3 -type f \( -name '*comfy*.log' -o -name '*infinitetalk*.log' \) -print 2>/dev/null
+```
+
+Se a sua plataforma definir outro caminho, como `/tmp/infinitetalk.log`, use
+esse arquivo nos comandos abaixo ou acompanhe diretamente o descritor exibido,
+por exemplo `tail -f "/proc/$COMFY_PID/fd/2"`.
 
 Acompanhar o boot e os logs novos em tempo real:
 
@@ -171,9 +202,10 @@ Durante o primeiro boot com download de modelos, o processo `main.py` ainda
 pode nao aparecer. Nesse caso, o `tail -f` acima mostra qual arquivo esta sendo
 baixado; o healthcheck passa somente depois que o ComfyUI termina de iniciar.
 
-Com `DOWNLOAD_MODELS_ON_START=1`, o mesmo boot baixa tanto os modelos do
-InfiniteTalk quanto os do LatentSync 1.6. Todos ficam no volume montado em
-`/opt/ComfyUI/models`, portanto reiniciar ou atualizar a imagem nao repete os
+Com `DOWNLOAD_MODELS_ON_START=1`, o mesmo boot baixa os modelos do InfiniteTalk,
+LatentSync 1.6 e os cinco checkpoints do FlashVSR. Estes ultimos ficam em
+`/opt/ComfyUI/models/FlashVSR`, fixados na mesma revisao do preset, e acrescentam
+aproximadamente 13,7 GB ao volume. Reiniciar ou atualizar a imagem nao repete
 downloads concluidos.
 
 Variaveis principais:
@@ -186,12 +218,13 @@ Variaveis principais:
 - `COMFYUI_ARGS=--preview-method auto`;
 - `DOWNLOAD_MODELS_ON_START=0` por padrao.
 
-O LatentSync e executado depois do modelo Wan e pode elevar o pico de VRAM e o
-tempo total. Para o workflow combinado, 48 GB de VRAM e a opcao recomendada;
-em 24 GB, valide primeiro com 81 frames e mantenha o block swap do preset.
+O LatentSync e executado depois do modelo Wan e o FlashVSR Full depois do
+LatentSync, elevando VRAM e tempo total. Para a saida Full HD, 48 GB de VRAM e
+o alvo suportado; 24 GB nao e criterio de aceitacao para este preset Full.
 
 O preset Q8 se beneficia de mais VRAM. Q4 ainda e adequado para validar o fluxo
 em uma GPU de 24 GB usando block swap, desde que o workflow tambem seja trocado
 para os arquivos Q4. Reserve pelo menos 100 GB de disco para imagem, cache,
-modelos, entradas e saidas. Para manter tambem os checkpoints do LatentSync e
-folga para arquivos temporarios, prefira 120 GB ou mais no template Vast.ai.
+modelos, entradas e saidas. Para manter tambem os checkpoints do LatentSync,
+os 13,7 GB do FlashVSR e folga para arquivos temporarios, prefira 140 GB ou
+mais no template Vast.ai.

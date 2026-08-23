@@ -33,6 +33,8 @@ LATENTSYNC_REPO = "ByteDance/LatentSync-1.6"
 LATENTSYNC_REVISION = "c42c7e6c8e9c213626389fa7d9a3c444b8536353"
 LATENTSYNC_VAE_REPO = "stabilityai/sd-vae-ft-mse"
 LATENTSYNC_VAE_REVISION = "31f26fdeee1355a5c34592e401dd41e45d25a493"
+FLASHVSR_REPO = "1038lab/FlashVSR"
+FLASHVSR_REVISION = "f1bc675696d43f05d183d9b7c49e44d84c843caf"
 SADTALKER_REPO = "vinthony/SadTalker"
 SADTALKER_REVISION = "4aedd064359e623398a2d73eb8c253ebb2bd516c"
 INSIGHTFACE_BUFFALO_URL = (
@@ -235,6 +237,22 @@ def model_files(quantization: str) -> list[tuple[str, str, str, Path, str]]:
         )
     files.extend(
         [
+            *[
+                (
+                    FLASHVSR_REPO,
+                    FLASHVSR_REVISION,
+                    filename,
+                    MODELS / "FlashVSR" / filename,
+                    f"FlashVSR {filename}",
+                )
+                for filename in (
+                    "FlashVSR1_1.safetensors",
+                    "Wan2.1_VAE.safetensors",
+                    "LQ_proj_in.safetensors",
+                    "TCDecoder.safetensors",
+                    "Prompt.safetensors",
+                )
+            ],
             (
                 LATENTSYNC_REPO,
                 LATENTSYNC_REVISION,
