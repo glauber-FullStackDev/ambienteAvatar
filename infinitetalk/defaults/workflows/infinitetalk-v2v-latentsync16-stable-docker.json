@@ -1,5 +1,5 @@
 {
-  "id": "cb4f37d4-a673-4f90-9490-8a671537b9a6",
+  "id": "648ffd7b-6ad2-49a6-a7df-6f89a5cff07c",
   "revision": 0,
   "last_node_id": 307,
   "last_link_id": 560,
@@ -2228,7 +2228,7 @@
       "widgets_values": {
         "frame_rate": 25,
         "loop_count": 0,
-        "filename_prefix": "InfiniteTalk_V2V_LatentSync16",
+        "filename_prefix": "InfiniteTalk_V2V_LatentSync16_Stable",
         "format": "video/h264-mp4",
         "pix_fmt": "yuv420p",
         "crf": 16,
@@ -2240,20 +2240,20 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "InfiniteTalk_V2V_LatentSync16_00015-audio.mp4",
+            "filename": "InfiniteTalk_V2V_LatentSync16_Stable_00001-audio.mp4",
             "subfolder": "",
             "type": "output",
             "format": "video/h264-mp4",
             "frame_rate": 25,
-            "workflow": "InfiniteTalk_V2V_LatentSync16_00015.png",
-            "fullpath": "/opt/ComfyUI/output/InfiniteTalk_V2V_LatentSync16_00015-audio.mp4"
+            "workflow": "InfiniteTalk_V2V_LatentSync16_Stable_00001.png",
+            "fullpath": "/opt/ComfyUI/output/InfiniteTalk_V2V_LatentSync16_Stable_00001-audio.mp4"
           }
         }
       },
       "widgets_values_named": {
         "frame_rate": 25,
         "loop_count": 0,
-        "filename_prefix": "InfiniteTalk_V2V",
+        "filename_prefix": "InfiniteTalk_V2V_LatentSync16_Stable",
         "format": "video/h264-mp4",
         "pix_fmt": "yuv420p",
         "crf": 16,
@@ -2265,13 +2265,13 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "InfiniteTalk_V2V_00015-audio.mp4",
+            "filename": "InfiniteTalk_V2V_LatentSync16_Stable_00001-audio.mp4",
             "subfolder": "",
             "type": "output",
             "format": "video/h264-mp4",
             "frame_rate": 25,
-            "workflow": "InfiniteTalk_V2V_00015.png",
-            "fullpath": "/opt/ComfyUI/output/InfiniteTalk_V2V_00015-audio.mp4"
+            "workflow": "InfiniteTalk_V2V_LatentSync16_Stable_00001.png",
+            "fullpath": "/opt/ComfyUI/output/InfiniteTalk_V2V_LatentSync16_Stable_00001-audio.mp4"
           }
         }
       }
@@ -2858,14 +2858,14 @@
     },
     {
       "id": 307,
-      "type": "LatentSyncNode",
+      "type": "LatentSyncStableNode",
       "pos": [
         4150,
         -2125
       ],
       "size": [
-        315,
-        150
+        360,
+        940
       ],
       "flags": {},
       "order": 49,
@@ -2901,13 +2901,42 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "LatentSyncNode"
+        "Node name for S&R": "LatentSyncStableNode",
+        "infinitetalk_stable_schema": 2
       },
       "widgets_values": [
         1247,
         "fixed",
-        1.5,
-        20
+        1.8,
+        20,
+        "median_gaussian",
+        5,
+        0.1,
+        true,
+        false,
+        true,
+        18,
+        3,
+        0.06,
+        3,
+        8,
+        1,
+        true,
+        0.02,
+        1.2,
+        0.8,
+        3,
+        true,
+        25,
+        18,
+        2,
+        6,
+        1,
+        0,
+        1,
+        0.15,
+        12,
+        false
       ]
     }
   ],
@@ -3344,12 +3373,12 @@
     },
     {
       "id": 4,
-      "title": "LatentSync 1.6 (512x512)",
+      "title": "LatentSync 1.6 Stable - controles avancados",
       "bounding": [
-        4100,
-        -2190,
-        420,
-        250
+        4080,
+        -2200,
+        470,
+        900
       ],
       "color": "#3f789e",
       "font_size": 24,

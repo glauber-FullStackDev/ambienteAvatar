@@ -15,6 +15,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/data/cache/huggingface \
+    LATENTSYNC_INSIGHTFACE_ROOT=/opt/ComfyUI/models/latentsync/auxiliary \
     XDG_CACHE_HOME=/opt/ComfyUI/models/latentsync \
     COMFYUI_HOME=/opt/ComfyUI
 
@@ -64,10 +65,19 @@ RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git \
     && git checkout --detach "${LATENT_SYNC_WRAPPER_REF}" \
     && pip install -r requirements.txt \
     && pip install pytorch-lightning accelerate "numpy==2.2.6" \
+    && pip install "insightface==1.0.1" \
+    && pip uninstall -y onnxruntime onnxruntime-gpu \
+    && pip install \
+        "onnxruntime-gpu[cuda,cudnn]==1.26.0" \
+        "nvidia-cublas-cu12==12.8.4.1" \
     && rm -rf "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
-    && mkdir -p "${COMFYUI_HOME}/models/latentsync" \
+    && mkdir -p \
+        "${COMFYUI_HOME}/models/latentsync/auxiliary/models/buffalo_l" \
+        "${COMFYUI_HOME}/checkpoints" \
     && ln -s "${COMFYUI_HOME}/models/latentsync" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/checkpoints" \
+    && ln -s "${COMFYUI_HOME}/models/latentsync/auxiliary" \
+        "${COMFYUI_HOME}/checkpoints/auxiliary" \
     && ln -s "${COMFYUI_HOME}/models/latentsync" /root/.latentsync16_models \
     && touch /root/.latentsync16_dependencies_installed
 
@@ -81,6 +91,14 @@ RUN if [ "${INSTALL_MANAGER}" = "1" ]; then \
 
 COPY scripts /opt/infinitetalk-scripts
 COPY defaults /opt/defaults
+COPY patches/latentsync_face_detector.py \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync/utils/face_detector.py
+COPY patches/latentsync_stable_runtime.py \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_runtime.py
+COPY patches/latentsync_stable_node.py \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_node.py
+COPY patches/latentsync_wrapper_init.py \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/__init__.py
 
 RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
     && mkdir -p \
@@ -91,6 +109,7 @@ RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
         "${COMFYUI_HOME}/models/diffusion_models/MelBandRoFormer" \
         "${COMFYUI_HOME}/models/diffusion_models/WanVideo/InfiniteTalk" \
         "${COMFYUI_HOME}/models/loras/WanVideo/Lightx2v" \
+        "${COMFYUI_HOME}/models/latentsync/auxiliary/models/buffalo_l" \
         "${COMFYUI_HOME}/models/latentsync/vae" \
         "${COMFYUI_HOME}/models/latentsync/whisper" \
         "${COMFYUI_HOME}/models/text_encoders" \

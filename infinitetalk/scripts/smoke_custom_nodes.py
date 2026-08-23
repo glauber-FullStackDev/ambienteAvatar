@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 from pathlib import Path
 import sys
 
@@ -29,11 +30,114 @@ def main() -> None:
     spec.loader.exec_module(module)
 
     mappings = getattr(module, "NODE_CLASS_MAPPINGS", {})
-    required = {"LatentSyncNode", "VideoLengthAdjuster"}
+    required = {"LatentSyncNode", "LatentSyncStableNode", "VideoLengthAdjuster"}
     missing = sorted(required.difference(mappings))
     if missing:
         raise SystemExit(f"Nodes LatentSync ausentes: {', '.join(missing)}")
-    print("OK: LatentSyncNode e VideoLengthAdjuster registrados")
+
+    stable_node = mappings["LatentSyncStableNode"]
+    stable_inputs = stable_node.INPUT_TYPES()["required"]
+    required_controls = {
+        "stabilization_window",
+        "stabilization_strength",
+        "mask_feather",
+        "motion_threshold",
+        "motion_min_strength",
+        "pose_protection",
+        "max_head_yaw",
+        "resume_head_yaw",
+        "pose_guard_frames",
+        "motion_blur_strength",
+        "color_match_strength",
+    }
+    missing_controls = sorted(required_controls.difference(stable_inputs))
+    if missing_controls:
+        raise SystemExit(
+            "Controles LatentSync Stable ausentes: " + ", ".join(missing_controls)
+        )
+
+    stable_runtime = importlib.import_module(
+        "latent_sync_wrapper.latentsync_stable_runtime"
+    )
+    settings = stable_runtime.StableSettings(
+        stabilization_strength=0.5,
+        motion_protection=True,
+    )
+    import numpy as np
+
+    matrices = [
+        np.array([[1.0, 0.0, float(offset)], [0.0, 1.0, 0.0]])
+        for offset in (0, 1, 12, 3, 4)
+    ]
+    smoothed = stable_runtime.smooth_affine_matrices(matrices, settings)
+    if len(smoothed) != len(matrices) or smoothed[2][0, 2] >= 12:
+        raise SystemExit("Estabilizacao temporal LatentSync Stable nao aplicada")
+    strengths, scores = stable_runtime.motion_strengths(
+        smoothed, 420, 560, settings
+    )
+    if len(strengths) != len(matrices) or np.any(strengths > 1.0):
+        raise SystemExit("Protecao de movimento LatentSync Stable invalida")
+    pose_settings = stable_runtime.StableSettings(
+        pose_protection=True,
+        max_head_yaw=25.0,
+        resume_head_yaw=18.0,
+        pose_guard_frames=0,
+    )
+    pose_fallbacks = stable_runtime.pose_fallback_mask(
+        [0.0, 20.0, 26.0, 23.0, 17.0, -27.0],
+        pose_settings,
+    )
+    expected_fallbacks = np.asarray(
+        [False, False, True, True, False, True],
+        dtype=np.bool_,
+    )
+    if not np.array_equal(pose_fallbacks, expected_fallbacks):
+        raise SystemExit("Protecao de pose LatentSync Stable invalida")
+    guarded = stable_runtime.pose_fallback_mask(
+        [30.0],
+        stable_runtime.StableSettings(pose_guard_frames=2),
+    )
+    if len(guarded) != 1 or not guarded[0]:
+        raise SystemExit("Janela de guarda da protecao de pose invalida")
+    if not getattr(
+        stable_runtime.LipsyncPipeline,
+        "_infinitetalk_stable_installed",
+        False,
+    ):
+        raise SystemExit("Runtime LatentSync Stable nao foi instalado")
+
+    sys.path.insert(0, str(LATENTSYNC_NODE))
+    inference_path = LATENTSYNC_NODE / "scripts/inference.py"
+    inference_spec = importlib.util.spec_from_file_location(
+        "latentsync_inference_smoke",
+        inference_path,
+    )
+    if inference_spec is None or inference_spec.loader is None:
+        raise RuntimeError("Nao foi possivel carregar o pipeline LatentSync")
+    inference_module = importlib.util.module_from_spec(inference_spec)
+    inference_spec.loader.exec_module(inference_module)
+
+    import insightface
+    import onnxruntime
+    from latentsync.utils.face_detector import INSIGHTFACE_ROOT
+
+    providers = onnxruntime.get_available_providers()
+    if "CUDAExecutionProvider" not in providers:
+        raise SystemExit(
+            "ONNX Runtime sem CUDAExecutionProvider: " + ", ".join(providers)
+        )
+    onnxruntime.preload_dlls()
+    expected_insightface_root = "/opt/ComfyUI/models/latentsync/auxiliary"
+    if INSIGHTFACE_ROOT != expected_insightface_root:
+        raise SystemExit(
+            f"Caminho InsightFace invalido: {INSIGHTFACE_ROOT}; "
+            f"esperado: {expected_insightface_root}"
+        )
+    print(
+        "OK: nodes e pipeline LatentSync registrados; "
+        f"InsightFace {getattr(insightface, '__version__', 'instalado')}; "
+        "ONNX Runtime CUDA"
+    )
 
 
 if __name__ == "__main__":

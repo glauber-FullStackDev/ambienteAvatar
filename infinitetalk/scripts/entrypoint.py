@@ -26,6 +26,12 @@ DEFAULT_V2V_LATENTSYNC_WORKFLOW = Path(
         "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-docker.json",
     )
 )
+DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW",
+        "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-stable-docker.json",
+    )
+)
 
 MODEL_FILES = {
     "q4_k_m": (
@@ -305,6 +311,97 @@ def seed_workflow(
     print(f"Workflow inicial criado em {target}")
 
 
+def inject_missing_prompt_defaults(source: Path, target_name: str) -> None:
+    """Fill only empty prompt fields in an existing seeded workflow."""
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if not source.exists() or not target.exists():
+        return
+
+    source_workflow = json.loads(source.read_text(encoding="utf-8"))
+    target_workflow = json.loads(target.read_text(encoding="utf-8"))
+
+    def prompt_node(workflow: dict) -> dict | None:
+        return next(
+            (
+                node
+                for node in workflow.get("nodes", [])
+                if node.get("type") == "WanVideoTextEncodeCached"
+            ),
+            None,
+        )
+
+    source_node = prompt_node(source_workflow)
+    target_node = prompt_node(target_workflow)
+    if not source_node or not target_node:
+        return
+
+    source_values = source_node.get("widgets_values")
+    target_values = target_node.get("widgets_values")
+    source_named = source_node.get("widgets_values_named", {})
+    target_named = target_node.setdefault("widgets_values_named", {})
+    if not isinstance(source_values, list) or not isinstance(target_values, list):
+        return
+
+    changed = False
+    for index, field in ((2, "positive_prompt"), (3, "negative_prompt")):
+        source_prompt = source_named.get(field) or source_values[index]
+        current_prompt = target_named.get(field) or target_values[index]
+        if source_prompt and not str(current_prompt).strip():
+            target_values[index] = source_prompt
+            target_named[field] = source_prompt
+            changed = True
+
+    if changed:
+        target.write_text(
+            json.dumps(target_workflow, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"Prompts InfiniteTalk + LatentSync adicionados em {target}")
+
+
+def upgrade_stable_workflow(source: Path, target_name: str) -> None:
+    """Upgrade only the stable node when its serialized widget schema changes."""
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if not source.exists() or not target.exists():
+        return
+
+    source_workflow = json.loads(source.read_text(encoding="utf-8"))
+    target_workflow = json.loads(target.read_text(encoding="utf-8"))
+
+    def stable_node(workflow: dict) -> dict | None:
+        return next(
+            (
+                node
+                for node in workflow.get("nodes", [])
+                if node.get("type") == "LatentSyncStableNode"
+            ),
+            None,
+        )
+
+    source_node = stable_node(source_workflow)
+    target_node = stable_node(target_workflow)
+    if not source_node or not target_node:
+        return
+
+    source_properties = source_node.get("properties", {})
+    target_properties = target_node.setdefault("properties", {})
+    source_schema = int(source_properties.get("infinitetalk_stable_schema", 1))
+    target_schema = int(target_properties.get("infinitetalk_stable_schema", 0))
+    if target_schema >= source_schema:
+        return
+
+    target_node["widgets_values"] = list(source_node.get("widgets_values", []))
+    target_properties["infinitetalk_stable_schema"] = source_schema
+    target.write_text(
+        json.dumps(target_workflow, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(
+        "LatentSync Stable atualizado para schema "
+        f"{source_schema} em {target}"
+    )
+
+
 def seed_workflows() -> None:
     seed_workflow(DEFAULT_WORKFLOW, "infinitetalk-i2v-docker.json")
     seed_workflow(
@@ -318,6 +415,23 @@ def seed_workflows() -> None:
         DEFAULT_V2V_LATENTSYNC_WORKFLOW,
         "infinitetalk-v2v-latentsync16-docker.json",
         preserve_source=True,
+    )
+    seed_workflow(
+        DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-stable-docker.json",
+        preserve_source=True,
+    )
+    upgrade_stable_workflow(
+        DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-stable-docker.json",
+    )
+    inject_missing_prompt_defaults(
+        DEFAULT_V2V_LATENTSYNC_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-docker.json",
+    )
+    inject_missing_prompt_defaults(
+        DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-stable-docker.json",
     )
 
 

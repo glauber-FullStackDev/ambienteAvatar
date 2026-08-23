@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import shutil
 import sys
+import urllib.request
+import zipfile
 
 from huggingface_hub import hf_hub_download
 
@@ -32,6 +35,20 @@ LATENTSYNC_VAE_REPO = "stabilityai/sd-vae-ft-mse"
 LATENTSYNC_VAE_REVISION = "31f26fdeee1355a5c34592e401dd41e45d25a493"
 SADTALKER_REPO = "vinthony/SadTalker"
 SADTALKER_REVISION = "4aedd064359e623398a2d73eb8c253ebb2bd516c"
+INSIGHTFACE_BUFFALO_URL = (
+    "https://github.com/deepinsight/insightface/releases/download/v0.7/"
+    "buffalo_l.zip"
+)
+INSIGHTFACE_BUFFALO_SHA256 = (
+    "80ffe37d8a5940d59a7384c201a2a38d4741f2f3c51eef46ebb28218a7b0ca2f"
+)
+INSIGHTFACE_BUFFALO_FILES = {
+    "genderage.onnx": 1322532,
+    "2d106det.onnx": 5030888,
+    "det_10g.onnx": 16923827,
+    "1k3d68.onnx": 143607619,
+    "w600k_r50.onnx": 174383860,
+}
 
 QUANTIZED_MODELS = {
     "q4_k_m": (
@@ -68,6 +85,85 @@ def download_as(repo: str, revision: str, remote_path: str, target: Path) -> Non
     )
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(downloaded), str(target))
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def insightface_targets() -> list[tuple[Path, str, int]]:
+    root = MODELS / "latentsync/auxiliary/models/buffalo_l"
+    return [
+        (root / filename, f"InsightFace buffalo_l {filename}", size)
+        for filename, size in INSIGHTFACE_BUFFALO_FILES.items()
+    ]
+
+
+def download_insightface_models() -> None:
+    if all(
+        target.exists() and target.stat().st_size == size
+        for target, _label, size in insightface_targets()
+    ):
+        print("OK existente: InsightFace buffalo_l")
+        return
+
+    archive = DOWNLOADS / "insightface--buffalo_l.zip"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    if not archive.exists() or file_sha256(archive) != INSIGHTFACE_BUFFALO_SHA256:
+        partial = archive.with_suffix(".zip.part")
+        print(f"Baixando {INSIGHTFACE_BUFFALO_URL} -> {archive}")
+        urllib.request.urlretrieve(INSIGHTFACE_BUFFALO_URL, partial)
+        if file_sha256(partial) != INSIGHTFACE_BUFFALO_SHA256:
+            raise RuntimeError("Checksum invalido para InsightFace buffalo_l")
+        shutil.move(str(partial), str(archive))
+
+    extraction_root = DOWNLOADS / "insightface--buffalo_l"
+    with zipfile.ZipFile(archive) as bundle:
+        names = set(bundle.namelist())
+        missing = set(INSIGHTFACE_BUFFALO_FILES).difference(names)
+        if missing:
+            raise RuntimeError(
+                "Arquivos ausentes no buffalo_l.zip: " + ", ".join(sorted(missing))
+            )
+        for target, _label, expected_size in insightface_targets():
+            if target.exists() and target.stat().st_size == expected_size:
+                continue
+            extracted = extraction_root / target.name
+            extracted.parent.mkdir(parents=True, exist_ok=True)
+            with bundle.open(target.name) as source, extracted.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            if extracted.stat().st_size != expected_size:
+                raise RuntimeError(f"Tamanho invalido para {target.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(extracted), str(target))
+
+
+def verify_insightface_detector() -> bool:
+    detector = (
+        MODELS
+        / "latentsync/auxiliary/models/buffalo_l/det_10g.onnx"
+    )
+    if not detector.exists():
+        return False
+    try:
+        from insightface.model_zoo import model_zoo
+
+        model = model_zoo.get_model(
+            str(detector),
+            providers=["CPUExecutionProvider"],
+        )
+    except Exception as error:
+        print(f"  [FALHA] InsightFace detector nao carregou: {error}")
+        return False
+    if model is None or getattr(model, "taskname", None) != "detection":
+        print("  [FALHA] det_10g.onnx nao foi reconhecido como detection")
+        return False
+    print("  [OK] InsightFace det_10g.onnx reconhecido como detection")
+    return True
 
 
 def model_files(quantization: str) -> list[tuple[str, str, str, Path, str]]:
@@ -188,6 +284,16 @@ def verify(quantization: str) -> bool:
         else:
             print(f"  [FALTA] {label}: {target}")
             missing.append(target)
+    for target, label, expected_size in insightface_targets():
+        if target.exists() and target.stat().st_size == expected_size:
+            print(f"  [OK] {label}: {target}")
+        else:
+            print(f"  [FALTA] {label}: {target}")
+            missing.append(target)
+    if not missing and not verify_insightface_detector():
+        missing.append(
+            MODELS / "latentsync/auxiliary/models/buffalo_l/det_10g.onnx"
+        )
     if missing:
         print(f"\nFaltam {len(missing)} arquivo(s).")
         return False
@@ -214,6 +320,7 @@ def main() -> int:
         return 0 if verify(args.quantization) else 1
     for repo, revision, remote_path, target, _label in model_files(args.quantization):
         download_as(repo, revision, remote_path, target)
+    download_insightface_models()
     return 0 if verify(args.quantization) else 1
 
 
