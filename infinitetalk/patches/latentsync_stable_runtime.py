@@ -35,25 +35,29 @@ from latentsync.pipelines.lipsync_pipeline import LipsyncPipeline
 class StableSettings:
     stabilization_mode: str = "median_gaussian"
     stabilization_window: int = 5
-    stabilization_strength: float = 0.35
+    stabilization_strength: float = 0.10
     stabilize_translation: bool = True
-    stabilize_rotation: bool = True
+    stabilize_rotation: bool = False
     stabilize_scale: bool = True
     max_translation_correction: float = 18.0
     max_rotation_correction: float = 3.0
     max_scale_correction: float = 0.06
-    mask_expand: int = 2
-    mask_feather: int = 16
+    mask_expand: int = 3
+    mask_feather: int = 8
     mask_opacity: float = 1.0
     motion_protection: bool = True
-    motion_threshold: float = 0.025
-    motion_sensitivity: float = 1.0
-    motion_min_strength: float = 0.55
+    motion_threshold: float = 0.020
+    motion_sensitivity: float = 1.2
+    motion_min_strength: float = 0.80
     motion_smoothing: int = 3
-    mouth_core_radius: int = 14
-    mouth_core_strength: float = 0.85
-    motion_blur_strength: float = 0.35
-    motion_blur_max: float = 1.2
+    pose_protection: bool = True
+    max_head_yaw: float = 25.0
+    resume_head_yaw: float = 18.0
+    pose_guard_frames: int = 2
+    mouth_core_radius: int = 6
+    mouth_core_strength: float = 1.0
+    motion_blur_strength: float = 0.0
+    motion_blur_max: float = 1.0
     color_match_strength: float = 0.15
     color_match_radius: int = 12
     debug_log: bool = False
@@ -68,6 +72,13 @@ class StableState:
     )
     motion_scores: np.ndarray = field(
         default_factory=lambda: np.zeros(0, dtype=np.float32)
+    )
+    raw_yaws: list[float] = field(default_factory=list)
+    pose_yaws: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, dtype=np.float32)
+    )
+    pose_fallbacks: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, dtype=np.bool_)
     )
     blend_cursor: int = 0
     logged_blend: bool = False
@@ -308,6 +319,40 @@ def motion_strengths(
     return strengths.astype(np.float32), score.astype(np.float32)
 
 
+def pose_fallback_mask(
+    yaws: list[float] | np.ndarray,
+    settings: StableSettings,
+) -> np.ndarray:
+    """Select frames that must keep the original InfiniteTalk face.
+
+    The entry/resume thresholds form a hysteresis band so pose noise cannot
+    toggle LatentSync on every frame. Guard frames extend the hard fallback
+    around the lateral pose; no alpha blend is used because blending two
+    spatially displaced mouths is the artifact this protection avoids.
+    """
+    values = np.abs(np.asarray(yaws, dtype=np.float32))
+    if len(values) == 0 or not settings.pose_protection:
+        return np.zeros(len(values), dtype=np.bool_)
+
+    enter = max(float(settings.max_head_yaw), 0.0)
+    resume = min(max(float(settings.resume_head_yaw), 0.0), enter)
+    fallback = np.zeros(len(values), dtype=np.bool_)
+    active = False
+    for index, yaw in enumerate(values):
+        if active:
+            active = yaw > resume
+        else:
+            active = yaw >= enter
+        fallback[index] = active
+
+    guard = max(int(settings.pose_guard_frames), 0)
+    if guard and fallback.any():
+        kernel = np.ones(guard * 2 + 1, dtype=np.int16)
+        padded = np.pad(fallback.astype(np.int16), (guard, guard), mode="constant")
+        fallback = np.convolve(padded, kernel, mode="valid") > 0
+    return fallback
+
+
 def _morph(mask: torch.Tensor, pixels: int) -> torch.Tensor:
     if pixels == 0:
         return mask
@@ -398,6 +443,8 @@ def _stable_affine_transform_video(
     if state is None:
         return faces, boxes, matrices
     state.raw_matrices = list(matrices)
+    detector = getattr(pipeline.image_processor, "face_detector", None)
+    state.raw_yaws = list(getattr(detector, "pose_history", []))
     if state.settings.stabilization_strength <= 0:
         return faces, boxes, matrices
     stabilized = smooth_affine_matrices(matrices, state.settings)
@@ -440,12 +487,32 @@ def _stable_loop_video(
         )
         state.motion_strengths = strengths
         state.motion_scores = scores
+        pose_yaws = list(state.raw_yaws)
+        if pose_yaws and len(pose_yaws) != len(matrices):
+            expanded_yaws = []
+            cycle = 0
+            while len(expanded_yaws) < len(matrices):
+                expanded_yaws.extend(
+                    pose_yaws if cycle % 2 == 0 else pose_yaws[::-1]
+                )
+                cycle += 1
+            pose_yaws = expanded_yaws[: len(matrices)]
+        if len(pose_yaws) != len(matrices):
+            pose_yaws = [0.0] * len(matrices)
+        state.pose_yaws = np.asarray(pose_yaws, dtype=np.float32)
+        state.pose_fallbacks = pose_fallback_mask(state.pose_yaws, state.settings)
         state.blend_cursor = 0
         if state.settings.debug_log and len(scores):
             print(
                 "LatentSync Stable: movimento "
                 f"max={scores.max():.4f}, medio={scores.mean():.4f}, "
                 f"blend_min={strengths.min():.3f}"
+            )
+        if state.settings.debug_log and len(state.pose_yaws):
+            print(
+                "LatentSync Stable: pose "
+                f"yaw_max={np.abs(state.pose_yaws).max():.1f}deg, "
+                f"fallback_frames={int(state.pose_fallbacks.sum())}"
             )
     return result
 
@@ -480,6 +547,12 @@ def _stable_paste_surrounding_pixels_back(
     motion = torch.as_tensor(
         values, device=device, dtype=weight_dtype
     ).view(-1, 1, 1, 1)
+    pose_values = state.pose_fallbacks[start:stop]
+    if len(pose_values) != frame_count:
+        pose_values = np.zeros(frame_count, dtype=np.bool_)
+    pose_fallback = torch.as_tensor(
+        pose_values, device=device, dtype=torch.bool
+    ).view(-1, 1, 1, 1)
 
     core = _morph(alpha, -settings.mouth_core_radius)
     spatial_motion = motion + (1.0 - motion) * core * settings.mouth_core_strength
@@ -505,7 +578,8 @@ def _stable_paste_surrounding_pixels_back(
             f"opacity={settings.mask_opacity:.2f}, color={settings.color_match_strength:.2f}"
         )
         state.logged_blend = True
-    return generated * alpha + source * (1.0 - alpha)
+    composed = generated * alpha + source * (1.0 - alpha)
+    return torch.where(pose_fallback, source, composed)
 
 
 def install_stable_runtime() -> None:

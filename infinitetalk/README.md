@@ -43,7 +43,7 @@ de frames e sampler do InfiniteTalk permanecem iguais aos do V2V salvo.
 
 Um quarto preset, `infinitetalk-v2v-latentsync16-stable-docker.json`, mantem
 todos os anteriores e troca apenas o acabamento pelo `LatentSyncStableNode`.
-Ele abre com `lips_expression=1.2`, 30 passos e controles conservadores para
+Ele abre com `lips_expression=1.8`, 20 passos e controles conservadores para
 reduzir manchas durante movimento de cabeca. A saida usa o prefixo
 `InfiniteTalk_V2V_LatentSync16_Stable`, H.264 MP4, 25 FPS e CRF 16.
 
@@ -56,6 +56,10 @@ O node estabilizado expoe os seguintes grupos de ajuste:
 - composicao: expansao ou contracao da mascara, feather e opacidade;
 - protecao de movimento: limiar, sensibilidade, intensidade minima aplicada
   pelo LatentSync e suavizacao temporal;
+- protecao de pose: mede o yaw com os landmarks 3D do InsightFace, entra em
+  fallback acima de 25 graus e so retoma o LatentSync abaixo de 18 graus;
+  durante o fallback usa integralmente o frame original do InfiniteTalk para
+  impedir a sobreposicao de duas bocas;
 - nucleo da boca: raio e forca preservada para manter o lip sync mesmo quando
   a borda da mascara e reduzida;
 - acabamento: blur proporcional ao movimento e correspondencia de cor na
@@ -68,6 +72,11 @@ Os controles so ficam ativos dentro do `LatentSyncStableNode`. O
 isolar uma causa, use `0` na forca correspondente: estabilizacao, feather,
 blur ou correspondencia de cor. `motion_protection=false` desliga toda a
 reducao adaptativa durante movimento.
+
+O preset Stable abre pronto com `lips_expression=1.8`, 20 passos,
+`pose_protection=true`, `max_head_yaw=25`, `resume_head_yaw=18` e dois frames
+de guarda em cada lado do fallback. O boot migra somente o node Stable de
+workflows persistidos em schemas anteriores, preservando o restante do grafo.
 
 Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
 negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,

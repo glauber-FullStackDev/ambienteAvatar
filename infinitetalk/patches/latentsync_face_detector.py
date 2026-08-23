@@ -18,7 +18,11 @@ onnxruntime.preload_dlls()
 class FaceDetector:
     def __init__(self, device="cuda"):
         self.app = FaceAnalysis(
-            allowed_modules=["detection", "landmark_2d_106"],
+            allowed_modules=[
+                "detection",
+                "landmark_2d_106",
+                "landmark_3d_68",
+            ],
             root=INSIGHTFACE_ROOT,
             providers=["CUDAExecutionProvider"],
         )
@@ -26,6 +30,7 @@ class FaceDetector:
             ctx_id=cuda_to_int(device),
             det_size=(INSIGHTFACE_DETECT_SIZE, INSIGHTFACE_DETECT_SIZE),
         )
+        self.pose_history = []
 
     def __call__(self, frame, threshold=0.5):
         frame_height, frame_width, _channels = frame.shape
@@ -51,6 +56,9 @@ class FaceDetector:
             return None, None
 
         face = selected_face
+        pose = getattr(face, "pose", None)
+        yaw = float(pose[1]) if pose is not None and len(pose) >= 2 else 0.0
+        self.pose_history.append(yaw)
         landmarks = np.round(face.landmark_2d_106).astype(np.int_)
         half_face_coord = np.mean([landmarks[74], landmarks[73]], axis=0)
         sub_landmarks = landmarks[LMK_ADAPT_ORIGIN_ORDER]

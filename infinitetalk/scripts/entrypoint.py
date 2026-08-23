@@ -359,6 +359,49 @@ def inject_missing_prompt_defaults(source: Path, target_name: str) -> None:
         print(f"Prompts InfiniteTalk + LatentSync adicionados em {target}")
 
 
+def upgrade_stable_workflow(source: Path, target_name: str) -> None:
+    """Upgrade only the stable node when its serialized widget schema changes."""
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if not source.exists() or not target.exists():
+        return
+
+    source_workflow = json.loads(source.read_text(encoding="utf-8"))
+    target_workflow = json.loads(target.read_text(encoding="utf-8"))
+
+    def stable_node(workflow: dict) -> dict | None:
+        return next(
+            (
+                node
+                for node in workflow.get("nodes", [])
+                if node.get("type") == "LatentSyncStableNode"
+            ),
+            None,
+        )
+
+    source_node = stable_node(source_workflow)
+    target_node = stable_node(target_workflow)
+    if not source_node or not target_node:
+        return
+
+    source_properties = source_node.get("properties", {})
+    target_properties = target_node.setdefault("properties", {})
+    source_schema = int(source_properties.get("infinitetalk_stable_schema", 1))
+    target_schema = int(target_properties.get("infinitetalk_stable_schema", 0))
+    if target_schema >= source_schema:
+        return
+
+    target_node["widgets_values"] = list(source_node.get("widgets_values", []))
+    target_properties["infinitetalk_stable_schema"] = source_schema
+    target.write_text(
+        json.dumps(target_workflow, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(
+        "LatentSync Stable atualizado para schema "
+        f"{source_schema} em {target}"
+    )
+
+
 def seed_workflows() -> None:
     seed_workflow(DEFAULT_WORKFLOW, "infinitetalk-i2v-docker.json")
     seed_workflow(
@@ -377,6 +420,10 @@ def seed_workflows() -> None:
         DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
         "infinitetalk-v2v-latentsync16-stable-docker.json",
         preserve_source=True,
+    )
+    upgrade_stable_workflow(
+        DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
+        "infinitetalk-v2v-latentsync16-stable-docker.json",
     )
     inject_missing_prompt_defaults(
         DEFAULT_V2V_LATENTSYNC_WORKFLOW,

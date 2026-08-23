@@ -43,6 +43,10 @@ def main() -> None:
         "mask_feather",
         "motion_threshold",
         "motion_min_strength",
+        "pose_protection",
+        "max_head_yaw",
+        "resume_head_yaw",
+        "pose_guard_frames",
         "motion_blur_strength",
         "color_match_strength",
     }
@@ -73,6 +77,28 @@ def main() -> None:
     )
     if len(strengths) != len(matrices) or np.any(strengths > 1.0):
         raise SystemExit("Protecao de movimento LatentSync Stable invalida")
+    pose_settings = stable_runtime.StableSettings(
+        pose_protection=True,
+        max_head_yaw=25.0,
+        resume_head_yaw=18.0,
+        pose_guard_frames=0,
+    )
+    pose_fallbacks = stable_runtime.pose_fallback_mask(
+        [0.0, 20.0, 26.0, 23.0, 17.0, -27.0],
+        pose_settings,
+    )
+    expected_fallbacks = np.asarray(
+        [False, False, True, True, False, True],
+        dtype=np.bool_,
+    )
+    if not np.array_equal(pose_fallbacks, expected_fallbacks):
+        raise SystemExit("Protecao de pose LatentSync Stable invalida")
+    guarded = stable_runtime.pose_fallback_mask(
+        [30.0],
+        stable_runtime.StableSettings(pose_guard_frames=2),
+    )
+    if len(guarded) != 1 or not guarded[0]:
+        raise SystemExit("Janela de guarda da protecao de pose invalida")
     if not getattr(
         stable_runtime.LipsyncPipeline,
         "_infinitetalk_stable_installed",

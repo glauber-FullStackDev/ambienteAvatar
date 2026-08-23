@@ -16,11 +16,11 @@ class LatentSyncStableNode(LatentSyncNode):
                 "seed": ("INT", {"default": 1247}),
                 "lips_expression": (
                     "FLOAT",
-                    {"default": 1.2, "min": 1.0, "max": 3.0, "step": 0.05},
+                    {"default": 1.8, "min": 1.0, "max": 3.0, "step": 0.05},
                 ),
                 "inference_steps": (
                     "INT",
-                    {"default": 30, "min": 10, "max": 100, "step": 1},
+                    {"default": 20, "min": 10, "max": 100, "step": 1},
                 ),
                 "stabilization_mode": (
                     ["median_gaussian", "median", "gaussian"],
@@ -32,10 +32,10 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "stabilization_strength": (
                     "FLOAT",
-                    {"default": 0.35, "min": 0.0, "max": 1.0, "step": 0.05},
+                    {"default": 0.10, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
                 "stabilize_translation": ("BOOLEAN", {"default": True}),
-                "stabilize_rotation": ("BOOLEAN", {"default": True}),
+                "stabilize_rotation": ("BOOLEAN", {"default": False}),
                 "stabilize_scale": ("BOOLEAN", {"default": True}),
                 "max_translation_correction": (
                     "FLOAT",
@@ -51,11 +51,11 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "mask_expand": (
                     "INT",
-                    {"default": 2, "min": -32, "max": 32, "step": 1},
+                    {"default": 3, "min": -32, "max": 32, "step": 1},
                 ),
                 "mask_feather": (
                     "INT",
-                    {"default": 16, "min": 0, "max": 64, "step": 1},
+                    {"default": 8, "min": 0, "max": 64, "step": 1},
                 ),
                 "mask_opacity": (
                     "FLOAT",
@@ -64,35 +64,48 @@ class LatentSyncStableNode(LatentSyncNode):
                 "motion_protection": ("BOOLEAN", {"default": True}),
                 "motion_threshold": (
                     "FLOAT",
-                    {"default": 0.025, "min": 0.002, "max": 0.5, "step": 0.001},
+                    {"default": 0.020, "min": 0.002, "max": 0.5, "step": 0.001},
                 ),
                 "motion_sensitivity": (
                     "FLOAT",
-                    {"default": 1.0, "min": 0.0, "max": 4.0, "step": 0.05},
+                    {"default": 1.2, "min": 0.0, "max": 4.0, "step": 0.05},
                 ),
                 "motion_min_strength": (
                     "FLOAT",
-                    {"default": 0.55, "min": 0.0, "max": 1.0, "step": 0.05},
+                    {"default": 0.80, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
                 "motion_smoothing": (
                     "INT",
                     {"default": 3, "min": 1, "max": 15, "step": 2},
                 ),
+                "pose_protection": ("BOOLEAN", {"default": True}),
+                "max_head_yaw": (
+                    "FLOAT",
+                    {"default": 25.0, "min": 5.0, "max": 60.0, "step": 1.0},
+                ),
+                "resume_head_yaw": (
+                    "FLOAT",
+                    {"default": 18.0, "min": 0.0, "max": 55.0, "step": 1.0},
+                ),
+                "pose_guard_frames": (
+                    "INT",
+                    {"default": 2, "min": 0, "max": 12, "step": 1},
+                ),
                 "mouth_core_radius": (
                     "INT",
-                    {"default": 14, "min": 0, "max": 64, "step": 1},
+                    {"default": 6, "min": 0, "max": 64, "step": 1},
                 ),
                 "mouth_core_strength": (
                     "FLOAT",
-                    {"default": 0.85, "min": 0.0, "max": 1.0, "step": 0.05},
+                    {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
                 "motion_blur_strength": (
                     "FLOAT",
-                    {"default": 0.35, "min": 0.0, "max": 1.0, "step": 0.05},
+                    {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
                 "motion_blur_max": (
                     "FLOAT",
-                    {"default": 1.2, "min": 0.0, "max": 4.0, "step": 0.1},
+                    {"default": 1.0, "min": 0.0, "max": 4.0, "step": 0.1},
                 ),
                 "color_match_strength": (
                     "FLOAT",
@@ -133,6 +146,10 @@ class LatentSyncStableNode(LatentSyncNode):
         motion_sensitivity,
         motion_min_strength,
         motion_smoothing,
+        pose_protection,
+        max_head_yaw,
+        resume_head_yaw,
+        pose_guard_frames,
         mouth_core_radius,
         mouth_core_strength,
         motion_blur_strength,
@@ -159,6 +176,10 @@ class LatentSyncStableNode(LatentSyncNode):
             motion_sensitivity=motion_sensitivity,
             motion_min_strength=motion_min_strength,
             motion_smoothing=motion_smoothing,
+            pose_protection=pose_protection,
+            max_head_yaw=max_head_yaw,
+            resume_head_yaw=resume_head_yaw,
+            pose_guard_frames=pose_guard_frames,
             mouth_core_radius=mouth_core_radius,
             mouth_core_strength=mouth_core_strength,
             motion_blur_strength=motion_blur_strength,

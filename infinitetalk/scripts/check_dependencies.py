@@ -165,6 +165,45 @@ stable_nodes = {node["id"]: node for node in stable_workflow["nodes"]}
 stable_links = {link[0]: link for link in stable_workflow["links"]}
 if stable_nodes.get(307, {}).get("type") != "LatentSyncStableNode":
     raise SystemExit("LatentSyncStableNode ausente do workflow estabilizado")
+stable_node = stable_nodes[307]
+if stable_node.get("properties", {}).get("infinitetalk_stable_schema") != 2:
+    raise SystemExit("Schema do LatentSync Stable nao foi atualizado")
+expected_stable_widgets = [
+    1247,
+    "fixed",
+    1.8,
+    20,
+    "median_gaussian",
+    5,
+    0.1,
+    True,
+    False,
+    True,
+    18,
+    3,
+    0.06,
+    3,
+    8,
+    1,
+    True,
+    0.02,
+    1.2,
+    0.8,
+    3,
+    True,
+    25,
+    18,
+    2,
+    6,
+    1,
+    0,
+    1,
+    0.15,
+    12,
+    False,
+]
+if stable_node.get("widgets_values") != expected_stable_widgets:
+    raise SystemExit("Defaults finais do LatentSync Stable estao incorretos")
 for link_id, expected in expected_links.items():
     stable_expected = expected.copy()
     if stable_links.get(link_id) != stable_expected:
