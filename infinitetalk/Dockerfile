@@ -102,7 +102,9 @@ COPY patches/latentsync_video_io.py \
 COPY patches/latentsync_wrapper_init.py \
     ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/__init__.py
 
-RUN chmod +x /opt/infinitetalk-scripts/entrypoint.py \
+RUN chmod +x \
+        /opt/infinitetalk-scripts/container-entrypoint.sh \
+        /opt/infinitetalk-scripts/entrypoint.py \
     && mkdir -p \
         /data/cache/huggingface \
         /opt/defaults/workflows \
@@ -138,5 +140,5 @@ EXPOSE 8188
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8188/system_stats', timeout=3)" || exit 1
 
-ENTRYPOINT ["python", "/opt/infinitetalk-scripts/entrypoint.py"]
+ENTRYPOINT ["/opt/infinitetalk-scripts/container-entrypoint.sh"]
 CMD ["serve"]

@@ -122,6 +122,14 @@ primeiro teste, defina `DOWNLOAD_MODELS_ON_START=1`; os downloads sao grandes e
 o ComfyUI so inicia depois que terminarem. Nas proximas inicializacoes, volte a
 variavel para `0`.
 
+Todo o boot, download de modelos e log do ComfyUI e duplicado em
+`/var/log/portal/comfyui.log`. Dentro do terminal da instancia Vast, acompanhe
+com:
+
+```bash
+tail -n 200 -f /var/log/portal/comfyui.log
+```
+
 Com `DOWNLOAD_MODELS_ON_START=1`, o mesmo boot baixa tanto os modelos do
 InfiniteTalk quanto os do LatentSync 1.6. Todos ficam no volume montado em
 `/opt/ComfyUI/models`, portanto reiniciar ou atualizar a imagem nao repete os
