@@ -20,11 +20,11 @@ class LatentSyncStableNode(LatentSyncNode):
                 "seed": ("INT", {"default": 1247}),
                 "lips_expression": (
                     "FLOAT",
-                    {"default": 1.8, "min": 1.0, "max": 3.0, "step": 0.05},
+                    {"default": 1.5, "min": 1.0, "max": 3.0, "step": 0.05},
                 ),
                 "inference_steps": (
                     "INT",
-                    {"default": 20, "min": 10, "max": 100, "step": 1},
+                    {"default": 30, "min": 10, "max": 100, "step": 1},
                 ),
                 "stabilization_mode": (
                     ["median_gaussian", "median", "gaussian"],
@@ -59,7 +59,7 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "mask_feather": (
                     "INT",
-                    {"default": 8, "min": 0, "max": 64, "step": 1},
+                    {"default": 6, "min": 0, "max": 64, "step": 1},
                 ),
                 "mask_opacity": (
                     "FLOAT",
@@ -76,7 +76,7 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "motion_min_strength": (
                     "FLOAT",
-                    {"default": 0.80, "min": 0.0, "max": 1.0, "step": 0.05},
+                    {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
                 "motion_smoothing": (
                     "INT",
@@ -97,7 +97,7 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "mouth_core_radius": (
                     "INT",
-                    {"default": 6, "min": 0, "max": 64, "step": 1},
+                    {"default": 4, "min": 0, "max": 64, "step": 1},
                 ),
                 "mouth_core_strength": (
                     "FLOAT",

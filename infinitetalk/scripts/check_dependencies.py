@@ -174,13 +174,13 @@ stable_links = {link[0]: link for link in stable_workflow["links"]}
 if stable_nodes.get(307, {}).get("type") != "LatentSyncStableNode":
     raise SystemExit("LatentSyncStableNode ausente do workflow estabilizado")
 stable_node = stable_nodes[307]
-if stable_node.get("properties", {}).get("infinitetalk_stable_schema") != 2:
+if stable_node.get("properties", {}).get("infinitetalk_stable_schema") != 3:
     raise SystemExit("Schema do LatentSync Stable nao foi atualizado")
 expected_stable_widgets = [
     1247,
     "fixed",
-    1.8,
-    20,
+    1.5,
+    30,
     "median_gaussian",
     5,
     0.1,
@@ -191,18 +191,18 @@ expected_stable_widgets = [
     3,
     0.06,
     3,
-    8,
+    6,
     1,
     True,
     0.02,
     1.2,
-    0.8,
+    1,
     3,
     True,
     25,
     18,
     2,
-    6,
+    4,
     1,
     0,
     1,
@@ -212,6 +212,9 @@ expected_stable_widgets = [
 ]
 if stable_node.get("widgets_values") != expected_stable_widgets:
     raise SystemExit("Defaults finais do LatentSync Stable estao incorretos")
+stable_multitalk_values = stable_nodes[194].get("widgets_values", [])
+if len(stable_multitalk_values) < 5 or stable_multitalk_values[3:5] != [1, 1]:
+    raise SystemExit("Escalas de audio finais do workflow Stable estao incorretas")
 for link_id, expected in expected_links.items():
     stable_expected = expected.copy()
     if stable_links.get(link_id) != stable_expected:

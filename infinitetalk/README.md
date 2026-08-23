@@ -51,7 +51,7 @@ preservada.
 
 Um quarto preset, `infinitetalk-v2v-latentsync16-stable-docker.json`, mantem
 todos os anteriores e troca apenas o acabamento pelo `LatentSyncStableNode`.
-Ele abre com `lips_expression=1.8`, 20 passos e controles conservadores para
+Ele abre com `lips_expression=1.5`, 30 passos e controles conservadores para
 reduzir manchas durante movimento de cabeca. A saida usa o prefixo
 `InfiniteTalk_V2V_LatentSync16_Stable`, H.264 MP4, 25 FPS e CRF 16.
 
@@ -81,10 +81,13 @@ isolar uma causa, use `0` na forca correspondente: estabilizacao, feather,
 blur ou correspondencia de cor. `motion_protection=false` desliga toda a
 reducao adaptativa durante movimento.
 
-O preset Stable abre pronto com `lips_expression=1.8`, 20 passos,
-`pose_protection=true`, `max_head_yaw=25`, `resume_head_yaw=18` e dois frames
-de guarda em cada lado do fallback. O boot migra somente o node Stable de
-workflows persistidos em schemas anteriores, preservando o restante do grafo.
+O preset Stable abre pronto com `audio_scale=1`, `audio_cfg_scale=1`,
+`lips_expression=1.5`, 30 passos, `mask_feather=6`,
+`motion_min_strength=1`, `mouth_core_radius=4`, `pose_protection=true`,
+`max_head_yaw=25`, `resume_head_yaw=18` e dois frames de guarda em cada lado
+do fallback. O boot migra os parametros versionados dos nodes Stable e
+MultiTalk em workflows persistidos de schemas anteriores, preservando o
+restante do grafo.
 Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
 automaticamente uma segunda leitura via FFmpeg limitada a uma thread, evitando
 perder uma inferencia concluida por esgotamento temporario de recursos.

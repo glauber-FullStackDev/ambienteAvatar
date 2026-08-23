@@ -431,7 +431,7 @@ def inject_missing_prompt_defaults(source: Path, target_name: str) -> None:
 
 
 def upgrade_stable_workflow(source: Path, target_name: str) -> None:
-    """Upgrade only the stable node when its serialized widget schema changes."""
+    """Upgrade the versioned Stable preset parameters without replacing its graph."""
     target = COMFYUI_HOME / "user/default/workflows" / target_name
     if not source.exists() or not target.exists():
         return
@@ -462,7 +462,37 @@ def upgrade_stable_workflow(source: Path, target_name: str) -> None:
         return
 
     target_node["widgets_values"] = list(source_node.get("widgets_values", []))
+    source_named = source_node.get("widgets_values_named")
+    if isinstance(source_named, dict):
+        target_node["widgets_values_named"] = dict(source_named)
     target_properties["infinitetalk_stable_schema"] = source_schema
+
+    source_multitalk = next(
+        (
+            node
+            for node in source_workflow.get("nodes", [])
+            if node.get("type") == "MultiTalkWav2VecEmbeds"
+        ),
+        None,
+    )
+    target_multitalk = next(
+        (
+            node
+            for node in target_workflow.get("nodes", [])
+            if node.get("type") == "MultiTalkWav2VecEmbeds"
+        ),
+        None,
+    )
+    if source_multitalk and target_multitalk:
+        target_multitalk["widgets_values"] = list(
+            source_multitalk.get("widgets_values", [])
+        )
+        source_multitalk_named = source_multitalk.get("widgets_values_named")
+        if isinstance(source_multitalk_named, dict):
+            target_multitalk["widgets_values_named"] = dict(
+                source_multitalk_named
+            )
+
     target.write_text(
         json.dumps(target_workflow, ensure_ascii=False),
         encoding="utf-8",
