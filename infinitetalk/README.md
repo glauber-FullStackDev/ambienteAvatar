@@ -110,7 +110,8 @@ Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
 automaticamente uma segunda leitura via FFmpeg limitada a uma thread. Se o
 `swscale` do proprio FFmpeg tambem estiver temporariamente indisponivel, a
 imagem usa um terceiro caminho que le `yuv420p` bruto e faz a conversao RGB no
-Python, evitando perder uma inferencia que ja foi concluida.
+Python. Esse caminho usa `-vsync 0`, compativel tambem com o FFmpeg antigo
+presente em algumas imagens Vast, evitando perder uma inferencia concluida.
 
 Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
 negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,

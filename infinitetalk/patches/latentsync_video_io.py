@@ -141,8 +141,8 @@ def read_video_with_ffmpeg(
     raw_output = [
         "-map",
         "0:v:0",
-        "-fps_mode",
-        "passthrough",
+        "-vsync",
+        "0",
         "-f",
         "rawvideo",
     ]
