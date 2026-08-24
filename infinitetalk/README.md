@@ -107,8 +107,10 @@ O boot usa o marcador `infinitetalk_flashvsr_schema=1` para acrescentar essa
 ramificacao uma unica vez em workflows Stable persistidos, alocando IDs livres
 e preservando os demais nodes e parametros editados pelo usuario.
 Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
-automaticamente uma segunda leitura via FFmpeg limitada a uma thread, evitando
-perder uma inferencia concluida por esgotamento temporario de recursos.
+automaticamente uma segunda leitura via FFmpeg limitada a uma thread. Se o
+`swscale` do proprio FFmpeg tambem estiver temporariamente indisponivel, a
+imagem usa um terceiro caminho que le `yuv420p` bruto e faz a conversao RGB no
+Python, evitando perder uma inferencia que ja foi concluida.
 
 Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
 negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,
