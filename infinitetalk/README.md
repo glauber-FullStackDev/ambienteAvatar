@@ -90,10 +90,12 @@ MultiTalk em workflows persistidos de schemas anteriores, preservando o
 restante do grafo.
 
 O preset Stable tambem mantem a saida atual em 480x832 e acrescenta uma
-segunda ramificacao em memoria: `LatentSync Stable -> FlashVSR Full 2x ->
-ImageResizeKJv2 -> VHS Video Combine`. O FlashVSR gera 960x1664; o resize em
-CPU usa Lanczos e crop central para chegar exatamente a 1080x1920, sem barras
-e sem deformar a imagem. A nova saida usa o prefixo
+segunda etapa baseada no arquivo salvo: `LatentSync Stable -> VHS Video
+Combine -> VHS Select Filename -> VHS Load Video Path -> FlashVSR Full 2x ->
+ImageResizeKJv2 -> VHS Video Combine`. O seletor usa indice `-1`, portanto
+recarrega o MP4 final com audio produzido pelo primeiro combine. O FlashVSR
+gera 960x1664; o resize em CPU usa Lanczos e crop central para chegar
+exatamente a 1080x1920, sem barras e sem deformar a imagem. A nova saida usa o prefixo
 `InfiniteTalk_V2V_LatentSync16_Stable_FullHD`, H.264, `yuv420p`, 25 FPS e CRF
 16. Os dois combinadores recebem diretamente o mesmo audio original.
 
@@ -103,15 +105,13 @@ correcao de cor e VAE tiling ligados, descarregamento do modelo ligado,
 SageAttention desligado, dispositivo automatico, `bf16` e seed fixa 1. Esse
 preset exige pelo menos 21 frames e tem como alvo oficial uma GPU com 48 GB de
 VRAM. Para validar na Vast, rode primeiro 81 frames e depois o video completo.
-O boot usa o marcador `infinitetalk_flashvsr_schema=1` para acrescentar essa
-ramificacao uma unica vez em workflows Stable persistidos, alocando IDs livres
-e preservando os demais nodes e parametros editados pelo usuario.
+O boot usa o marcador `infinitetalk_flashvsr_schema=2` para acrescentar essa
+etapa uma unica vez em workflows Stable persistidos. Workflows do schema 1 sao
+migrados do caminho em memoria para o MP4 salvo, com IDs livres e preservacao
+dos demais nodes e parametros editados pelo usuario.
 Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
-automaticamente uma segunda leitura via FFmpeg limitada a uma thread. Se o
-`swscale` do proprio FFmpeg tambem estiver temporariamente indisponivel, a
-imagem usa um terceiro caminho que le `yuv420p` bruto e faz a conversao RGB no
-Python. Esse caminho usa `-vsync 0`, compativel tambem com o FFmpeg antigo
-presente em algumas imagens Vast, evitando perder uma inferencia concluida.
+automaticamente uma segunda leitura via FFmpeg limitada a uma thread, evitando
+perder uma inferencia concluida por esgotamento temporario de recursos.
 
 Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
 negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,

@@ -46,15 +46,6 @@ ffmpeg_encoders = subprocess.run(
 ).stdout
 if "libx264" not in ffmpeg_encoders:
     raise SystemExit("FFmpeg sem encoder libx264 para a saida H.264 MP4")
-ffmpeg_help_result = subprocess.run(
-    ["ffmpeg", "-hide_banner", "-h", "full"],
-    check=True,
-    capture_output=True,
-    text=True,
-)
-ffmpeg_help = ffmpeg_help_result.stdout + ffmpeg_help_result.stderr
-if "-vsync" not in ffmpeg_help:
-    raise SystemExit("FFmpeg sem a opcao compativel -vsync do fallback LatentSync")
 subprocess.run(
     ["ffprobe", "-v", "error", "-version"],
     check=True,
@@ -243,7 +234,7 @@ if (
 ):
     raise SystemExit("LatentSync Stable deve preservar CRF 16 e 25 FPS")
 
-if stable_workflow.get("extra", {}).get("infinitetalk_flashvsr_schema") != 1:
+if stable_workflow.get("extra", {}).get("infinitetalk_flashvsr_schema") != 2:
     raise SystemExit("Schema FlashVSR do workflow Stable esta ausente")
 if stable_nodes.get(308, {}).get("type") != "AILab_FlashVSR_Advanced":
     raise SystemExit("AILab_FlashVSR_Advanced ausente do workflow Stable")
@@ -251,12 +242,18 @@ if stable_nodes.get(309, {}).get("type") != "ImageResizeKJv2":
     raise SystemExit("Resize FullHD ausente do workflow Stable")
 if stable_nodes.get(310, {}).get("type") != "VHS_VideoCombine":
     raise SystemExit("Segundo combine FullHD ausente do workflow Stable")
+if stable_nodes.get(311, {}).get("type") != "VHS_SelectFilename":
+    raise SystemExit("Seletor do MP4 Stable salvo esta ausente")
+if stable_nodes.get(312, {}).get("type") != "VHS_LoadVideoPath":
+    raise SystemExit("Loader do MP4 Stable salvo esta ausente")
 
 expected_flashvsr_links = {
-    561: [561, 301, 0, 308, 0, "IMAGE"],
-    562: [562, 308, 0, 309, 0, "IMAGE"],
-    563: [563, 309, 0, 310, 0, "IMAGE"],
-    564: [564, 254, 0, 310, 1, "AUDIO"],
+    561: [561, 131, 0, 311, 0, "VHS_FILENAMES"],
+    562: [562, 311, 0, 312, 0, "STRING"],
+    563: [563, 312, 0, 308, 0, "IMAGE"],
+    564: [564, 308, 0, 309, 0, "IMAGE"],
+    565: [565, 309, 0, 310, 0, "IMAGE"],
+    566: [566, 254, 0, 310, 1, "AUDIO"],
 }
 for link_id, expected in expected_flashvsr_links.items():
     if stable_links.get(link_id) != expected:
@@ -305,7 +302,12 @@ expected_fullhd_values = {
 for field, expected in expected_fullhd_values.items():
     if fullhd_values.get(field) != expected:
         raise SystemExit(f"Parametro FullHD invalido: {field}")
-if stable_links[559][1:3] != stable_links[564][1:3]:
+if stable_nodes[311].get("widgets_values") != [-1]:
+    raise SystemExit("Seletor VHS deve usar o MP4 final com audio")
+loader_values = stable_nodes[312].get("widgets_values", {})
+if loader_values.get("force_rate") != 25 or loader_values.get("format") != "None":
+    raise SystemExit("Loader do MP4 Stable deve preservar 25 FPS e resolucao")
+if stable_links[559][1:3] != stable_links[566][1:3]:
     raise SystemExit("As duas saidas Stable devem receber o mesmo audio original")
 
 print(

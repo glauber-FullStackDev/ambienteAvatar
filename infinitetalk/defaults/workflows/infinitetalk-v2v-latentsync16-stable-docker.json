@@ -1,8 +1,8 @@
 {
   "id": "648ffd7b-6ad2-49a6-a7df-6f89a5cff07c",
   "revision": 0,
-  "last_node_id": 310,
-  "last_link_id": 564,
+  "last_node_id": 312,
+  "last_link_id": 566,
   "nodes": [
     {
       "id": 234,
@@ -564,7 +564,7 @@
           "links": [
             449,
             559,
-            564
+            566
           ]
         }
       ],
@@ -1409,8 +1409,7 @@
           "type": "IMAGE",
           "links": [
             550,
-            548,
-            561
+            548
           ]
         },
         {
@@ -2219,7 +2218,9 @@
         {
           "name": "Filenames",
           "type": "VHS_FILENAMES",
-          "links": null
+          "links": [
+            561
+          ]
         }
       ],
       "properties": {
@@ -2977,10 +2978,140 @@
       }
     },
     {
+      "id": 311,
+      "type": "VHS_SelectFilename",
+      "pos": [
+        4620,
+        -1625
+      ],
+      "size": [
+        260,
+        82
+      ],
+      "flags": {},
+      "order": 54,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "filenames",
+          "type": "VHS_FILENAMES",
+          "link": 561
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filename",
+          "type": "STRING",
+          "links": [
+            562
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Kosinkadink/ComfyUI-VideoHelperSuite",
+        "ver": "4ee72c065db22c9d96c2427954dc69e7b908444b",
+        "Node name for S&R": "VHS_SelectFilename",
+        "cnr_id": "comfyui-videohelpersuite"
+      },
+      "widgets_values": [
+        -1
+      ],
+      "widgets_values_named": {
+        "index": -1
+      }
+    },
+    {
+      "id": 312,
+      "type": "VHS_LoadVideoPath",
+      "pos": [
+        4930,
+        -2125
+      ],
+      "size": [
+        340,
+        430
+      ],
+      "flags": {},
+      "order": 55,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "STRING",
+          "widget": {
+            "name": "video"
+          },
+          "link": 562
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            563
+          ]
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": null
+        },
+        {
+          "name": "video_info",
+          "type": "VHS_VIDEOINFO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Kosinkadink/ComfyUI-VideoHelperSuite",
+        "ver": "4ee72c065db22c9d96c2427954dc69e7b908444b",
+        "Node name for S&R": "VHS_LoadVideoPath",
+        "cnr_id": "comfyui-videohelpersuite"
+      },
+      "widgets_values": {
+        "video": "",
+        "force_rate": 25,
+        "custom_width": 0,
+        "custom_height": 0,
+        "frame_load_cap": 0,
+        "skip_first_frames": 0,
+        "select_every_nth": 1,
+        "format": "None"
+      },
+      "widgets_values_named": {
+        "video": "",
+        "force_rate": 25,
+        "custom_width": 0,
+        "custom_height": 0,
+        "frame_load_cap": 0,
+        "skip_first_frames": 0,
+        "select_every_nth": 1,
+        "format": "None"
+      }
+    },
+    {
       "id": 308,
       "type": "AILab_FlashVSR_Advanced",
       "pos": [
-        4620,
+        5320,
         -2125
       ],
       "size": [
@@ -2988,13 +3119,13 @@
         620
       ],
       "flags": {},
-      "order": 54,
+      "order": 56,
       "mode": 0,
       "inputs": [
         {
           "name": "frames",
           "type": "IMAGE",
-          "link": 561
+          "link": 563
         },
         {
           "name": "audio",
@@ -3008,7 +3139,7 @@
           "name": "frames",
           "type": "IMAGE",
           "links": [
-            562
+            564
           ],
           "slot_index": 0
         },
@@ -3066,7 +3197,7 @@
       "id": 309,
       "type": "ImageResizeKJv2",
       "pos": [
-        5020,
+        5720,
         -2125
       ],
       "size": [
@@ -3074,13 +3205,13 @@
         336
       ],
       "flags": {},
-      "order": 55,
+      "order": 57,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 562
+          "link": 564
         },
         {
           "name": "mask",
@@ -3110,7 +3241,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            563
+            565
           ]
         },
         {
@@ -3159,7 +3290,7 @@
       "id": 310,
       "type": "VHS_VideoCombine",
       "pos": [
-        5360,
+        6060,
         -2125
       ],
       "size": [
@@ -3167,19 +3298,19 @@
         520
       ],
       "flags": {},
-      "order": 56,
+      "order": 58,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 563
+          "link": 565
         },
         {
           "name": "audio",
           "shape": 7,
           "type": "AUDIO",
-          "link": 564
+          "link": 566
         },
         {
           "name": "meta_batch",
@@ -3628,14 +3759,30 @@
     ],
     [
       561,
-      301,
+      131,
+      0,
+      311,
+      0,
+      "VHS_FILENAMES"
+    ],
+    [
+      562,
+      311,
+      0,
+      312,
+      0,
+      "STRING"
+    ],
+    [
+      563,
+      312,
       0,
       308,
       0,
       "IMAGE"
     ],
     [
-      562,
+      564,
       308,
       0,
       309,
@@ -3643,7 +3790,7 @@
       "IMAGE"
     ],
     [
-      563,
+      565,
       309,
       0,
       310,
@@ -3651,7 +3798,7 @@
       "IMAGE"
     ],
     [
-      564,
+      566,
       254,
       0,
       310,
@@ -3729,7 +3876,7 @@
       "ComfyUI-LatentSyncWrapper": "360d5283d7276aee68b4237b1387e594e4ce640e",
       "ComfyUI-FlashVSR": "8877fdd593ea93b27353956dc69edf423c561fee"
     },
-    "infinitetalk_flashvsr_schema": 1,
+    "infinitetalk_flashvsr_schema": 2,
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,

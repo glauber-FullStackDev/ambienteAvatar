@@ -64,7 +64,7 @@ RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-FlashVSR" \
     && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-FlashVSR" \
     && git checkout --detach "${FLASHVSR_REF}" \
-    && pip install -r requirements.txt \
+    && pip install --no-deps -r requirements.txt \
     && git clone https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper.git \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
     && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \

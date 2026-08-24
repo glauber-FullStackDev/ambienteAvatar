@@ -20,7 +20,9 @@ SOURCE = (
 def workflow_without_flashvsr(source: dict) -> dict:
     workflow = copy.deepcopy(source)
     workflow["nodes"] = [
-        node for node in workflow["nodes"] if node["id"] not in {308, 309, 310}
+        node
+        for node in workflow["nodes"]
+        if node["id"] not in {308, 309, 310, 311, 312}
     ]
     workflow["links"] = [link for link in workflow["links"] if link[0] <= 560]
     valid_links = {link[0] for link in workflow["links"]}
@@ -55,6 +57,34 @@ def remap_ids(workflow: dict, node_offset: int, link_offset: int) -> dict:
     return workflow
 
 
+def workflow_schema1(source: dict) -> dict:
+    workflow = workflow_without_flashvsr(source)
+    source_nodes = {node["id"]: node for node in source["nodes"]}
+    for node_id in (308, 309, 310):
+        workflow["nodes"].append(copy.deepcopy(source_nodes[node_id]))
+    nodes = {node["id"]: node for node in workflow["nodes"]}
+    nodes[301]["outputs"][0]["links"].append(561)
+    nodes[254]["outputs"][0]["links"].append(564)
+    nodes[308]["inputs"][0]["link"] = 561
+    nodes[308]["outputs"][0]["links"] = [562]
+    nodes[309]["inputs"][0]["link"] = 562
+    nodes[309]["outputs"][0]["links"] = [563]
+    nodes[310]["inputs"][0]["link"] = 563
+    nodes[310]["inputs"][1]["link"] = 564
+    workflow["links"].extend(
+        (
+            [561, 301, 0, 308, 0, "IMAGE"],
+            [562, 308, 0, 309, 0, "IMAGE"],
+            [563, 309, 0, 310, 0, "IMAGE"],
+            [564, 254, 0, 310, 1, "AUDIO"],
+        )
+    )
+    workflow["last_node_id"] = 310
+    workflow["last_link_id"] = 564
+    workflow["extra"]["infinitetalk_flashvsr_schema"] = 1
+    return workflow
+
+
 def combine_by_prefix(workflow: dict, prefix: str) -> dict:
     return next(
         node
@@ -80,13 +110,19 @@ def main() -> None:
 
         entrypoint.upgrade_stable_flashvsr(SOURCE, WORKFLOW_NAME)
         migrated = json.loads(target_path.read_text(encoding="utf-8"))
-        if migrated.get("extra", {}).get("infinitetalk_flashvsr_schema") != 1:
+        if migrated.get("extra", {}).get("infinitetalk_flashvsr_schema") != 2:
             raise SystemExit("Marcador da migracao FlashVSR nao foi aplicado")
         if sum(
             node.get("type") == "AILab_FlashVSR_Advanced"
             for node in migrated["nodes"]
         ) != 1:
             raise SystemExit("A migracao deve adicionar exatamente um FlashVSR")
+        if sum(
+            node.get("type") == "VHS_SelectFilename" for node in migrated["nodes"]
+        ) != 1 or sum(
+            node.get("type") == "VHS_LoadVideoPath" for node in migrated["nodes"]
+        ) != 1:
+            raise SystemExit("A migracao deve recarregar o MP4 Stable salvo")
         if migrated["last_node_id"] <= original_max_node:
             raise SystemExit("A migracao FlashVSR colidiu com IDs de nodes")
         if migrated["last_link_id"] <= original_max_link:
@@ -103,6 +139,17 @@ def main() -> None:
         fullhd_audio = links[fullhd["inputs"][1]["link"]]
         if base_audio[1:3] != fullhd_audio[1:3]:
             raise SystemExit("A migracao nao preservou o audio original")
+        flash = next(
+            node
+            for node in migrated["nodes"]
+            if node.get("type") == "AILab_FlashVSR_Advanced"
+        )
+        flash_input = links[flash["inputs"][0]["link"]]
+        flash_source = next(
+            node for node in migrated["nodes"] if node["id"] == flash_input[1]
+        )
+        if flash_source.get("type") != "VHS_LoadVideoPath":
+            raise SystemExit("FlashVSR nao recebe o MP4 Stable recarregado")
 
         before_second_run = copy.deepcopy(migrated)
         entrypoint.upgrade_stable_flashvsr(SOURCE, WORKFLOW_NAME)
@@ -110,7 +157,32 @@ def main() -> None:
         if after_second_run != before_second_run:
             raise SystemExit("A migracao FlashVSR nao e idempotente")
 
-    print("OK: migracao FlashVSR dinamica e idempotente")
+    persisted_schema1 = remap_ids(workflow_schema1(source), 3000, 4000)
+    with tempfile.TemporaryDirectory() as temporary:
+        comfyui_home = Path(temporary)
+        workflow_dir = comfyui_home / "user/default/workflows"
+        workflow_dir.mkdir(parents=True)
+        target_path = workflow_dir / WORKFLOW_NAME
+        target_path.write_text(json.dumps(persisted_schema1), encoding="utf-8")
+        entrypoint.COMFYUI_HOME = comfyui_home
+        entrypoint.upgrade_stable_flashvsr(SOURCE, WORKFLOW_NAME)
+        migrated = json.loads(target_path.read_text(encoding="utf-8"))
+        links = {link[0]: link for link in migrated["links"]}
+        flash = next(
+            node
+            for node in migrated["nodes"]
+            if node.get("type") == "AILab_FlashVSR_Advanced"
+        )
+        flash_input = links[flash["inputs"][0]["link"]]
+        source_node = next(
+            node for node in migrated["nodes"] if node["id"] == flash_input[1]
+        )
+        if source_node.get("type") != "VHS_LoadVideoPath":
+            raise SystemExit("Workflow schema 1 nao foi migrado para MP4 salvo")
+        if migrated["extra"].get("infinitetalk_flashvsr_schema") != 2:
+            raise SystemExit("Workflow schema 1 nao recebeu o schema 2")
+
+    print("OK: migracao FlashVSR por arquivo dinamica e idempotente")
 
 
 if __name__ == "__main__":

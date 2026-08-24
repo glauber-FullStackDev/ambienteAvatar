@@ -114,17 +114,6 @@ def main() -> None:
         BlockingIOError(11, "swscaler scaling graph resource temporarily unavailable")
     ):
         raise SystemExit("Falha de recurso do PyAV nao foi reconhecida")
-    if not stable_video_io._is_scaler_resource_error(
-        RuntimeError(
-            "Failed to inject frame into filter network: "
-            "Resource temporarily unavailable"
-        )
-    ):
-        raise SystemExit("Falha de recurso do FFmpeg nao foi reconhecida")
-    black_yuv420p = bytearray([16, 16, 16, 16, 128, 128])
-    black_rgb = stable_video_io._yuv420p_to_rgb(black_yuv420p, 2, 2)
-    if black_rgb.shape != (1, 2, 2, 3) or int(black_rgb.max()) != 0:
-        raise SystemExit("Fallback YUV420p do LatentSync produziu RGB invalido")
     settings = stable_runtime.StableSettings(
         stabilization_strength=0.5,
         motion_protection=True,
