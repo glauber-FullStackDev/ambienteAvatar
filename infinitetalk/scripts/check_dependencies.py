@@ -60,7 +60,6 @@ required_paths = (
     comfyui_home / "custom_nodes/ComfyUI-KJNodes/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-MelBandRoFormer/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-VideoHelperSuite/__init__.py",
-    comfyui_home / "custom_nodes/ComfyUI-FlashVSR/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-LatentSyncWrapper/__init__.py",
     comfyui_home
     / "custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_node.py",
@@ -234,83 +233,4 @@ if (
 ):
     raise SystemExit("LatentSync Stable deve preservar CRF 16 e 25 FPS")
 
-if stable_workflow.get("extra", {}).get("infinitetalk_flashvsr_schema") != 2:
-    raise SystemExit("Schema FlashVSR do workflow Stable esta ausente")
-if stable_nodes.get(308, {}).get("type") != "AILab_FlashVSR_Advanced":
-    raise SystemExit("AILab_FlashVSR_Advanced ausente do workflow Stable")
-if stable_nodes.get(309, {}).get("type") != "ImageResizeKJv2":
-    raise SystemExit("Resize FullHD ausente do workflow Stable")
-if stable_nodes.get(310, {}).get("type") != "VHS_VideoCombine":
-    raise SystemExit("Segundo combine FullHD ausente do workflow Stable")
-if stable_nodes.get(311, {}).get("type") != "VHS_SelectFilename":
-    raise SystemExit("Seletor do MP4 Stable salvo esta ausente")
-if stable_nodes.get(312, {}).get("type") != "VHS_LoadVideoPath":
-    raise SystemExit("Loader do MP4 Stable salvo esta ausente")
-
-expected_flashvsr_links = {
-    561: [561, 131, 0, 311, 0, "VHS_FILENAMES"],
-    562: [562, 311, 0, 312, 0, "STRING"],
-    563: [563, 312, 0, 308, 0, "IMAGE"],
-    564: [564, 308, 0, 309, 0, "IMAGE"],
-    565: [565, 309, 0, 310, 0, "IMAGE"],
-    566: [566, 254, 0, 310, 1, "AUDIO"],
-}
-for link_id, expected in expected_flashvsr_links.items():
-    if stable_links.get(link_id) != expected:
-        raise SystemExit(f"Conexao FlashVSR invalida no link {link_id}")
-
-expected_flashvsr_widgets = [
-    "Full (Best Quality)",
-    2,
-    True,
-    384,
-    64,
-    2.0,
-    3.0,
-    11,
-    True,
-    True,
-    True,
-    "disable",
-    "auto",
-    "bf16",
-    1,
-    "fixed",
-]
-if stable_nodes[308].get("widgets_values") != expected_flashvsr_widgets:
-    raise SystemExit("Parametros FlashVSR Full estao incorretos")
-if stable_nodes[309].get("widgets_values") != [
-    1080,
-    1920,
-    "lanczos",
-    "crop",
-    "0, 0, 0",
-    "center",
-    2,
-    "cpu",
-]:
-    raise SystemExit("Resize FlashVSR deve produzir 1080x1920 em CPU")
-
-fullhd_values = stable_nodes[310].get("widgets_values", {})
-expected_fullhd_values = {
-    "filename_prefix": "InfiniteTalk_V2V_LatentSync16_Stable_FullHD",
-    "format": "video/h264-mp4",
-    "pix_fmt": "yuv420p",
-    "crf": 16,
-    "frame_rate": 25,
-}
-for field, expected in expected_fullhd_values.items():
-    if fullhd_values.get(field) != expected:
-        raise SystemExit(f"Parametro FullHD invalido: {field}")
-if stable_nodes[311].get("widgets_values") != [-1]:
-    raise SystemExit("Seletor VHS deve usar o MP4 final com audio")
-loader_values = stable_nodes[312].get("widgets_values", {})
-if loader_values.get("force_rate") != 25 or loader_values.get("format") != "None":
-    raise SystemExit("Loader do MP4 Stable deve preservar 25 FPS e resolucao")
-if stable_links[559][1:3] != stable_links[566][1:3]:
-    raise SystemExit("As duas saidas Stable devem receber o mesmo audio original")
-
-print(
-    "OK: dependencias e custom nodes do InfiniteTalk + LatentSync 1.6 "
-    "+ FlashVSR presentes"
-)
+print("OK: dependencias e custom nodes do InfiniteTalk + LatentSync 1.6 presentes")

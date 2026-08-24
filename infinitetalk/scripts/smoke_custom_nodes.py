@@ -9,7 +9,6 @@ import sys
 
 COMFYUI_HOME = Path("/opt/ComfyUI")
 LATENTSYNC_NODE = COMFYUI_HOME / "custom_nodes/ComfyUI-LatentSyncWrapper"
-FLASHVSR_NODE = COMFYUI_HOME / "custom_nodes/ComfyUI-FlashVSR"
 
 
 def main() -> None:
@@ -56,49 +55,6 @@ def main() -> None:
         raise SystemExit(
             "Controles LatentSync Stable ausentes: " + ", ".join(missing_controls)
         )
-
-    flashvsr_spec = importlib.util.spec_from_file_location(
-        "flashvsr_wrapper",
-        FLASHVSR_NODE / "__init__.py",
-        submodule_search_locations=[str(FLASHVSR_NODE)],
-    )
-    if flashvsr_spec is None or flashvsr_spec.loader is None:
-        raise RuntimeError("Nao foi possivel carregar ComfyUI-FlashVSR")
-    flashvsr_module = importlib.util.module_from_spec(flashvsr_spec)
-    sys.modules[flashvsr_spec.name] = flashvsr_module
-    flashvsr_spec.loader.exec_module(flashvsr_module)
-    flashvsr_mappings = getattr(flashvsr_module, "NODE_CLASS_MAPPINGS", {})
-    if "AILab_FlashVSR_Advanced" not in flashvsr_mappings:
-        raise SystemExit("Node AILab_FlashVSR_Advanced ausente")
-    flashvsr_inputs = flashvsr_mappings["AILab_FlashVSR_Advanced"].INPUT_TYPES()
-    required_flashvsr_controls = {
-        "frames",
-        "model_version",
-        "scale",
-        "enable_tiling",
-        "tile_size",
-        "tile_overlap",
-        "speed_optimization",
-        "quality_boost",
-        "stability_level",
-        "color_fix",
-        "vae_tiling",
-        "unload_model",
-        "sageattention",
-        "device",
-        "precision",
-        "seed",
-    }
-    missing_flashvsr_controls = sorted(
-        required_flashvsr_controls.difference(flashvsr_inputs["required"])
-    )
-    if missing_flashvsr_controls:
-        raise SystemExit(
-            "Controles FlashVSR ausentes: "
-            + ", ".join(missing_flashvsr_controls)
-        )
-    if flashvsr_inputs.get("optional", {}).get("audio", (None,))[0] != "AUDIO":
-        raise SystemExit("Entrada opcional de audio do FlashVSR ausente")
 
     stable_runtime = importlib.import_module(
         "latent_sync_wrapper.latentsync_stable_runtime"
@@ -189,7 +145,7 @@ def main() -> None:
             f"esperado: {expected_insightface_root}"
         )
     print(
-        "OK: nodes FlashVSR e pipeline LatentSync registrados; "
+        "OK: nodes e pipeline LatentSync registrados; "
         f"InsightFace {getattr(insightface, '__version__', 'instalado')}; "
         "ONNX Runtime CUDA"
     )

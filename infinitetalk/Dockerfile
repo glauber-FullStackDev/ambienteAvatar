@@ -8,7 +8,6 @@ ARG VIDEO_HELPER_SUITE_REF=4ee72c065db22c9d96c2427954dc69e7b908444b
 ARG KJ_NODES_REF=3f20054214fec9f9234fd3841ae6f1e4287948f6
 ARG MELBAND_ROFORMER_REF=92c86854e6654f4aacc97484471af95c98ea16d4
 ARG LATENT_SYNC_WRAPPER_REF=360d5283d7276aee68b4237b1387e594e4ce640e
-ARG FLASHVSR_REF=8877fdd593ea93b27353956dc69edf423c561fee
 ARG INSTALL_MANAGER=1
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -60,11 +59,6 @@ RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git \
     && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-VideoHelperSuite" \
     && git checkout --detach "${VIDEO_HELPER_SUITE_REF}" \
     && pip install -r requirements.txt \
-    && git clone https://github.com/1038lab/ComfyUI-FlashVSR.git \
-        "${COMFYUI_HOME}/custom_nodes/ComfyUI-FlashVSR" \
-    && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-FlashVSR" \
-    && git checkout --detach "${FLASHVSR_REF}" \
-    && pip install --no-deps -r requirements.txt \
     && git clone https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper.git \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
     && cd "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
@@ -118,7 +112,6 @@ RUN chmod +x \
         "${COMFYUI_HOME}/models/clip_vision" \
         "${COMFYUI_HOME}/models/diffusion_models/MelBandRoFormer" \
         "${COMFYUI_HOME}/models/diffusion_models/WanVideo/InfiniteTalk" \
-        "${COMFYUI_HOME}/models/FlashVSR" \
         "${COMFYUI_HOME}/models/loras/WanVideo/Lightx2v" \
         "${COMFYUI_HOME}/models/latentsync/auxiliary/models/buffalo_l" \
         "${COMFYUI_HOME}/models/latentsync/vae" \
@@ -136,11 +129,9 @@ RUN chmod +x \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-KJNodes" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-MelBandRoFormer" \
-        "${COMFYUI_HOME}/custom_nodes/ComfyUI-FlashVSR" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
         /opt/infinitetalk-scripts \
     && python /opt/infinitetalk-scripts/check_dependencies.py \
-    && python /opt/infinitetalk-scripts/test_workflow_migrations.py \
     && python /opt/infinitetalk-scripts/smoke_custom_nodes.py
 
 WORKDIR /opt/ComfyUI

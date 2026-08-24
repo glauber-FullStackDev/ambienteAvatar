@@ -151,3 +151,4 @@ def install_resilient_read_video() -> None:
     resilient_read_video._infinitetalk_resilient = True
     resilient_read_video._infinitetalk_original = original
     io.read_video = resilient_read_video
+
