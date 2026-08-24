@@ -46,6 +46,15 @@ ffmpeg_encoders = subprocess.run(
 ).stdout
 if "libx264" not in ffmpeg_encoders:
     raise SystemExit("FFmpeg sem encoder libx264 para a saida H.264 MP4")
+ffmpeg_help_result = subprocess.run(
+    ["ffmpeg", "-hide_banner", "-h", "full"],
+    check=True,
+    capture_output=True,
+    text=True,
+)
+ffmpeg_help = ffmpeg_help_result.stdout + ffmpeg_help_result.stderr
+if "-vsync" not in ffmpeg_help:
+    raise SystemExit("FFmpeg sem a opcao compativel -vsync do fallback LatentSync")
 subprocess.run(
     ["ffprobe", "-v", "error", "-version"],
     check=True,

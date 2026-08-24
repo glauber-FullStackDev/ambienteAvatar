@@ -89,8 +89,10 @@ do fallback. O boot migra os parametros versionados dos nodes Stable e
 MultiTalk em workflows persistidos de schemas anteriores, preservando o
 restante do grafo.
 Na leitura do MP4 final, falhas `Errno 11` do conversor PyAV/swscale acionam
-automaticamente uma segunda leitura via FFmpeg limitada a uma thread, evitando
-perder uma inferencia concluida por esgotamento temporario de recursos.
+automaticamente uma segunda leitura limitada a uma thread. Para videos
+`yuv420p`, o FFmpeg entrega os planos YUV sem conversao e o RGB e calculado no
+Python, sem voltar a acionar o `swscale` que causou a falha. O fallback usa
+`-vsync 0`, compativel com o FFmpeg antigo presente nas imagens Vast.
 
 Os dois presets InfiniteTalk com LatentSync 1.6 incluem prompts positivo e
 negativo voltados a manter o rosto frontal, movimentos de cabeca pequenos,
