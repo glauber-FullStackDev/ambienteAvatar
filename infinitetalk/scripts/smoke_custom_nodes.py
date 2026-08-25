@@ -55,6 +55,23 @@ def main() -> None:
         raise SystemExit(
             "Controles LatentSync Stable ausentes: " + ", ".join(missing_controls)
         )
+    expected_defaults = {
+        "lips_expression": 1.6,
+        "inference_steps": 25,
+        "stabilization_window": 1,
+        "stabilization_strength": 0.0,
+        "stabilize_translation": False,
+        "stabilize_scale": False,
+        "mask_expand": 5,
+        "mask_feather": 8,
+        "motion_protection": False,
+        "motion_sensitivity": 1.3,
+        "motion_smoothing": 1,
+        "mouth_core_radius": 5,
+    }
+    for field, expected in expected_defaults.items():
+        if stable_inputs[field][1].get("default") != expected:
+            raise SystemExit(f"Default LatentSync Stable invalido: {field}")
 
     stable_runtime = importlib.import_module(
         "latent_sync_wrapper.latentsync_stable_runtime"

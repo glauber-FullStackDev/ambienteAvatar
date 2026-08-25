@@ -20,11 +20,11 @@ class LatentSyncStableNode(LatentSyncNode):
                 "seed": ("INT", {"default": 1247}),
                 "lips_expression": (
                     "FLOAT",
-                    {"default": 1.5, "min": 1.0, "max": 3.0, "step": 0.05},
+                    {"default": 1.6, "min": 1.0, "max": 3.0, "step": 0.05},
                 ),
                 "inference_steps": (
                     "INT",
-                    {"default": 30, "min": 10, "max": 100, "step": 1},
+                    {"default": 25, "min": 10, "max": 100, "step": 1},
                 ),
                 "stabilization_mode": (
                     ["median_gaussian", "median", "gaussian"],
@@ -32,15 +32,15 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "stabilization_window": (
                     "INT",
-                    {"default": 5, "min": 1, "max": 21, "step": 2},
+                    {"default": 1, "min": 1, "max": 21, "step": 2},
                 ),
                 "stabilization_strength": (
                     "FLOAT",
-                    {"default": 0.10, "min": 0.0, "max": 1.0, "step": 0.05},
+                    {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
-                "stabilize_translation": ("BOOLEAN", {"default": True}),
+                "stabilize_translation": ("BOOLEAN", {"default": False}),
                 "stabilize_rotation": ("BOOLEAN", {"default": False}),
-                "stabilize_scale": ("BOOLEAN", {"default": True}),
+                "stabilize_scale": ("BOOLEAN", {"default": False}),
                 "max_translation_correction": (
                     "FLOAT",
                     {"default": 18.0, "min": 0.0, "max": 100.0, "step": 1.0},
@@ -55,24 +55,24 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "mask_expand": (
                     "INT",
-                    {"default": 3, "min": -32, "max": 32, "step": 1},
+                    {"default": 5, "min": -32, "max": 32, "step": 1},
                 ),
                 "mask_feather": (
                     "INT",
-                    {"default": 6, "min": 0, "max": 64, "step": 1},
+                    {"default": 8, "min": 0, "max": 64, "step": 1},
                 ),
                 "mask_opacity": (
                     "FLOAT",
                     {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
-                "motion_protection": ("BOOLEAN", {"default": True}),
+                "motion_protection": ("BOOLEAN", {"default": False}),
                 "motion_threshold": (
                     "FLOAT",
                     {"default": 0.020, "min": 0.002, "max": 0.5, "step": 0.001},
                 ),
                 "motion_sensitivity": (
                     "FLOAT",
-                    {"default": 1.2, "min": 0.0, "max": 4.0, "step": 0.05},
+                    {"default": 1.3, "min": 0.0, "max": 4.0, "step": 0.05},
                 ),
                 "motion_min_strength": (
                     "FLOAT",
@@ -80,7 +80,7 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "motion_smoothing": (
                     "INT",
-                    {"default": 3, "min": 1, "max": 15, "step": 2},
+                    {"default": 1, "min": 1, "max": 15, "step": 2},
                 ),
                 "pose_protection": ("BOOLEAN", {"default": True}),
                 "max_head_yaw": (
@@ -97,7 +97,7 @@ class LatentSyncStableNode(LatentSyncNode):
                 ),
                 "mouth_core_radius": (
                     "INT",
-                    {"default": 4, "min": 0, "max": 64, "step": 1},
+                    {"default": 5, "min": 0, "max": 64, "step": 1},
                 ),
                 "mouth_core_strength": (
                     "FLOAT",

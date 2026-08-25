@@ -51,8 +51,8 @@ preservada.
 
 Um quarto preset, `infinitetalk-v2v-latentsync16-stable-docker.json`, mantem
 todos os anteriores e troca apenas o acabamento pelo `LatentSyncStableNode`.
-Ele abre com `lips_expression=1.5`, 30 passos e controles conservadores para
-reduzir manchas durante movimento de cabeca. A saida usa o prefixo
+Ele abre com `lips_expression=1.6`, 25 passos, `denoise_strength=1` e os
+controles validados no preset de producao. A saida usa o prefixo
 `InfiniteTalk_V2V_LatentSync16_Stable`, H.264 MP4, 25 FPS e CRF 16.
 
 O node estabilizado expoe os seguintes grupos de ajuste:

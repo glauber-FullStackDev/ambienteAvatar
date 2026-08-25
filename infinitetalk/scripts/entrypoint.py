@@ -493,6 +493,32 @@ def upgrade_stable_workflow(source: Path, target_name: str) -> None:
                 source_multitalk_named
             )
 
+    for preset_node_type in ("WanVideoTextEncodeCached", "WanVideoSampler"):
+        source_preset_node = next(
+            (
+                node
+                for node in source_workflow.get("nodes", [])
+                if node.get("type") == preset_node_type
+            ),
+            None,
+        )
+        target_preset_node = next(
+            (
+                node
+                for node in target_workflow.get("nodes", [])
+                if node.get("type") == preset_node_type
+            ),
+            None,
+        )
+        if not source_preset_node or not target_preset_node:
+            continue
+        source_values = source_preset_node.get("widgets_values")
+        if isinstance(source_values, list):
+            target_preset_node["widgets_values"] = list(source_values)
+        source_named = source_preset_node.get("widgets_values_named")
+        if isinstance(source_named, dict):
+            target_preset_node["widgets_values_named"] = dict(source_named)
+
     target.write_text(
         json.dumps(target_workflow, ensure_ascii=False),
         encoding="utf-8",

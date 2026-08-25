@@ -183,35 +183,35 @@ stable_links = {link[0]: link for link in stable_workflow["links"]}
 if stable_nodes.get(307, {}).get("type") != "LatentSyncStableNode":
     raise SystemExit("LatentSyncStableNode ausente do workflow estabilizado")
 stable_node = stable_nodes[307]
-if stable_node.get("properties", {}).get("infinitetalk_stable_schema") != 3:
+if stable_node.get("properties", {}).get("infinitetalk_stable_schema") != 4:
     raise SystemExit("Schema do LatentSync Stable nao foi atualizado")
 expected_stable_widgets = [
     1247,
     "fixed",
-    1.5,
-    30,
+    1.6,
+    25,
     "median_gaussian",
-    5,
-    0.1,
-    True,
+    1,
+    0,
     False,
-    True,
+    False,
+    False,
     18,
     3,
     0.06,
-    3,
-    6,
+    5,
+    8,
     1,
-    True,
+    False,
     0.02,
-    1.2,
+    1.3,
     1,
-    3,
+    1,
     True,
     25,
     18,
     2,
-    4,
+    5,
     1,
     0,
     1,
@@ -221,6 +221,18 @@ expected_stable_widgets = [
 ]
 if stable_node.get("widgets_values") != expected_stable_widgets:
     raise SystemExit("Defaults finais do LatentSync Stable estao incorretos")
+stable_sampler_values = stable_nodes[128].get("widgets_values_named", {})
+if stable_sampler_values.get("denoise_strength") != 1:
+    raise SystemExit("Denoise final do workflow Stable deve ser 1")
+stable_prompt_values = stable_nodes[241].get("widgets_values_named", {})
+if not str(stable_prompt_values.get("positive_prompt", "")).startswith(
+    "A calm, relaxed and friendly person"
+):
+    raise SystemExit("Prompt positivo final do workflow Stable esta incorreto")
+if not str(stable_prompt_values.get("negative_prompt", "")).startswith(
+    "Exaggerated facial expressions"
+):
+    raise SystemExit("Prompt negativo final do workflow Stable esta incorreto")
 stable_multitalk_values = stable_nodes[194].get("widgets_values", [])
 if len(stable_multitalk_values) < 5 or stable_multitalk_values[3:5] != [1, 1]:
     raise SystemExit("Escalas de audio finais do workflow Stable estao incorretas")
