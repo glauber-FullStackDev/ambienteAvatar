@@ -1,0 +1,145 @@
+{
+  "id": "4bd94112-43ef-49af-b833-0d547812b383",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LipForcingLoadVideo",
+      "pos": [80, 160],
+      "size": [360, 110],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "video_path",
+          "type": "LIPFORCING_VIDEO_PATH",
+          "links": [1]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LipForcingLoadVideo"
+      },
+      "widgets_values": ["video.mp4"]
+    },
+    {
+      "id": 2,
+      "type": "LipForcingLoadAudio",
+      "pos": [80, 330],
+      "size": [360, 110],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "audio_path",
+          "type": "LIPFORCING_AUDIO_PATH",
+          "links": [2]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LipForcingLoadAudio"
+      },
+      "widgets_values": ["audio.wav"]
+    },
+    {
+      "id": 3,
+      "type": "LipForcing14B",
+      "pos": [560, 160],
+      "size": [430, 520],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video_path",
+          "type": "LIPFORCING_VIDEO_PATH",
+          "link": 1
+        },
+        {
+          "name": "audio_path",
+          "type": "LIPFORCING_AUDIO_PATH",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LipForcing14B",
+        "infinitetalk_lipforcing_schema": 1
+      },
+      "widgets_values": [
+        42,
+        "streaming_taehv",
+        true,
+        "LipForcing14B_Final"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "Note",
+      "pos": [80, 500],
+      "size": [360, 180],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Lip Forcing 14B local\n\n1. Selecione o MP4 gerado pelo InfiniteTalk.\n2. Selecione o audio original.\n3. Use uma GPU Vast com 48 GB ou mais.\n\nO node descarrega os modelos do ComfyUI antes de iniciar o runtime isolado."
+      ]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 3, 0, "LIPFORCING_VIDEO_PATH"],
+    [2, 2, 0, 3, 1, "LIPFORCING_AUDIO_PATH"]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Entradas locais",
+      "bounding": [40, 100, 440, 620],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Lip Forcing 14B",
+      "bounding": [520, 100, 520, 620],
+      "color": "#a1309b",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [40, 40]
+    },
+    "frontendVersion": "1.49.6",
+    "node_versions": {
+      "ComfyUI-LipForcing": "1.0.0",
+      "comfy-core": "0.3.43"
+    },
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

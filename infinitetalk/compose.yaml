@@ -25,6 +25,8 @@ services:
       COMFYUI_ARGS: ${COMFYUI_ARGS:---preview-method auto}
       COMFYUI_PORT: "8188"
       DOWNLOAD_MODELS_ON_START: ${DOWNLOAD_MODELS_ON_START:-0}
+      DOWNLOAD_LIPFORCING_MODELS_ON_START: ${DOWNLOAD_LIPFORCING_MODELS_ON_START:-0}
+      LIPFORCING_ALLOW_LOW_VRAM: ${LIPFORCING_ALLOW_LOW_VRAM:-0}
       HF_HOME: /data/cache/huggingface
       XDG_CACHE_HOME: /opt/ComfyUI/models/latentsync
       HF_TOKEN: ${HF_TOKEN:-}
@@ -54,3 +56,18 @@ services:
     volumes: *comfy-volumes
     environment:
       MODEL_QUANTIZATION: ${MODEL_QUANTIZATION:-q8}
+
+  download-lipforcing-models:
+    <<: *comfy-image
+    profiles: [tools]
+    command: ["download-lipforcing-models"]
+    volumes: *comfy-volumes
+    environment:
+      HF_HOME: /data/cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+
+  verify-lipforcing:
+    <<: *comfy-image
+    profiles: [tools]
+    command: ["verify-lipforcing"]
+    volumes: *comfy-volumes

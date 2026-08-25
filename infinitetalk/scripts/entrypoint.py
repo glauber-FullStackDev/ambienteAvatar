@@ -32,6 +32,18 @@ DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW = Path(
         "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-stable-docker.json",
     )
 )
+DEFAULT_V2V_STABLE_NO_LATENTSYNC_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_V2V_STABLE_NO_LATENTSYNC_WORKFLOW",
+        "/opt/defaults/workflows/infinitetalk-v2v-stable-no-latentsync-docker.json",
+    )
+)
+DEFAULT_LIPFORCING_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_LIPFORCING_WORKFLOW",
+        "/opt/defaults/workflows/lipforcing14b-video-audio-docker.json",
+    )
+)
 
 MODEL_FILES = {
     "q4_k_m": (
@@ -67,6 +79,7 @@ def prepare_directories() -> None:
         "models/loras/WanVideo/Lightx2v",
         "models/latentsync/vae",
         "models/latentsync/whisper",
+        "models/lipforcing",
         "models/text_encoders",
         "models/vae/wanvideo",
         "models/wav2vec2",
@@ -562,6 +575,16 @@ def seed_workflows() -> None:
         "infinitetalk-v2v-latentsync16-stable-docker.json",
         preserve_source=True,
     )
+    seed_workflow(
+        DEFAULT_V2V_STABLE_NO_LATENTSYNC_WORKFLOW,
+        "infinitetalk-v2v-stable-no-latentsync-docker.json",
+        preserve_source=True,
+    )
+    seed_workflow(
+        DEFAULT_LIPFORCING_WORKFLOW,
+        "lipforcing14b-video-audio-docker.json",
+        preserve_source=True,
+    )
     upgrade_stable_workflow(
         DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
         "infinitetalk-v2v-latentsync16-stable-docker.json",
@@ -596,11 +619,25 @@ def run_downloader(verify_only: bool = False) -> int:
     return subprocess.call(command)
 
 
+def run_lipforcing_downloader(verify_only: bool = False) -> int:
+    command = [
+        sys.executable,
+        str(SCRIPTS_HOME / "download_lipforcing_models.py"),
+    ]
+    if verify_only:
+        command.append("--verify-only")
+    return subprocess.call(command)
+
+
 def serve(extra_args: list[str]) -> None:
     prepare_directories()
     seed_workflows()
     if env_flag("DOWNLOAD_MODELS_ON_START"):
         result = run_downloader()
+        if result != 0:
+            raise SystemExit(result)
+    if env_flag("DOWNLOAD_LIPFORCING_MODELS_ON_START"):
+        result = run_lipforcing_downloader()
         if result != 0:
             raise SystemExit(result)
     port = os.environ.get("COMFYUI_PORT", "8188")
@@ -628,6 +665,12 @@ def main() -> None:
     if action == "verify":
         prepare_directories()
         raise SystemExit(run_downloader(verify_only=True))
+    if action == "download-lipforcing-models":
+        prepare_directories()
+        raise SystemExit(run_lipforcing_downloader())
+    if action == "verify-lipforcing":
+        prepare_directories()
+        raise SystemExit(run_lipforcing_downloader(verify_only=True))
     os.execvp(action, [action, *extra_args])
 
 

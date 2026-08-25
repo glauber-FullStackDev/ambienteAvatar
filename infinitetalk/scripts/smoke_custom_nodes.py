@@ -9,6 +9,7 @@ import sys
 
 COMFYUI_HOME = Path("/opt/ComfyUI")
 LATENTSYNC_NODE = COMFYUI_HOME / "custom_nodes/ComfyUI-LatentSyncWrapper"
+LIPFORCING_NODE = COMFYUI_HOME / "custom_nodes/ComfyUI-LipForcing"
 
 
 def main() -> None:
@@ -18,6 +19,42 @@ def main() -> None:
     import comfy.options
 
     comfy.options.enable_args_parsing()
+    lipforcing_spec = importlib.util.spec_from_file_location(
+        "comfyui_lipforcing",
+        LIPFORCING_NODE / "__init__.py",
+        submodule_search_locations=[str(LIPFORCING_NODE)],
+    )
+    if lipforcing_spec is None or lipforcing_spec.loader is None:
+        raise RuntimeError("Nao foi possivel carregar ComfyUI-LipForcing")
+    lipforcing_module = importlib.util.module_from_spec(lipforcing_spec)
+    sys.modules[lipforcing_spec.name] = lipforcing_module
+    lipforcing_spec.loader.exec_module(lipforcing_module)
+    lipforcing_mappings = getattr(lipforcing_module, "NODE_CLASS_MAPPINGS", {})
+    required_lipforcing = {
+        "LipForcingLoadVideo",
+        "LipForcingLoadAudio",
+        "LipForcing14B",
+    }
+    missing_lipforcing = sorted(required_lipforcing.difference(lipforcing_mappings))
+    if missing_lipforcing:
+        raise SystemExit(
+            "Nodes Lip Forcing ausentes: " + ", ".join(missing_lipforcing)
+        )
+    lipforcing_node = lipforcing_mappings["LipForcing14B"]
+    lipforcing_inputs = lipforcing_node.INPUT_TYPES()["required"]
+    if lipforcing_inputs["seed"][1].get("default") != 42:
+        raise SystemExit("Seed padrao do Lip Forcing invalida")
+    if lipforcing_inputs["decoder"][0][0] != "streaming_taehv":
+        raise SystemExit("Decoder padrao do Lip Forcing invalido")
+    lipforcing_nodes = importlib.import_module("comfyui_lipforcing.nodes")
+    if lipforcing_nodes._exact_latent_frames(1.0) != 9:
+        raise SystemExit("Calculo de duracao exata do Lip Forcing invalido")
+    edge_latents = lipforcing_nodes._exact_latent_frames(0.88)
+    if 1 + (edge_latents - 1) * 4 < 22:
+        raise SystemExit("Lip Forcing pode terminar antes do audio")
+    if lipforcing_nodes._safe_prefix("../saida teste") != "saida_teste":
+        raise SystemExit("Sanitizacao do prefixo Lip Forcing invalida")
+
     spec = importlib.util.spec_from_file_location(
         "latent_sync_wrapper",
         LATENTSYNC_NODE / "__init__.py",
@@ -173,7 +210,7 @@ def main() -> None:
             f"esperado: {expected_insightface_root}"
         )
     print(
-        "OK: nodes e pipeline LatentSync registrados; "
+        "OK: nodes Lip Forcing e pipeline LatentSync registrados; "
         f"InsightFace {getattr(insightface, '__version__', 'instalado')}; "
         "ONNX Runtime CUDA"
     )

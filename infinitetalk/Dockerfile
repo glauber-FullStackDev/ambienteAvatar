@@ -8,6 +8,7 @@ ARG VIDEO_HELPER_SUITE_REF=4ee72c065db22c9d96c2427954dc69e7b908444b
 ARG KJ_NODES_REF=3f20054214fec9f9234fd3841ae6f1e4287948f6
 ARG MELBAND_ROFORMER_REF=92c86854e6654f4aacc97484471af95c98ea16d4
 ARG LATENT_SYNC_WRAPPER_REF=360d5283d7276aee68b4237b1387e594e4ce640e
+ARG LIPFORCING_REF=fc864771eb347ca3ccaaef9c0b583ff6ccc9f184
 ARG INSTALL_MANAGER=1
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -89,8 +90,24 @@ RUN if [ "${INSTALL_MANAGER}" = "1" ]; then \
         && pip install -r requirements.txt; \
     fi
 
+RUN git clone https://github.com/cvlab-kaist/LipForcing.git /opt/LipForcing \
+    && cd /opt/LipForcing \
+    && git checkout --detach "${LIPFORCING_REF}" \
+    && conda create -y -p /opt/lipforcing-venv python=3.12 pip \
+    && /opt/lipforcing-venv/bin/pip install \
+        --index-url https://download.pytorch.org/whl/cu128 \
+        torch==2.10.0 \
+        torchvision==0.25.0 \
+        torchaudio==2.10.0 \
+    && /opt/lipforcing-venv/bin/pip install -e /opt/LipForcing \
+    && /opt/lipforcing-venv/bin/pip uninstall -y onnxruntime onnxruntime-gpu \
+    && /opt/lipforcing-venv/bin/pip install onnxruntime-gpu==1.26.0 \
+    && conda clean -afy
+
 COPY scripts /opt/infinitetalk-scripts
 COPY defaults /opt/defaults
+COPY custom_nodes/ComfyUI-LipForcing \
+    ${COMFYUI_HOME}/custom_nodes/ComfyUI-LipForcing
 COPY patches/latentsync_face_detector.py \
     ${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper/latentsync/utils/face_detector.py
 COPY patches/latentsync_stable_runtime.py \
@@ -116,11 +133,15 @@ RUN chmod +x \
         "${COMFYUI_HOME}/models/latentsync/auxiliary/models/buffalo_l" \
         "${COMFYUI_HOME}/models/latentsync/vae" \
         "${COMFYUI_HOME}/models/latentsync/whisper" \
+        "${COMFYUI_HOME}/models/lipforcing" \
         "${COMFYUI_HOME}/models/text_encoders" \
         "${COMFYUI_HOME}/models/vae/wanvideo" \
         "${COMFYUI_HOME}/models/wav2vec2" \
         "${COMFYUI_HOME}/output" \
         "${COMFYUI_HOME}/user/default/workflows" \
+        /opt/LipForcing/checkpoints \
+    && ln -s "${COMFYUI_HOME}/models/latentsync/auxiliary" \
+        /opt/LipForcing/checkpoints/auxiliary \
     && cp "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper/example_workflows/wanvideo_2_1_14B_I2V_InfiniteTalk_example_03.json" \
         /opt/defaults/workflows/infinitetalk-i2v.json \
     && cp "${COMFYUI_HOME}/custom_nodes/ComfyUI-WanVideoWrapper/example_workflows/wanvideo_2_1_14B_V2V_InfiniteTalk_example_02.json" \
@@ -130,7 +151,12 @@ RUN chmod +x \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-KJNodes" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-MelBandRoFormer" \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-LatentSyncWrapper" \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LipForcing" \
         /opt/infinitetalk-scripts \
+    && /opt/lipforcing-venv/bin/python -m compileall -q /opt/LipForcing \
+    && /opt/lipforcing-venv/bin/python \
+        /opt/LipForcing/scripts/inference/inference_streaming.py --help \
+        >/dev/null \
     && python /opt/infinitetalk-scripts/check_dependencies.py \
     && python /opt/infinitetalk-scripts/smoke_custom_nodes.py
 

@@ -1,4 +1,4 @@
-.PHONY: setup build models verify up logs down
+.PHONY: setup build models verify lipforcing-models verify-lipforcing up logs down
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -12,6 +12,12 @@ models: setup
 
 verify: setup
 	docker compose --profile tools run --rm verify
+
+lipforcing-models: setup
+	docker compose --profile tools run --rm download-lipforcing-models
+
+verify-lipforcing: setup
+	docker compose --profile tools run --rm verify-lipforcing
 
 up: setup
 	docker compose up -d comfyui

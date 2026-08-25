@@ -70,6 +70,7 @@ required_paths = (
     comfyui_home / "custom_nodes/ComfyUI-MelBandRoFormer/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-VideoHelperSuite/__init__.py",
     comfyui_home / "custom_nodes/ComfyUI-LatentSyncWrapper/__init__.py",
+    comfyui_home / "custom_nodes/ComfyUI-LipForcing/__init__.py",
     comfyui_home
     / "custom_nodes/ComfyUI-LatentSyncWrapper/latentsync_stable_node.py",
     comfyui_home
@@ -86,6 +87,14 @@ required_paths = (
     Path(
         "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-stable-docker.json"
     ),
+    Path(
+        "/opt/defaults/workflows/infinitetalk-v2v-stable-no-latentsync-docker.json"
+    ),
+    Path("/opt/defaults/workflows/lipforcing14b-video-audio-docker.json"),
+    Path("/opt/LipForcing/scripts/inference/inference_streaming.py"),
+    Path("/opt/lipforcing-venv/bin/python"),
+    Path("/opt/infinitetalk-scripts/download_lipforcing_models.py"),
+    Path("/opt/infinitetalk-scripts/precompute_lipforcing_text.py"),
 )
 missing_paths = [str(path) for path in required_paths if not path.exists()]
 if missing_paths:
@@ -98,11 +107,23 @@ latentsync_workflow_path = Path(
 stable_workflow_path = Path(
     "/opt/defaults/workflows/infinitetalk-v2v-latentsync16-stable-docker.json"
 )
+stable_no_latentsync_workflow_path = Path(
+    "/opt/defaults/workflows/infinitetalk-v2v-stable-no-latentsync-docker.json"
+)
+lipforcing_workflow_path = Path(
+    "/opt/defaults/workflows/lipforcing14b-video-audio-docker.json"
+)
 base_workflow = json.loads(base_workflow_path.read_text(encoding="utf-8"))
 latentsync_workflow = json.loads(
     latentsync_workflow_path.read_text(encoding="utf-8")
 )
 stable_workflow = json.loads(stable_workflow_path.read_text(encoding="utf-8"))
+stable_no_latentsync_workflow = json.loads(
+    stable_no_latentsync_workflow_path.read_text(encoding="utf-8")
+)
+lipforcing_workflow = json.loads(
+    lipforcing_workflow_path.read_text(encoding="utf-8")
+)
 
 if any(node.get("type") == "LatentSyncNode" for node in base_workflow["nodes"]):
     raise SystemExit("O workflow V2V base nao pode conter LatentSyncNode")
@@ -251,4 +272,83 @@ if (
 ):
     raise SystemExit("LatentSync Stable deve preservar CRF 16 e 25 FPS")
 
-print("OK: dependencias e custom nodes do InfiniteTalk + LatentSync 1.6 presentes")
+stable_no_ls_nodes = {
+    node["id"]: node for node in stable_no_latentsync_workflow["nodes"]
+}
+stable_no_ls_links = {
+    link[0]: link for link in stable_no_latentsync_workflow["links"]
+}
+if any(
+    node.get("type") in {"LatentSyncNode", "LatentSyncStableNode"}
+    for node in stable_no_latentsync_workflow["nodes"]
+):
+    raise SystemExit("O workflow Stable sem LatentSync ainda contem LatentSync")
+if stable_no_ls_links.get(560) != [560, 130, 0, 300, 0, "IMAGE"]:
+    raise SystemExit("WanVideoDecode nao esta ligado diretamente a saida Stable")
+if 449 in stable_no_ls_links or 545 in stable_no_ls_links:
+    raise SystemExit("Links residuais do LatentSync encontrados no novo preset")
+if stable_no_ls_links.get(559) != [559, 254, 0, 131, 1, "AUDIO"]:
+    raise SystemExit("Audio original nao esta ligado ao VHS do novo preset")
+for node_id, stable_source_node in stable_nodes.items():
+    if node_id == 307:
+        continue
+    target_node = stable_no_ls_nodes.get(node_id)
+    if target_node is None:
+        raise SystemExit(f"Node Stable ausente no preset sem LatentSync: {node_id}")
+    source_values = stable_source_node.get("widgets_values")
+    target_values = target_node.get("widgets_values")
+    if node_id == 131:
+        source_values = dict(source_values)
+        target_values = dict(target_values)
+        for values in (source_values, target_values):
+            values.pop("filename_prefix", None)
+            values.pop("videopreview", None)
+    if target_values != source_values:
+        raise SystemExit(
+            f"Parametros Stable alterados no preset sem LatentSync: node {node_id}"
+        )
+stable_no_ls_combine = stable_no_ls_nodes[131].get("widgets_values", {})
+if (
+    stable_no_ls_combine.get("filename_prefix")
+    != "InfiniteTalk_V2V_Stable_NoLatentSync"
+):
+    raise SystemExit("Prefixo do Stable sem LatentSync invalido")
+
+lipforcing_nodes = {node["id"]: node for node in lipforcing_workflow["nodes"]}
+lipforcing_links = {link[0]: link for link in lipforcing_workflow["links"]}
+expected_lipforcing_types = {
+    1: "LipForcingLoadVideo",
+    2: "LipForcingLoadAudio",
+    3: "LipForcing14B",
+}
+for node_id, node_type in expected_lipforcing_types.items():
+    if lipforcing_nodes.get(node_id, {}).get("type") != node_type:
+        raise SystemExit(f"Node Lip Forcing ausente ou invalido: {node_type}")
+if lipforcing_links.get(1) != [
+    1,
+    1,
+    0,
+    3,
+    0,
+    "LIPFORCING_VIDEO_PATH",
+] or lipforcing_links.get(2) != [
+    2,
+    2,
+    0,
+    3,
+    1,
+    "LIPFORCING_AUDIO_PATH",
+]:
+    raise SystemExit("Conexoes do workflow Lip Forcing estao incorretas")
+if lipforcing_nodes[3].get("widgets_values") != [
+    42,
+    "streaming_taehv",
+    True,
+    "LipForcing14B_Final",
+]:
+    raise SystemExit("Defaults do Lip Forcing 14B estao incorretos")
+
+print(
+    "OK: dependencias, workflows e custom nodes do "
+    "InfiniteTalk + LatentSync 1.6 + Lip Forcing presentes"
+)
