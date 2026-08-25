@@ -130,11 +130,8 @@ if base_positive or base_negative:
     raise SystemExit("O workflow InfiniteTalk V2V sem LatentSync deve manter prompts vazios")
 if not latentsync_positive or not latentsync_negative:
     raise SystemExit("Prompts InfiniteTalk + LatentSync nao podem ficar vazios")
-if (stable_positive, stable_negative) != (
-    latentsync_positive,
-    latentsync_negative,
-):
-    raise SystemExit("Os workflows LatentSync devem usar os mesmos prompts")
+if not stable_positive or not stable_negative:
+    raise SystemExit("Prompts do preset LatentSync Stable nao podem ficar vazios")
 
 nodes = {node["id"]: node for node in latentsync_workflow["nodes"]}
 base_nodes = {node["id"]: node for node in base_workflow["nodes"]}
