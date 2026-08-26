@@ -1,9 +1,9 @@
 {
-  "name": "Ambiente Avatar - LTX 2.3 IA2V + ID-LoRA - Jupyter",
+  "name": "Ambiente Avatar - LTX 2.3 IA2V + Face-ID - Jupyter",
   "image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23",
   "tag": "vast",
-  "desc": "ComfyUI CUDA com LTX 2.3 IA2V, ID-LoRA, JupyterLab e SSH no Vast.ai.",
-  "readme": "Use JupyterLab para terminal e arquivos; abra a porta HTTP 8188 para o ComfyUI. Anexe um volume persistente de pelo menos 60 GB em /opt/ComfyUI/models. A imagem instala IA2V, ID-LoRA e IA2V + TalkVid e baixa o TalkVid 3K no primeiro boot. Acompanhe a inicializacao com tail -n 200 -f /var/log/portal/comfyui.log.",
+  "desc": "ComfyUI CUDA com LTX 2.3 IA2V, ID-LoRA, TalkVid, Best Face-ID, JupyterLab e SSH no Vast.ai.",
+  "readme": "Use JupyterLab para terminal e arquivos; abra a porta HTTP 8188 para o ComfyUI. Anexe um volume persistente de pelo menos 60 GB em /opt/ComfyUI/models. A imagem instala quatro workflows e baixa TalkVid 3K e Best Face-ID v1.0 no primeiro boot. Acompanhe a inicializacao com tail -n 200 -f /var/log/portal/comfyui.log.",
   "env": "-p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS=\"--preview-method auto\" -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface",
   "runtype": "jupyter",
   "use_jupyter_lab": true,

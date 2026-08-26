@@ -29,12 +29,21 @@ DEFAULT_IA2V_TALKVID_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_talkvid.json",
     )
 )
+DEFAULT_IA2V_BEST_FACE_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_BEST_FACE_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
+    )
+)
 SEEDED_WORKFLOW = COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v-docker.json"
 SEEDED_ID_LORA_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_id_lora-docker.json"
 )
 SEEDED_IA2V_TALKVID_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json"
+)
+SEEDED_IA2V_BEST_FACE_WORKFLOW = (
+    COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json"
 )
 
 
@@ -75,6 +84,11 @@ def seed_workflows() -> None:
         DEFAULT_IA2V_TALKVID_WORKFLOW,
         SEEDED_IA2V_TALKVID_WORKFLOW,
         "LTX 2.3 IA2V + TalkVid",
+    )
+    seed_one_workflow(
+        DEFAULT_IA2V_BEST_FACE_WORKFLOW,
+        SEEDED_IA2V_BEST_FACE_WORKFLOW,
+        "LTX 2.3 IA2V + Best Face-ID",
     )
 
 

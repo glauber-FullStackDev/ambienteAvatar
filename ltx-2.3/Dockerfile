@@ -7,6 +7,7 @@ ARG WORKFLOW_COMMIT=d11b69157009227ad2a7d3a927a1eb68a3d5f281
 ARG WORKFLOW_SHA256=7823a703f472d9c5e6f82c462235ff89a0fa14752ec1fd947c4422cf53e47685
 ARG ID_LORA_WORKFLOW_COMMIT=04f33569dad7a1d277429bda9f35209dfa4d91cf
 ARG ID_LORA_WORKFLOW_SHA256=fcffe421129bac16b4f0655e54130d633280cdaf6949e145221e7090be42151f
+ARG BFSNODES_COMMIT=0a2553869254eef4f3f735fdd9fea04614c3dd7e
 
 ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
@@ -34,6 +35,13 @@ RUN git clone https://github.com/Comfy-Org/ComfyUI.git "${COMFYUI_HOME}" \
     && pip install -r "${COMFYUI_HOME}/requirements.txt" \
     && pip install "huggingface_hub[hf_xet]>=0.34,<2" "jupyterlab>=4.2,<5"
 
+RUN git clone https://github.com/alisson-anjos/ComfyUI-BFSNodes.git \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-BFSNodes" \
+    && git -C "${COMFYUI_HOME}/custom_nodes/ComfyUI-BFSNodes" \
+        checkout --detach "${BFSNODES_COMMIT}" \
+    && pip install -r \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-BFSNodes/requirements.txt"
+
 RUN mkdir -p /opt/defaults/workflows \
     && curl -fsSL \
         "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/${WORKFLOW_COMMIT}/templates/video_ltx2_3_ia2v.json" \
@@ -51,6 +59,7 @@ RUN chmod +x \
         /opt/ltx23-scripts/entrypoint.py \
         /opt/ltx23-scripts/download_models.py \
         /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
+        /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
     && mkdir -p \
         "${COMFYUI_HOME}/input" \
         "${COMFYUI_HOME}/models/checkpoints" \
@@ -64,6 +73,9 @@ RUN chmod +x \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
         --id-lora /opt/defaults/workflows/video_ltx2_3_id_lora.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_talkvid.json \
+    && python /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
+        --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
+        --output /opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json \
     && python -m compileall -q /opt/ltx23-scripts \
     && python /opt/ltx23-scripts/check_dependencies.py \
     && python /opt/ltx23-scripts/smoke_core_nodes.py

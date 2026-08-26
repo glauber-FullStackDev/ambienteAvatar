@@ -79,6 +79,15 @@ MODEL_FILES = (
         sha256="e5af73441743b4852f228b03e444888dff3da80d2666033af2367ab7bda6d8b9",
     ),
     ModelFile(
+        label="LTX 2.3 Best Face-ID v1.0",
+        repo="Alissonerdx/LTX-Best-Face-ID",
+        revision="dac8cc2dd6e3cec350810ff1336d04fc120e9561",
+        remote_path="Best_FaceID_v1.0_LoRA.safetensors",
+        relative_path="loras/Best_FaceID_v1.0_LoRA.safetensors",
+        size=2_466_643_384,
+        sha256="7aaab2f1bff2af121e0751120ad16a3e443b4223a04b78c51740029d25f17994",
+    ),
+    ModelFile(
         label="Gemma prompt-enhancement LoRA",
         repo="Comfy-Org/ltx-2",
         revision="101c239b4b64dd1b45d645365339c56e0e7df4c3",
@@ -198,7 +207,7 @@ def main() -> None:
         "--verify-sha256",
         action="store_true",
         default=os.environ.get("VERIFY_MODEL_SHA256", "0") == "1",
-        help="calcula o SHA256 completo dos aproximadamente 41 GiB",
+        help="calcula o SHA256 completo dos aproximadamente 43,4 GiB",
     )
     args = parser.parse_args()
 

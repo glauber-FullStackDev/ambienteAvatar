@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 from build_ia2v_talkvid_workflow import validate_hybrid
+from build_ia2v_best_face_workflow import validate_best_face
 
 
 COMFYUI_HOME = Path(os.environ.get("COMFYUI_HOME", "/opt/ComfyUI"))
@@ -29,6 +30,12 @@ IA2V_TALKVID_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_talkvid.json",
     )
 )
+IA2V_BEST_FACE_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_BEST_FACE_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
+    )
+)
 IA2V_WORKFLOW_SHA256 = (
     "7823a703f472d9c5e6f82c462235ff89a0fa14752ec1fd947c4422cf53e47685"
 )
@@ -48,6 +55,9 @@ ID_LORA_MODELS = COMMON_MODELS | {
     "ltx-2.3-id-lora-talkvid-3k.safetensors",
 }
 IA2V_TALKVID_MODELS = IA2V_MODELS | ID_LORA_MODELS
+IA2V_BEST_FACE_MODELS = IA2V_MODELS | {
+    "Best_FaceID_v1.0_LoRA.safetensors",
+}
 COMMON_NODE_TYPES = {
     "CheckpointLoaderSimple",
     "CreateVideo",
@@ -75,6 +85,9 @@ ID_LORA_NODE_TYPES = COMMON_NODE_TYPES | {
 }
 IA2V_TALKVID_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXVReferenceAudio",
+}
+IA2V_BEST_FACE_NODE_TYPES = IA2V_NODE_TYPES | {
+    "LTXIdentityOverlapConditioning",
 }
 
 
@@ -144,6 +157,9 @@ def main() -> None:
     for required in (COMFYUI_HOME / "main.py", COMFYUI_HOME / "requirements.txt"):
         if not required.is_file():
             failures.append(f"arquivo do ComfyUI ausente: {required}")
+    bfs_node = COMFYUI_HOME / "custom_nodes/ComfyUI-BFSNodes/__init__.py"
+    if not bfs_node.is_file():
+        failures.append(f"custom node BFS ausente: {bfs_node}")
     validate_workflow(
         "IA2V",
         IA2V_WORKFLOW,
@@ -175,6 +191,21 @@ def main() -> None:
             )
         except Exception as error:
             failures.append(f"workflow IA2V + TalkVid invalido: {error}")
+    validate_workflow(
+        "IA2V + Best Face-ID",
+        IA2V_BEST_FACE_WORKFLOW,
+        None,
+        IA2V_BEST_FACE_MODELS,
+        IA2V_BEST_FACE_NODE_TYPES,
+        failures,
+    )
+    if IA2V_BEST_FACE_WORKFLOW.is_file():
+        try:
+            validate_best_face(
+                json.loads(IA2V_BEST_FACE_WORKFLOW.read_text(encoding="utf-8"))
+            )
+        except Exception as error:
+            failures.append(f"workflow IA2V + Best Face-ID invalido: {error}")
 
     try:
         import huggingface_hub  # noqa: F401
@@ -188,7 +219,10 @@ def main() -> None:
         for failure in failures:
             print(f"[FALHA] {failure}", file=sys.stderr)
         raise SystemExit(1)
-    print("Dependencias e workflows IA2V/ID-LoRA/IA2V+TalkVid validados.")
+    print(
+        "Dependencias e workflows "
+        "IA2V/ID-LoRA/IA2V+TalkVid/IA2V+Best Face-ID validados."
+    )
 
 
 if __name__ == "__main__":

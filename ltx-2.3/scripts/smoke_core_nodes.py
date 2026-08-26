@@ -22,6 +22,7 @@ REQUIRED_NODES = {
     "LTXVCropGuides",
     "LTXVEmptyLatentAudio",
     "LTXVImgToVideoInplace",
+    "LTXIdentityOverlapConditioning",
     "LTXVLatentUpsampler",
     "LTXVPreprocess",
     "LTXVReferenceAudio",
@@ -59,17 +60,17 @@ def main() -> None:
 
     asyncio.run(
         nodes.init_extra_nodes(
-            init_custom_nodes=False,
+            init_custom_nodes=True,
             init_api_nodes=True,
         )
     )
     missing = REQUIRED_NODES - set(nodes.NODE_CLASS_MAPPINGS)
     if missing:
         raise SystemExit(
-            "Nodes nativos exigidos pelo LTX 2.3 nao carregaram: "
+            "Nodes exigidos pelo LTX 2.3 nao carregaram: "
             + ", ".join(sorted(missing))
         )
-    print("Smoke test dos nodes nativos do LTX 2.3 concluido.")
+    print("Smoke test dos nodes do LTX 2.3 concluido.")
 
 
 if __name__ == "__main__":
