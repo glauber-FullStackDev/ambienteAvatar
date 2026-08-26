@@ -1,4 +1,4 @@
-name: Build and publish LTX 2.3 image
+name: Build and publish LTX 2.3/2.5 image
 
 on:
   push:
@@ -70,8 +70,8 @@ jobs:
             type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
             type=sha,format=long
           labels: |
-            org.opencontainers.image.title=LTX 2.3 IA2V ComfyUI
-            org.opencontainers.image.description=CUDA ComfyUI environment for LTX 2.3 IA2V, ID-LoRA, TalkVid, and Best Face-ID workflows
+            org.opencontainers.image.title=LTX 2.3/2.5 IA2V ComfyUI
+            org.opencontainers.image.description=CUDA ComfyUI environment for LTX 2.3 workflows and LTX 2.5 distilled IA2V
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
@@ -116,7 +116,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## LTX 2.3 image published"
+            echo "## LTX 2.3/2.5 image published"
             echo
             echo '```text'
             echo "${{ steps.meta.outputs.tags }}"

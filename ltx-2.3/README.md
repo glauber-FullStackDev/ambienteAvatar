@@ -1,6 +1,6 @@
-# LTX 2.3 IA2V + ComfyUI para Vast.ai
+# LTX 2.3/2.5 IA2V + ComfyUI para Vast.ai
 
-Imagem independente para executar dois workflows oficiais do ComfyUI e duas
+Imagem independente para executar dois workflows oficiais do ComfyUI e tres
 adaptacoes prontas:
 
 - `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
@@ -11,21 +11,28 @@ adaptacoes prontas:
   TalkVid 3K como reforco de identidade no primeiro estagio.
 - `video_ltx2_3_ia2v_best_face.json`, que preserva a narracao original e usa o
   Best Face-ID v1.0 como referencia visual separada para reforcar o rosto.
+- `video_ltx2_5_ia2v_distilled_8steps.json`, que combina imagem e narracao no
+  transformer LTX-2.5 destilado INT8 ConvRot com a agenda oficial de 8 passos.
 
 O ComfyUI, os workflows e as revisoes dos modelos ficam fixados. Os pesos nao
 entram na imagem Docker: no primeiro boot eles sao baixados em
 `/opt/ComfyUI/models`, validados por tamanho e mantidos no volume persistente.
-O ComfyUI so inicia depois que os sete arquivos estiverem completos.
+O ComfyUI so inicia depois que os doze arquivos estiverem completos.
 
 ## Conteudo
 
-- ComfyUI no commit `2e47082c8ed1d1a0fe54add57f98b63433cfacbb`;
+- ComfyUI no commit `a25c7bf2b8c7408d8724f4245dbe09d95992e3a1`,
+  posterior ao suporte nativo ao LTX-2.5;
 - workflow oficial no commit
   `d11b69157009227ad2a7d3a927a1eb68a3d5f281` e SHA256
   `7823a703f472d9c5e6f82c462235ff89a0fa14752ec1fd947c4422cf53e47685`;
 - workflow ID-LoRA oficial no commit
   `04f33569dad7a1d277429bda9f35209dfa4d91cf` e SHA256
   `fcffe421129bac16b4f0655e54130d633280cdaf6949e145221e7090be42151f`;
+- workflow LTX-2.5 I2V oficial no commit
+  `1121504798345b1bb4e6350991f90512c4ba1ed9` e SHA256
+  `0a88024394467250013ce611ee46d01cc7e73078a0899e4c80709080c5101f71`,
+  usado como base da adaptacao IA2V;
 - PyTorch 2.8.0, CUDA 12.8 e cuDNN 9;
 - ComfyUI-BFSNodes no commit
   `0a2553869254eef4f3f735fdd9fea04614c3dd7e`, necessario ao condicionamento
@@ -48,19 +55,28 @@ ambiente e o BFSNodes, fixado para manter o workflow Best Face-ID reproduzivel.
 | `loras/` | `Best_FaceID_v1.0_LoRA.safetensors` | 2,3 GiB |
 | `loras/` | `gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors` | 0,6 GiB |
 | `latent_upscale_models/` | `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | 0,9 GiB |
+| `diffusion_models/` | `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | 20,0 GiB |
+| `text_encoders/` | `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | 14,3 GiB |
+| `vae/` | `ltx-2.5-video-vae-bf16.safetensors` | 1,4 GiB |
+| `vae/` | `ltx-2.5-audio-vae-bf16.safetensors` | 0,3 GiB |
+| `latent_upscale_models/` | `ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors` | 0,9 GiB |
 
-Total exato: `46.582.632.638` bytes, aproximadamente `43,4 GiB`.
+O LTX-2.5 acrescenta `39.709.872.236` bytes, aproximadamente `37,0 GiB`.
+Total exato da imagem: `86.292.504.874` bytes, aproximadamente `80,4 GiB`.
 
-O teste normal de boot valida o tamanho exato, sem reler 43,4 GiB a cada
+O teste normal de boot valida o tamanho exato, sem reler 80,4 GiB a cada
 inicializacao. Para uma auditoria integral dos checksums:
 
 ```bash
 /opt/ltx23-scripts/container-entrypoint.sh verify --verify-sha256
 ```
 
-Se o Hugging Face limitar o download, adicione `-e HF_TOKEN=hf_...` nas opcoes
-Docker do template. Downloads interrompidos podem ser retomados reiniciando a
-instancia ou executando:
+Antes do primeiro boot com LTX-2.5, aceite os termos em
+`https://huggingface.co/Lightricks/LTX-2.5` e forneca um token com acesso por
+`-e HF_TOKEN=hf_...` nas opcoes Docker do template. O token nao entra na imagem.
+Sem a autorizacao, o downloader interrompe corretamente antes de iniciar o
+ComfyUI. Downloads interrompidos podem ser retomados reiniciando a instancia ou
+executando:
 
 ```bash
 /opt/ltx23-scripts/container-entrypoint.sh download-models
@@ -75,6 +91,7 @@ Na primeira inicializacao, copias intactas aparecem em:
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_id_lora-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_5_ia2v_distilled_8steps-docker.json
 ```
 
 Se cada arquivo ja existir ele nunca e sobrescrito, preservando ajustes feitos na
@@ -127,6 +144,27 @@ sobre o IA2V oficial. Comece com 6 a 8 segundos. O Best Face-ID melhora a
 preservacao visual da identidade, mas o sincronismo labial continua vindo do
 condicionamento de audio do IA2V.
 
+### Como usar o LTX-2.5 IA2V destilado
+
+No workflow `video_ltx2_5_ia2v_distilled_8steps-docker.json`:
+
+1. envie uma foto nitida no `Identity / First Frame`;
+2. envie a narracao no `Driving Audio`;
+3. descreva no prompt a pessoa falando, o ambiente, a iluminacao e o movimento;
+4. ajuste `audio_start`, duracao, resolucao, FPS e seed;
+5. mantenha `prompt_enhance=false` e execute.
+
+O audio recortado e codificado pelo VAE de audio 2.5 e recebe noise mask `0`,
+ficando congelado enquanto condiciona o video nas duas etapas. A faixa original
+recortada vai diretamente ao `CreateVideo`, sem passar pelo decoder de audio do
+modelo. A primeira etapa usa a agenda destilada fixa de 8 passos; a etapa de
+upscale usa mais 3 passos, ambas com CFG de video/audio em `1`.
+
+Esse IA2V e uma adaptacao local do I2V 2.5 oficial; ainda nao existe um template
+IA2V 2.5 publicado pela Comfy-Org. Comece com 5 segundos. O prompt enhancer
+permanece no grafo, desligado, mas seu peso opcional de aproximadamente 4,8 GiB
+nao e baixado pela imagem.
+
 ### Como usar o ID-LoRA
 
 No workflow `video_ltx2_3_id_lora-docker.json`:
@@ -153,11 +191,11 @@ workflow fazem esse ajuste a partir da duracao e do FPS.
 
 ## Vast.ai: configuracao recomendada
 
-Use uma GPU com **48 GB de VRAM** para o preset oficial de 720p. Recomenda-se
-tambem 64 GB ou mais de RAM do host, CUDA 12.8 ou superior e 100 GB de disco da
-instancia. Anexe um volume persistente de no minimo 60 GB ao caminho exato
-`/opt/ComfyUI/models`; 80 GB oferece uma margem melhor para cache e modelos
-futuros.
+Use uma GPU com **48 GB de VRAM** para os presets de 720p. Recomenda-se tambem
+64 GB ou mais de RAM do host, CUDA 12.8 ou superior e 160 GB de disco da
+instancia. Anexe um volume persistente de no minimo 100 GB ao caminho exato
+`/opt/ComfyUI/models`; **120 GB** oferece margem adequada para os 80,4 GiB de
+pesos, downloads parciais e cache.
 
 Existem dois templates prontos:
 
@@ -173,9 +211,9 @@ Image: ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23
 Tag: vast
 Launch mode: Entrypoint/Args
 Args: serve
-Docker options: -p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS="--preview-method auto" -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface
-Disk: 100 GB
-Persistent volume mount: /opt/ComfyUI/models
+Docker options: -p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS="--preview-method auto" -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface -e HF_TOKEN=hf_SEU_TOKEN
+Disk: 160 GB
+Persistent volume: 120 GB mounted at /opt/ComfyUI/models
 ```
 
 Para o template Jupyter, selecione `Jupyter-python notebook + SSH`, habilite

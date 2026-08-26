@@ -10,6 +10,7 @@ import shutil
 import sys
 
 from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import GatedRepoError
 
 
 MODELS = Path(os.environ.get("COMFYUI_MODELS", "/opt/ComfyUI/models"))
@@ -112,6 +113,69 @@ MODEL_FILES = (
         size=995_743_560,
         sha256="5f416311fa8172b65af67530758964708d29a317b830d689a51143b7f91913ed",
     ),
+    ModelFile(
+        label="LTX 2.5 22B distilled INT8 ConvRot",
+        repo="Lightricks/LTX-2.5",
+        revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
+        remote_path=(
+            "diffusion_models/"
+            "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
+        ),
+        relative_path=(
+            "diffusion_models/"
+            "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
+        ),
+        size=21_504_034_224,
+        sha256="c4279eeff115cbeaca494bd2183e7d768c38fe85a184dc6afbb7159157c44334",
+    ),
+    ModelFile(
+        label="LTX 2.5 Gemma 4 12B INT8 ConvRot",
+        repo="Lightricks/LTX-2.5",
+        revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
+        remote_path=(
+            "text_encoders/"
+            "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"
+        ),
+        relative_path=(
+            "text_encoders/"
+            "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"
+        ),
+        size=15_372_969_374,
+        sha256="6ce688a0aa98a5fa36a9f1e6c3f42152a498cc2b53ee8c15674c64244f91487f",
+    ),
+    ModelFile(
+        label="LTX 2.5 video VAE BF16",
+        repo="Lightricks/LTX-2.5",
+        revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
+        remote_path="vae/ltx-2.5-video-vae-bf16.safetensors",
+        relative_path="vae/ltx-2.5-video-vae-bf16.safetensors",
+        size=1_472_223_346,
+        sha256="847e14ca7f3355debca0cea4eaa24ac0fbcdf0061da054ac89ca638a869ddba3",
+    ),
+    ModelFile(
+        label="LTX 2.5 audio VAE BF16",
+        repo="Lightricks/LTX-2.5",
+        revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
+        remote_path="vae/ltx-2.5-audio-vae-bf16.safetensors",
+        relative_path="vae/ltx-2.5-audio-vae-bf16.safetensors",
+        size=364_866_540,
+        sha256="c52733d37f6a7fb7949c3dc0fb468c6cb2169e4d836983a73babb9f0d54837a5",
+    ),
+    ModelFile(
+        label="LTX 2.5 spatial upscaler x2 BF16",
+        repo="Lightricks/LTX-2.5",
+        revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
+        remote_path=(
+            "latent_upscale_models/"
+            "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+        ),
+        relative_path=(
+            "latent_upscale_models/"
+            "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+        ),
+        size=995_778_752,
+        sha256="eb5a71fe4068ee87ccdb1c3aa635e547ca76bd2d30ae20ae889f2c325c0677e8",
+    ),
 )
 
 
@@ -166,15 +230,21 @@ def download(model: ModelFile, verify_sha256: bool) -> None:
     stage_root = staging_directory(model)
     stage_root.mkdir(parents=True, exist_ok=True)
     print(f"Baixando {model.repo}/{model.remote_path} -> {target}")
-    downloaded = Path(
-        hf_hub_download(
-            repo_id=model.repo,
-            revision=model.revision,
-            filename=model.remote_path,
-            local_dir=stage_root,
-            token=TOKEN,
+    try:
+        downloaded = Path(
+            hf_hub_download(
+                repo_id=model.repo,
+                revision=model.revision,
+                filename=model.remote_path,
+                local_dir=stage_root,
+                token=TOKEN,
+            )
         )
-    )
+    except GatedRepoError as error:
+        raise RuntimeError(
+            "Acesso ao LTX-2.5 nao autorizado. Aceite os termos em "
+            "https://huggingface.co/Lightricks/LTX-2.5 e configure HF_TOKEN."
+        ) from error
     if downloaded.stat().st_size != model.size:
         raise RuntimeError(
             f"Tamanho invalido para {model.label}: "
@@ -201,13 +271,15 @@ def verify(verify_sha256: bool) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Baixa os modelos fixados do LTX 2.3")
+    parser = argparse.ArgumentParser(
+        description="Baixa os modelos fixados do LTX 2.3/2.5"
+    )
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument(
         "--verify-sha256",
         action="store_true",
         default=os.environ.get("VERIFY_MODEL_SHA256", "0") == "1",
-        help="calcula o SHA256 completo dos aproximadamente 43,4 GiB",
+        help="calcula o SHA256 completo dos aproximadamente 80,4 GiB",
     )
     args = parser.parse_args()
 
@@ -219,7 +291,7 @@ def main() -> None:
         download(model, args.verify_sha256)
     if not verify(args.verify_sha256):
         raise SystemExit(1)
-    print("Todos os modelos do LTX 2.3 estao prontos.")
+    print("Todos os modelos do LTX 2.3/2.5 estao prontos.")
 
 
 if __name__ == "__main__":

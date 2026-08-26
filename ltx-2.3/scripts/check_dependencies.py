@@ -9,6 +9,10 @@ import sys
 
 from build_ia2v_talkvid_workflow import validate_hybrid
 from build_ia2v_best_face_workflow import validate_best_face
+from build_ltx25_ia2v_workflow import (
+    REQUIRED_MODELS as LTX25_REQUIRED_MODELS,
+    validate_ia2v as validate_ltx25_ia2v,
+)
 
 
 COMFYUI_HOME = Path(os.environ.get("COMFYUI_HOME", "/opt/ComfyUI"))
@@ -34,6 +38,12 @@ IA2V_BEST_FACE_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_IA2V_BEST_FACE_WORKFLOW",
         "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
+    )
+)
+LTX25_IA2V_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_LTX25_IA2V_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_5_ia2v_distilled_8steps.json",
     )
 )
 IA2V_WORKFLOW_SHA256 = (
@@ -88,6 +98,28 @@ IA2V_TALKVID_NODE_TYPES = IA2V_NODE_TYPES | {
 }
 IA2V_BEST_FACE_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXIdentityOverlapConditioning",
+}
+LTX25_IA2V_NODE_TYPES = {
+    "CLIPLoader",
+    "CLIPTextEncode",
+    "CreateVideo",
+    "EmptyLTXVLatentVideo",
+    "LTXVAudioVAEEncode",
+    "LTXVConcatAVLatent",
+    "LTXVConditioning",
+    "LTXVDualCFGGuider",
+    "LTXVImgToVideoInplace",
+    "LTXVLatentUpsampler",
+    "LTXVPreprocess",
+    "LTXVSeparateAVLatent",
+    "LatentUpscaleModelLoader",
+    "ManualSigmas",
+    "SetLatentNoiseMask",
+    "SolidMask",
+    "TrimAudioDuration",
+    "UNETLoader",
+    "VAEDecodeTiled",
+    "VAELoader",
 }
 
 
@@ -206,6 +238,21 @@ def main() -> None:
             )
         except Exception as error:
             failures.append(f"workflow IA2V + Best Face-ID invalido: {error}")
+    validate_workflow(
+        "LTX-2.5 IA2V Distilled 8 Steps",
+        LTX25_IA2V_WORKFLOW,
+        None,
+        LTX25_REQUIRED_MODELS,
+        LTX25_IA2V_NODE_TYPES,
+        failures,
+    )
+    if LTX25_IA2V_WORKFLOW.is_file():
+        try:
+            validate_ltx25_ia2v(
+                json.loads(LTX25_IA2V_WORKFLOW.read_text(encoding="utf-8"))
+            )
+        except Exception as error:
+            failures.append(f"workflow LTX-2.5 IA2V invalido: {error}")
 
     try:
         import huggingface_hub  # noqa: F401
@@ -221,7 +268,7 @@ def main() -> None:
         raise SystemExit(1)
     print(
         "Dependencias e workflows "
-        "IA2V/ID-LoRA/IA2V+TalkVid/IA2V+Best Face-ID validados."
+        "LTX-2.3 e LTX-2.5 IA2V validados."
     )
 
 

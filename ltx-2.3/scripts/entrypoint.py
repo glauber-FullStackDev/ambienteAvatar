@@ -35,6 +35,12 @@ DEFAULT_IA2V_BEST_FACE_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
     )
 )
+DEFAULT_LTX25_IA2V_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_LTX25_IA2V_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_5_ia2v_distilled_8steps.json",
+    )
+)
 SEEDED_WORKFLOW = COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v-docker.json"
 SEEDED_ID_LORA_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_id_lora-docker.json"
@@ -45,15 +51,21 @@ SEEDED_IA2V_TALKVID_WORKFLOW = (
 SEEDED_IA2V_BEST_FACE_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json"
 )
+SEEDED_LTX25_IA2V_WORKFLOW = (
+    COMFYUI_HOME
+    / "user/default/workflows/video_ltx2_5_ia2v_distilled_8steps-docker.json"
+)
 
 
 def prepare_directories() -> None:
     for relative in (
         "input",
         "models/checkpoints",
+        "models/diffusion_models",
         "models/latent_upscale_models",
         "models/loras",
         "models/text_encoders",
+        "models/vae",
         "output",
         "user/default/workflows",
     ):
@@ -90,6 +102,11 @@ def seed_workflows() -> None:
         SEEDED_IA2V_BEST_FACE_WORKFLOW,
         "LTX 2.3 IA2V + Best Face-ID",
     )
+    seed_one_workflow(
+        DEFAULT_LTX25_IA2V_WORKFLOW,
+        SEEDED_LTX25_IA2V_WORKFLOW,
+        "LTX 2.5 IA2V Distilled 8 Steps",
+    )
 
 
 def run_downloader(*arguments: str) -> None:
@@ -100,7 +117,7 @@ def run_downloader(*arguments: str) -> None:
 def serve() -> None:
     prepare_directories()
     if os.environ.get("DOWNLOAD_MODELS_ON_START", "1") == "1":
-        print("Verificando os modelos do LTX 2.3 antes de iniciar o ComfyUI...")
+        print("Verificando os modelos do LTX 2.3/2.5 antes de iniciar o ComfyUI...")
         run_downloader()
     else:
         print("Download automatico desativado (DOWNLOAD_MODELS_ON_START=0).")

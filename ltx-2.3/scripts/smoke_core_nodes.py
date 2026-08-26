@@ -20,6 +20,7 @@ REQUIRED_NODES = {
     "LTXVConcatAVLatent",
     "LTXVConditioning",
     "LTXVCropGuides",
+    "LTXVDualCFGGuider",
     "LTXVEmptyLatentAudio",
     "LTXVImgToVideoInplace",
     "LTXIdentityOverlapConditioning",
@@ -28,10 +29,17 @@ REQUIRED_NODES = {
     "LTXVReferenceAudio",
     "LTXVSeparateAVLatent",
     "LatentUpscaleModelLoader",
+    "ManualSigmas",
     "LoadAudio",
     "LoadImage",
     "SaveVideo",
+    "SetLatentNoiseMask",
+    "SolidMask",
     "TextGenerateLTX2Prompt",
+    "TrimAudioDuration",
+    "UNETLoader",
+    "VAEDecodeTiled",
+    "VAELoader",
 }
 
 
@@ -67,10 +75,10 @@ def main() -> None:
     missing = REQUIRED_NODES - set(nodes.NODE_CLASS_MAPPINGS)
     if missing:
         raise SystemExit(
-            "Nodes exigidos pelo LTX 2.3 nao carregaram: "
+            "Nodes exigidos pelo LTX 2.3/2.5 nao carregaram: "
             + ", ".join(sorted(missing))
         )
-    print("Smoke test dos nodes do LTX 2.3 concluido.")
+    print("Smoke test dos nodes do LTX 2.3/2.5 concluido.")
 
 
 if __name__ == "__main__":

@@ -2,11 +2,13 @@ ARG PYTORCH_IMAGE=pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 FROM ${PYTORCH_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG COMFYUI_COMMIT=2e47082c8ed1d1a0fe54add57f98b63433cfacbb
+ARG COMFYUI_COMMIT=a25c7bf2b8c7408d8724f4245dbe09d95992e3a1
 ARG WORKFLOW_COMMIT=d11b69157009227ad2a7d3a927a1eb68a3d5f281
 ARG WORKFLOW_SHA256=7823a703f472d9c5e6f82c462235ff89a0fa14752ec1fd947c4422cf53e47685
 ARG ID_LORA_WORKFLOW_COMMIT=04f33569dad7a1d277429bda9f35209dfa4d91cf
 ARG ID_LORA_WORKFLOW_SHA256=fcffe421129bac16b4f0655e54130d633280cdaf6949e145221e7090be42151f
+ARG LTX25_WORKFLOW_COMMIT=1121504798345b1bb4e6350991f90512c4ba1ed9
+ARG LTX25_WORKFLOW_SHA256=0a88024394467250013ce611ee46d01cc7e73078a0899e4c80709080c5101f71
 ARG BFSNODES_COMMIT=0a2553869254eef4f3f735fdd9fea04614c3dd7e
 
 ENV COMFYUI_HOME=/opt/ComfyUI \
@@ -50,7 +52,11 @@ RUN mkdir -p /opt/defaults/workflows \
     && curl -fsSL \
         "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/${ID_LORA_WORKFLOW_COMMIT}/templates/video_ltx2_3_id_lora.json" \
         -o /opt/defaults/workflows/video_ltx2_3_id_lora.json \
-    && echo "${ID_LORA_WORKFLOW_SHA256}  /opt/defaults/workflows/video_ltx2_3_id_lora.json" | sha256sum -c -
+    && echo "${ID_LORA_WORKFLOW_SHA256}  /opt/defaults/workflows/video_ltx2_3_id_lora.json" | sha256sum -c - \
+    && curl -fsSL \
+        "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/${LTX25_WORKFLOW_COMMIT}/templates/video_ltx2_5_i2v.json" \
+        -o /opt/defaults/workflows/video_ltx2_5_i2v.json \
+    && echo "${LTX25_WORKFLOW_SHA256}  /opt/defaults/workflows/video_ltx2_5_i2v.json" | sha256sum -c -
 
 COPY scripts/ /opt/ltx23-scripts/
 
@@ -60,12 +66,15 @@ RUN chmod +x \
         /opt/ltx23-scripts/download_models.py \
         /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
         /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
+        /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
     && mkdir -p \
         "${COMFYUI_HOME}/input" \
         "${COMFYUI_HOME}/models/checkpoints" \
+        "${COMFYUI_HOME}/models/diffusion_models" \
         "${COMFYUI_HOME}/models/latent_upscale_models" \
         "${COMFYUI_HOME}/models/loras" \
         "${COMFYUI_HOME}/models/text_encoders" \
+        "${COMFYUI_HOME}/models/vae" \
         "${COMFYUI_HOME}/output" \
         "${COMFYUI_HOME}/user/default/workflows" \
         /var/log/portal \
@@ -76,6 +85,9 @@ RUN chmod +x \
     && python /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json \
+    && python /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
+        --i2v /opt/defaults/workflows/video_ltx2_5_i2v.json \
+        --output /opt/defaults/workflows/video_ltx2_5_ia2v_distilled_8steps.json \
     && python -m compileall -q /opt/ltx23-scripts \
     && python /opt/ltx23-scripts/check_dependencies.py \
     && python /opt/ltx23-scripts/smoke_core_nodes.py
