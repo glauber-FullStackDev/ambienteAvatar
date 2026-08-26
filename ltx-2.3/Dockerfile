@@ -50,6 +50,7 @@ RUN chmod +x \
         /opt/ltx23-scripts/container-entrypoint.sh \
         /opt/ltx23-scripts/entrypoint.py \
         /opt/ltx23-scripts/download_models.py \
+        /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
     && mkdir -p \
         "${COMFYUI_HOME}/input" \
         "${COMFYUI_HOME}/models/checkpoints" \
@@ -59,6 +60,10 @@ RUN chmod +x \
         "${COMFYUI_HOME}/output" \
         "${COMFYUI_HOME}/user/default/workflows" \
         /var/log/portal \
+    && python /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
+        --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
+        --id-lora /opt/defaults/workflows/video_ltx2_3_id_lora.json \
+        --output /opt/defaults/workflows/video_ltx2_3_ia2v_talkvid.json \
     && python -m compileall -q /opt/ltx23-scripts \
     && python /opt/ltx23-scripts/check_dependencies.py \
     && python /opt/ltx23-scripts/smoke_core_nodes.py

@@ -23,9 +23,18 @@ DEFAULT_ID_LORA_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_id_lora.json",
     )
 )
+DEFAULT_IA2V_TALKVID_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_TALKVID_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_talkvid.json",
+    )
+)
 SEEDED_WORKFLOW = COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v-docker.json"
 SEEDED_ID_LORA_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_id_lora-docker.json"
+)
+SEEDED_IA2V_TALKVID_WORKFLOW = (
+    COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json"
 )
 
 
@@ -61,6 +70,11 @@ def seed_workflows() -> None:
         DEFAULT_ID_LORA_WORKFLOW,
         SEEDED_ID_LORA_WORKFLOW,
         "LTX 2.3 ID-LoRA",
+    )
+    seed_one_workflow(
+        DEFAULT_IA2V_TALKVID_WORKFLOW,
+        SEEDED_IA2V_TALKVID_WORKFLOW,
+        "LTX 2.3 IA2V + TalkVid",
     )
 
 

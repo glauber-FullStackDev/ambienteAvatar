@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import sys
 
+from build_ia2v_talkvid_workflow import validate_hybrid
+
 
 COMFYUI_HOME = Path(os.environ.get("COMFYUI_HOME", "/opt/ComfyUI"))
 IA2V_WORKFLOW = Path(
@@ -19,6 +21,12 @@ ID_LORA_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_ID_LORA_WORKFLOW",
         "/opt/defaults/workflows/video_ltx2_3_id_lora.json",
+    )
+)
+IA2V_TALKVID_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_TALKVID_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_talkvid.json",
     )
 )
 IA2V_WORKFLOW_SHA256 = (
@@ -39,6 +47,7 @@ IA2V_MODELS = COMMON_MODELS | {
 ID_LORA_MODELS = COMMON_MODELS | {
     "ltx-2.3-id-lora-talkvid-3k.safetensors",
 }
+IA2V_TALKVID_MODELS = IA2V_MODELS | ID_LORA_MODELS
 COMMON_NODE_TYPES = {
     "CheckpointLoaderSimple",
     "CreateVideo",
@@ -62,6 +71,9 @@ IA2V_NODE_TYPES = COMMON_NODE_TYPES | {
 }
 ID_LORA_NODE_TYPES = COMMON_NODE_TYPES | {
     "LTXVEmptyLatentAudio",
+    "LTXVReferenceAudio",
+}
+IA2V_TALKVID_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXVReferenceAudio",
 }
 
@@ -98,7 +110,7 @@ def all_strings(value: object) -> set[str]:
 def validate_workflow(
     label: str,
     path: Path,
-    expected_sha256: str,
+    expected_sha256: str | None,
     expected_models: set[str],
     expected_node_types: set[str],
     failures: list[str],
@@ -106,7 +118,7 @@ def validate_workflow(
     if not path.is_file():
         failures.append(f"workflow {label} ausente: {path}")
         return
-    if sha256(path) != expected_sha256:
+    if expected_sha256 is not None and sha256(path) != expected_sha256:
         failures.append(f"checksum inesperado para o workflow {label}: {path}")
     workflow = json.loads(path.read_text(encoding="utf-8"))
     if workflow.get("version") != 0.4:
@@ -148,6 +160,21 @@ def main() -> None:
         ID_LORA_NODE_TYPES,
         failures,
     )
+    validate_workflow(
+        "IA2V + TalkVid",
+        IA2V_TALKVID_WORKFLOW,
+        None,
+        IA2V_TALKVID_MODELS,
+        IA2V_TALKVID_NODE_TYPES,
+        failures,
+    )
+    if IA2V_TALKVID_WORKFLOW.is_file():
+        try:
+            validate_hybrid(
+                json.loads(IA2V_TALKVID_WORKFLOW.read_text(encoding="utf-8"))
+            )
+        except Exception as error:
+            failures.append(f"workflow IA2V + TalkVid invalido: {error}")
 
     try:
         import huggingface_hub  # noqa: F401
@@ -161,7 +188,7 @@ def main() -> None:
         for failure in failures:
             print(f"[FALHA] {failure}", file=sys.stderr)
         raise SystemExit(1)
-    print("Dependencias e workflows oficiais IA2V/ID-LoRA validados.")
+    print("Dependencias e workflows IA2V/ID-LoRA/IA2V+TalkVid validados.")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,14 @@
 # LTX 2.3 IA2V + ComfyUI para Vast.ai
 
-Imagem independente para executar dois workflows oficiais do ComfyUI:
+Imagem independente para executar dois workflows oficiais do ComfyUI e uma
+adaptacao experimental pronta:
 
 - `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
 - `video_ltx2_3_id_lora.json`, para transferir a identidade vocal de um audio
   de referencia e a aparencia de uma imagem para uma nova fala descrita no
-  prompt.
+  prompt;
+- `video_ltx2_3_ia2v_talkvid.json`, que preserva a narracao do IA2V e aplica o
+  TalkVid 3K como reforco de identidade no primeiro estagio.
 
 O ComfyUI, os workflows e as revisoes dos modelos ficam fixados. Os pesos nao
 entram na imagem Docker: no primeiro boot eles sao baixados em
@@ -64,6 +67,7 @@ Na primeira inicializacao, copias intactas aparecem em:
 ```text
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_id_lora-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json
 ```
 
 Se cada arquivo ja existir ele nunca e sobrescrito, preservando ajustes feitos na
@@ -71,6 +75,27 @@ interface. O preset IA2V oficial inicia em `1280x720`, 24 FPS e 9 segundos, com
 prompt enhancement local. Selecione sua imagem no `Load Image`, seu audio no
 `Load Audio`, escreva a cena/prompt e enfileire o workflow. A imagem e o audio
 de exemplo referenciados pelo template oficial nao sao necessarios.
+
+### Como usar o IA2V + TalkVid
+
+No workflow `video_ltx2_3_ia2v_talkvid-docker.json`:
+
+1. envie a imagem no `Load Image`;
+2. envie a narracao completa no `Driving Audio`;
+3. descreva em ingles a cena e uma articulacao labial natural no prompt;
+4. ajuste `audio_start`, duracao, resolucao, FPS e seed e execute.
+
+O audio recortado pela duracao escolhida tem tres funcoes: alimenta o
+`LTXVAudioVAEEncode` do IA2V, fornece os primeiros 5 segundos ao
+`LTXVReferenceAudio` e entra diretamente no `CreateVideo`. Assim, o MP4 usa a
+narracao original em vez do audio reconstruido pelo VAE. Se `audio_start` for
+alterado, o trecho de referencia TalkVid comeca no mesmo ponto.
+
+Os valores prontos seguem o workflow ID-LoRA oficial: TalkVid strength `1.0`,
+identity guidance `3.0`, start `0.0` e end `1.0`. O TalkVid e a referencia de
+voz atuam apenas no primeiro estagio; o segundo continua usando somente o
+distilled LoRA. Essa combinacao usa nodes oficiais, mas nao e um template
+oficial publicado. Comece com 6 a 8 segundos e compare com o IA2V original.
 
 ### Como usar o ID-LoRA
 
