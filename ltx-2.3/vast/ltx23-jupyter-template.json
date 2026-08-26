@@ -1,0 +1,36 @@
+{
+  "name": "Ambiente Avatar - LTX 2.3 IA2V - Jupyter",
+  "image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23",
+  "tag": "vast",
+  "desc": "ComfyUI CUDA com LTX 2.3 IA2V, JupyterLab e SSH no Vast.ai.",
+  "readme": "Use JupyterLab para terminal e arquivos; abra a porta HTTP 8188 para o ComfyUI. Anexe um volume persistente de pelo menos 60 GB em /opt/ComfyUI/models. Acompanhe o primeiro download com tail -n 200 -f /var/log/portal/comfyui.log.",
+  "env": "-p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS=\"--preview-method auto\" -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface",
+  "runtype": "jupyter",
+  "use_jupyter_lab": true,
+  "jup_direct": true,
+  "use_ssh": true,
+  "ssh_direct": true,
+  "jupyter_dir": "/opt/ComfyUI",
+  "onstart": "env >> /etc/environment || true\nmkdir -p /var/log/portal /opt/ComfyUI/models /opt/ComfyUI/input /opt/ComfyUI/output /opt/ComfyUI/user\nnohup /opt/ltx23-scripts/container-entrypoint.sh serve >/tmp/ltx23-onstart.log 2>&1 &",
+  "recommended_disk_space": 100,
+  "extra_filters": {
+    "cuda_max_good": {
+      "gte": 12.8
+    },
+    "gpu_ram": {
+      "gte": 48
+    },
+    "num_gpus": {
+      "gte": 1
+    },
+    "disk_space": {
+      "gte": 100
+    },
+    "direct_port_count": {
+      "gte": 2
+    }
+  },
+  "private": true,
+  "href": "https://github.com/glauber-fullstackdev/ambienteAvatar/tree/main/ltx-2.3",
+  "repo": "glauber-fullstackdev/ambienteAvatar"
+}
