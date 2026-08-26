@@ -316,31 +316,25 @@ if (
 
 lipforcing_nodes = {node["id"]: node for node in lipforcing_workflow["nodes"]}
 lipforcing_links = {link[0]: link for link in lipforcing_workflow["links"]}
-expected_lipforcing_types = {
-    1: "LipForcingLoadVideo",
-    2: "LipForcingLoadAudio",
-    3: "LipForcing14B",
-}
-for node_id, node_type in expected_lipforcing_types.items():
-    if lipforcing_nodes.get(node_id, {}).get("type") != node_type:
-        raise SystemExit(f"Node Lip Forcing ausente ou invalido: {node_type}")
-if lipforcing_links.get(1) != [
-    1,
-    1,
-    0,
-    3,
-    0,
-    "LIPFORCING_VIDEO_PATH",
-] or lipforcing_links.get(2) != [
-    2,
-    2,
-    0,
-    3,
-    1,
-    "LIPFORCING_AUDIO_PATH",
-]:
-    raise SystemExit("Conexoes do workflow Lip Forcing estao incorretas")
+if lipforcing_nodes.get(3, {}).get("type") != "LipForcing14B":
+    raise SystemExit("Node LipForcing14B ausente do workflow local")
+if any(
+    node.get("type") in {"LipForcingLoadVideo", "LipForcingLoadAudio"}
+    for node in lipforcing_workflow["nodes"]
+):
+    raise SystemExit("Loaders de caminho obsoletos ainda existem no Lip Forcing")
+if lipforcing_links:
+    raise SystemExit("Workflow Lip Forcing direto nao deve conter links internos")
+if (
+    lipforcing_nodes[3]
+    .get("properties", {})
+    .get("infinitetalk_lipforcing_schema")
+    != 2
+):
+    raise SystemExit("Schema direto do Lip Forcing deve ser 2")
 if lipforcing_nodes[3].get("widgets_values") != [
+    None,
+    None,
     42,
     "streaming_taehv",
     True,

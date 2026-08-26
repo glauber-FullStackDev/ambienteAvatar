@@ -30,18 +30,31 @@ def main() -> None:
     sys.modules[lipforcing_spec.name] = lipforcing_module
     lipforcing_spec.loader.exec_module(lipforcing_module)
     lipforcing_mappings = getattr(lipforcing_module, "NODE_CLASS_MAPPINGS", {})
-    required_lipforcing = {
-        "LipForcingLoadVideo",
-        "LipForcingLoadAudio",
-        "LipForcing14B",
-    }
+    required_lipforcing = {"LipForcing14B"}
     missing_lipforcing = sorted(required_lipforcing.difference(lipforcing_mappings))
     if missing_lipforcing:
         raise SystemExit(
             "Nodes Lip Forcing ausentes: " + ", ".join(missing_lipforcing)
         )
+    obsolete_lipforcing = {
+        "LipForcingLoadVideo",
+        "LipForcingLoadAudio",
+    }.intersection(lipforcing_mappings)
+    if obsolete_lipforcing:
+        raise SystemExit(
+            "Loaders Lip Forcing obsoletos ainda registrados: "
+            + ", ".join(sorted(obsolete_lipforcing))
+        )
     lipforcing_node = lipforcing_mappings["LipForcing14B"]
     lipforcing_inputs = lipforcing_node.INPUT_TYPES()["required"]
+    if "video" not in lipforcing_inputs or "audio" not in lipforcing_inputs:
+        raise SystemExit("Seletores diretos do Lip Forcing estao ausentes")
+    if "video_path" in lipforcing_inputs or "audio_path" in lipforcing_inputs:
+        raise SystemExit("Sockets de caminho obsoletos ainda estao registrados")
+    if not callable(getattr(lipforcing_node, "VALIDATE_INPUTS", None)):
+        raise SystemExit("Validacao dos arquivos diretos do Lip Forcing ausente")
+    if not callable(getattr(lipforcing_node, "IS_CHANGED", None)):
+        raise SystemExit("Deteccao de alteracao dos arquivos Lip Forcing ausente")
     if lipforcing_inputs["seed"][1].get("default") != 42:
         raise SystemExit("Seed padrao do Lip Forcing invalida")
     if lipforcing_inputs["decoder"][0][0] != "streaming_taehv":

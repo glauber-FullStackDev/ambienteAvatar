@@ -77,70 +77,6 @@ def _path_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _file_digest(filename: str) -> str:
-    return _path_digest(Path(folder_paths.get_annotated_filepath(filename)))
-
-
-class LipForcingLoadVideo:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "video": (_input_files(VIDEO_EXTENSIONS), {"video_upload": True})
-            }
-        }
-
-    RETURN_TYPES = ("LIPFORCING_VIDEO_PATH",)
-    RETURN_NAMES = ("video_path",)
-    FUNCTION = "load"
-    CATEGORY = "InfiniteTalk/Lip Forcing"
-
-    def load(self, video: str):
-        return (str(_resolved_input(video, VIDEO_EXTENSIONS)),)
-
-    @classmethod
-    def IS_CHANGED(cls, video: str):
-        return _file_digest(video)
-
-    @classmethod
-    def VALIDATE_INPUTS(cls, video: str):
-        try:
-            _resolved_input(video, VIDEO_EXTENSIONS)
-        except (ValueError, OSError) as error:
-            return str(error)
-        return True
-
-
-class LipForcingLoadAudio:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "audio": (_input_files(AUDIO_EXTENSIONS), {"audio_upload": True})
-            }
-        }
-
-    RETURN_TYPES = ("LIPFORCING_AUDIO_PATH",)
-    RETURN_NAMES = ("audio_path",)
-    FUNCTION = "load"
-    CATEGORY = "InfiniteTalk/Lip Forcing"
-
-    def load(self, audio: str):
-        return (str(_resolved_input(audio, AUDIO_EXTENSIONS)),)
-
-    @classmethod
-    def IS_CHANGED(cls, audio: str):
-        return _file_digest(audio)
-
-    @classmethod
-    def VALIDATE_INPUTS(cls, audio: str):
-        try:
-            _resolved_input(audio, AUDIO_EXTENSIONS)
-        except (ValueError, OSError) as error:
-            return str(error)
-        return True
-
-
 def _require_runtime() -> None:
     missing = []
     for path in (RUNTIME_PYTHON, RUNTIME_ROOT / "scripts/inference/inference_streaming.py"):
@@ -274,8 +210,8 @@ class LipForcing14B:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "video_path": ("LIPFORCING_VIDEO_PATH",),
-                "audio_path": ("LIPFORCING_AUDIO_PATH",),
+                "video": (_input_files(VIDEO_EXTENSIONS),),
+                "audio": (_input_files(AUDIO_EXTENSIONS),),
                 "seed": (
                     "INT",
                     {"default": 42, "min": 0, "max": 0xFFFFFFFFFFFFFFFF},
@@ -298,10 +234,25 @@ class LipForcing14B:
     OUTPUT_NODE = True
     CATEGORY = "InfiniteTalk/Lip Forcing"
 
+    @classmethod
+    def IS_CHANGED(cls, video: str, audio: str, **_kwargs):
+        video_path = _resolved_input(video, VIDEO_EXTENSIONS)
+        audio_path = _resolved_input(audio, AUDIO_EXTENSIONS)
+        return f"{_path_digest(video_path)}:{_path_digest(audio_path)}"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, video: str, audio: str):
+        try:
+            _resolved_input(video, VIDEO_EXTENSIONS)
+            _resolved_input(audio, AUDIO_EXTENSIONS)
+        except (TypeError, ValueError, OSError) as error:
+            return str(error)
+        return True
+
     def generate(
         self,
-        video_path: str,
-        audio_path: str,
+        video: str,
+        audio: str,
         seed: int,
         decoder: str,
         exact_audio_duration: bool,
@@ -310,11 +261,9 @@ class LipForcing14B:
         with _RUN_LOCK:
             _require_runtime()
             _check_vram()
-            video = Path(video_path).resolve()
-            audio = Path(audio_path).resolve()
-            _validate_resolved_input(video, VIDEO_EXTENSIONS)
-            _validate_resolved_input(audio, AUDIO_EXTENSIONS)
-            duration = _audio_duration(audio)
+            video_path = _resolved_input(video, VIDEO_EXTENSIONS)
+            audio_path = _resolved_input(audio, AUDIO_EXTENSIONS)
+            duration = _audio_duration(audio_path)
             latent_frames = _exact_latent_frames(duration)
             output_path, filename = _next_output(_safe_prefix(filename_prefix))
             temp_root = Path(folder_paths.get_temp_directory())
@@ -323,7 +272,7 @@ class LipForcing14B:
             generated = workdir / "generated.mp4"
             # The official cache filename is based only on the video stem.
             # Isolate it by content to prevent collisions between equal upload names.
-            face_cache = MODELS_ROOT / "face_cache" / _path_digest(video)[:16]
+            face_cache = MODELS_ROOT / "face_cache" / _path_digest(video_path)[:16]
             face_cache.mkdir(parents=True, exist_ok=True)
             try:
                 _unload_comfy_models()
@@ -343,9 +292,9 @@ class LipForcing14B:
                     "--text_embeds_path",
                     str(MODEL_PATHS["text_embeds"]),
                     "--video_path",
-                    str(video),
+                    str(video_path),
                     "--audio_path",
-                    str(audio),
+                    str(audio_path),
                     "--output_path",
                     str(generated),
                     "--seed",
@@ -381,7 +330,7 @@ class LipForcing14B:
                             "-i",
                             str(generated),
                             "-i",
-                            str(audio),
+                            str(audio_path),
                             "-map",
                             "0:v:0",
                             "-map",
@@ -422,13 +371,9 @@ class LipForcing14B:
 
 
 NODE_CLASS_MAPPINGS = {
-    "LipForcingLoadVideo": LipForcingLoadVideo,
-    "LipForcingLoadAudio": LipForcingLoadAudio,
     "LipForcing14B": LipForcing14B,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "LipForcingLoadVideo": "Lip Forcing - Upload Video",
-    "LipForcingLoadAudio": "Lip Forcing - Upload Audio",
     "LipForcing14B": "Lip Forcing 14B - Generate",
 }

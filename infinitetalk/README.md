@@ -113,10 +113,17 @@ A saida usa o prefixo `InfiniteTalk_V2V_Stable_NoLatentSync`.
 
 ## Lip Forcing 14B local
 
-O preset separado `lipforcing14b-video-audio-docker.json` recebe um MP4 e um
-arquivo de audio enviados pelo navegador. Ele nao carrega o video como batch
-de imagens: os nodes de entrada devolvem caminhos validados dentro de
-`/opt/ComfyUI/input`, evitando uma decodificacao e recompressao antes do modelo.
+O preset separado `lipforcing14b-video-audio-docker.json` usa um unico node
+`LipForcing14B`, com seletores comuns de video e audio. Envie os arquivos para
+`/opt/ComfyUI/input` usando os loaders nativos do ComfyUI ou o Jupyter e
+pressione `R` para atualizar as listas. O node abre os caminhos validados
+diretamente, evitando decodificacao e recompressao do video antes do modelo.
+
+O boot migra automaticamente o workflow schema 1 que usava os loaders
+personalizados `LipForcingLoadVideo` e `LipForcingLoadAudio`. Esses loaders e
+seus tipos de caminho foram removidos porque o frontend os marcava como
+`UNKNOWN`. Parametros do gerador e selecoes que ainda apontem para arquivos
+existentes em `input` sao preservados durante a migracao.
 
 O `LipForcing14B` executa o codigo oficial fixado em um ambiente Python 3.12
 isolado. Antes de iniciar, ele descarrega todos os modelos mantidos pelo

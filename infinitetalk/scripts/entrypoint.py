@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -556,6 +557,139 @@ def upgrade_latentsync_audio_route(target_name: str) -> None:
     print(f"Audio original conectado a saida LatentSync em {target}")
 
 
+def upgrade_lipforcing_workflow(source: Path, target_name: str) -> None:
+    """Replace the broken path-loader graph while preserving valid selections."""
+    target = COMFYUI_HOME / "user/default/workflows" / target_name
+    if not source.exists() or not target.exists():
+        return
+
+    source_workflow = json.loads(source.read_text(encoding="utf-8"))
+    target_workflow = json.loads(target.read_text(encoding="utf-8"))
+    source_generator = next(
+        (
+            node
+            for node in source_workflow.get("nodes", [])
+            if node.get("type") == "LipForcing14B"
+        ),
+        None,
+    )
+    target_generator = next(
+        (
+            node
+            for node in target_workflow.get("nodes", [])
+            if node.get("type") == "LipForcing14B"
+        ),
+        None,
+    )
+    if not source_generator or not target_generator:
+        return
+
+    source_schema = source_generator.get("properties", {}).get(
+        "infinitetalk_lipforcing_schema", 0
+    )
+    target_schema = target_generator.get("properties", {}).get(
+        "infinitetalk_lipforcing_schema", 0
+    )
+    if target_schema >= source_schema:
+        return
+
+    target_nodes = target_workflow.get("nodes", [])
+    old_video_loader = next(
+        (node for node in target_nodes if node.get("type") == "LipForcingLoadVideo"),
+        None,
+    )
+    old_audio_loader = next(
+        (node for node in target_nodes if node.get("type") == "LipForcingLoadAudio"),
+        None,
+    )
+
+    def existing_selection(node: dict | None) -> str | None:
+        values = node.get("widgets_values", []) if node else []
+        value = values[0] if values and isinstance(values[0], str) else None
+        if not value:
+            return None
+        candidate = (COMFYUI_HOME / "input" / value).resolve()
+        input_root = (COMFYUI_HOME / "input").resolve()
+        if candidate.is_relative_to(input_root) and candidate.is_file():
+            return value
+        return None
+
+    video_value = existing_selection(old_video_loader)
+    audio_value = existing_selection(old_audio_loader)
+    old_generator_values = target_generator.get("widgets_values", [])
+    generator_settings = (
+        list(old_generator_values[:4])
+        if isinstance(old_generator_values, list) and len(old_generator_values) >= 4
+        else list(source_generator.get("widgets_values", [None, None])[2:])
+    )
+
+    new_generator = copy.deepcopy(source_generator)
+    new_generator["id"] = target_generator.get("id", source_generator["id"])
+    new_generator["pos"] = target_generator.get("pos", source_generator.get("pos"))
+    new_generator["order"] = target_generator.get(
+        "order", source_generator.get("order", 0)
+    )
+    old_outputs = target_generator.get("outputs")
+    if isinstance(old_outputs, list) and len(old_outputs) == 2:
+        new_generator["outputs"] = copy.deepcopy(old_outputs)
+    new_generator["widgets_values"] = [
+        video_value,
+        audio_value,
+        *generator_settings,
+    ]
+
+    loader_ids = {
+        node.get("id")
+        for node in (old_video_loader, old_audio_loader)
+        if node is not None
+    }
+    target_workflow["nodes"] = [
+        new_generator if node is target_generator else node
+        for node in target_nodes
+        if node.get("id") not in loader_ids
+    ]
+    removed_link_ids = set()
+    kept_links = []
+    for link in target_workflow.get("links", []):
+        remove = (
+            len(link) >= 5
+            and (
+                link[1] in loader_ids
+                or (link[3] == new_generator["id"] and link[4] in (0, 1))
+            )
+        )
+        if remove:
+            removed_link_ids.add(link[0])
+        else:
+            kept_links.append(link)
+    target_workflow["links"] = kept_links
+    for node in target_workflow["nodes"]:
+        for output in node.get("outputs", []):
+            links = output.get("links")
+            if isinstance(links, list):
+                remaining = [link for link in links if link not in removed_link_ids]
+                output["links"] = remaining or None
+
+    target_workflow["last_node_id"] = max(
+        (node.get("id", 0) for node in target_workflow["nodes"]),
+        default=0,
+    )
+    target_workflow["last_link_id"] = max(
+        (link[0] for link in kept_links),
+        default=0,
+    )
+    target_workflow["groups"] = copy.deepcopy(source_workflow.get("groups", []))
+    extra = target_workflow.setdefault("extra", {})
+    extra["infinitetalk_lipforcing_schema"] = source_schema
+    node_versions = extra.setdefault("node_versions", {})
+    node_versions["ComfyUI-LipForcing"] = "1.1.0"
+    target.write_text(
+        json.dumps(target_workflow, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"Workflow Lip Forcing atualizado para schema {source_schema} em {target}")
+
+
 def seed_workflows() -> None:
     seed_workflow(DEFAULT_WORKFLOW, "infinitetalk-i2v-docker.json")
     seed_workflow(
@@ -584,6 +718,10 @@ def seed_workflows() -> None:
         DEFAULT_LIPFORCING_WORKFLOW,
         "lipforcing14b-video-audio-docker.json",
         preserve_source=True,
+    )
+    upgrade_lipforcing_workflow(
+        DEFAULT_LIPFORCING_WORKFLOW,
+        "lipforcing14b-video-audio-docker.json",
     )
     upgrade_stable_workflow(
         DEFAULT_V2V_LATENTSYNC_STABLE_WORKFLOW,
