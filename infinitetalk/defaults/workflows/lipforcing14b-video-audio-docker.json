@@ -8,7 +8,7 @@
       "id": 3,
       "type": "LipForcing14B",
       "pos": [240, 160],
-      "size": [520, 430],
+      "size": [560, 560],
       "flags": {},
       "order": 0,
       "mode": 0,
@@ -27,7 +27,7 @@
       ],
       "properties": {
         "Node name for S&R": "LipForcing14B",
-        "infinitetalk_lipforcing_schema": 2
+        "infinitetalk_lipforcing_schema": 3
       },
       "widgets_values": [
         null,
@@ -35,14 +35,17 @@
         42,
         "streaming_taehv",
         true,
-        "LipForcing14B_Final"
+        "LipForcing14B_Final",
+        "segmentwise_max_quality",
+        "mouth_only",
+        false
       ]
     },
     {
       "id": 4,
       "type": "Note",
-      "pos": [240, 640],
-      "size": [520, 240],
+      "pos": [240, 780],
+      "size": [560, 300],
       "flags": {},
       "order": 1,
       "mode": 0,
@@ -50,7 +53,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "Lip Forcing 14B local\n\n1. Envie o MP4 e o audio para /opt/ComfyUI/input usando os loaders nativos ou o Jupyter.\n2. Pressione R para atualizar as listas.\n3. Selecione video e audio diretamente no node LipForcing14B.\n4. Use uma GPU Vast com 48 GB ou mais."
+        "Lip Forcing 14B local\n\n1. Envie o MP4 e o audio para /opt/ComfyUI/input e pressione R.\n2. segmentwise_max_quality usa Wan VAE completo e entrega a melhor qualidade.\n3. full_face pode reduzir emendas, mas altera uma area maior do rosto.\n4. save_aligned_debug salva o rosto 512x512 antes da colagem e exige o modo maximo.\n5. Use uma GPU Vast com 48 GB ou mais."
       ]
     }
   ],
@@ -59,7 +62,7 @@
     {
       "id": 1,
       "title": "Lip Forcing 14B - video e audio locais",
-      "bounding": [180, 100, 640, 820],
+      "bounding": [180, 100, 680, 1040],
       "color": "#a1309b",
       "font_size": 24,
       "flags": {}
@@ -73,10 +76,10 @@
     },
     "frontendVersion": "1.49.6",
     "node_versions": {
-      "ComfyUI-LipForcing": "1.1.0",
+      "ComfyUI-LipForcing": "1.2.0",
       "comfy-core": "0.3.43"
     },
-    "infinitetalk_lipforcing_schema": 2,
+    "infinitetalk_lipforcing_schema": 3,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
   },

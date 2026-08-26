@@ -41,6 +41,14 @@ MODEL_PATHS = {
 MINIMUM_VRAM_BYTES = 44 * 1024**3
 _RUN_LOCK = threading.Lock()
 
+QUALITY_MODES = (
+    "segmentwise_max_quality",
+    "streaming_full_vae",
+    "streaming_fast",
+    "manual_decoder",
+)
+COMPOSITE_MODES = ("mouth_only", "full_face")
+
 
 def _input_files(extensions: set[str]) -> list[str]:
     input_dir = Path(folder_paths.get_input_directory())
@@ -79,7 +87,11 @@ def _path_digest(path: Path) -> str:
 
 def _require_runtime() -> None:
     missing = []
-    for path in (RUNTIME_PYTHON, RUNTIME_ROOT / "scripts/inference/inference_streaming.py"):
+    for path in (
+        RUNTIME_PYTHON,
+        RUNTIME_ROOT / "scripts/inference/inference_streaming.py",
+        RUNTIME_ROOT / "scripts/inference/inference_segmentwise.py",
+    ):
         if not path.exists():
             missing.append(path)
     for path in MODEL_PATHS.values():
@@ -155,6 +167,56 @@ def _next_output(prefix: str) -> tuple[Path, str]:
     return output_root / filename, filename
 
 
+def _mux_exact_audio(
+    generated: Path,
+    audio: Path,
+    output: Path,
+    duration: float,
+) -> None:
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-i",
+            str(generated),
+            "-i",
+            str(audio),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "256k",
+            "-t",
+            f"{duration:.6f}",
+            "-movflags",
+            "+faststart",
+            str(output),
+        ],
+        check=True,
+    )
+
+
+def _quality_pipeline(quality_mode: str, decoder: str) -> tuple[str, str | None]:
+    if quality_mode == "segmentwise_max_quality":
+        return "inference_segmentwise.py", None
+    if quality_mode == "streaming_full_vae":
+        return "inference_streaming.py", "wan_vae"
+    if quality_mode == "streaming_fast":
+        return "inference_streaming.py", "streaming_taehv"
+    if quality_mode == "manual_decoder":
+        return "inference_streaming.py", decoder
+    raise ValueError(f"Modo de qualidade invalido: {quality_mode}")
+
+
 def _check_vram() -> None:
     if os.environ.get("LIPFORCING_ALLOW_LOW_VRAM", "").lower() in {
         "1",
@@ -225,7 +287,18 @@ class LipForcing14B:
                     "STRING",
                     {"default": "LipForcing14B_Final"},
                 ),
-            }
+            },
+            "optional": {
+                "quality_mode": (
+                    list(QUALITY_MODES),
+                    {"default": "segmentwise_max_quality"},
+                ),
+                "composite_mode": (
+                    list(COMPOSITE_MODES),
+                    {"default": "mouth_only"},
+                ),
+                "save_aligned_debug": ("BOOLEAN", {"default": False}),
+            },
         }
 
     RETURN_TYPES = ("STRING", "VHS_FILENAMES")
@@ -257,10 +330,23 @@ class LipForcing14B:
         decoder: str,
         exact_audio_duration: bool,
         filename_prefix: str,
+        quality_mode: str = "manual_decoder",
+        composite_mode: str = "mouth_only",
+        save_aligned_debug: bool = False,
     ):
         with _RUN_LOCK:
             _require_runtime()
             _check_vram()
+            script_name, streaming_decoder = _quality_pipeline(
+                quality_mode, decoder
+            )
+            if composite_mode not in COMPOSITE_MODES:
+                raise ValueError(f"Modo de composicao invalido: {composite_mode}")
+            if save_aligned_debug and script_name != "inference_segmentwise.py":
+                raise ValueError(
+                    "save_aligned_debug requer quality_mode="
+                    "segmentwise_max_quality"
+                )
             video_path = _resolved_input(video, VIDEO_EXTENSIONS)
             audio_path = _resolved_input(audio, AUDIO_EXTENSIONS)
             duration = _audio_duration(audio_path)
@@ -270,6 +356,10 @@ class LipForcing14B:
             temp_root.mkdir(parents=True, exist_ok=True)
             workdir = Path(tempfile.mkdtemp(prefix="lipforcing14b-", dir=temp_root))
             generated = workdir / "generated.mp4"
+            generated_aligned = workdir / "generated_aligned.mp4"
+            aligned_output_path = output_path.with_name(
+                f"{output_path.stem}_aligned.mp4"
+            )
             # The official cache filename is based only on the video stem.
             # Isolate it by content to prevent collisions between equal upload names.
             face_cache = MODELS_ROOT / "face_cache" / _path_digest(video_path)[:16]
@@ -278,7 +368,7 @@ class LipForcing14B:
                 _unload_comfy_models()
                 command = [
                     str(RUNTIME_PYTHON),
-                    str(RUNTIME_ROOT / "scripts/inference/inference_streaming.py"),
+                    str(RUNTIME_ROOT / "scripts/inference" / script_name),
                     "--ckpt_path",
                     str(MODEL_PATHS["checkpoint"]),
                     "--vae_path",
@@ -287,8 +377,6 @@ class LipForcing14B:
                     str(MODEL_PATHS["wav2vec"]),
                     "--mask_path",
                     str(MODEL_PATHS["mask"]),
-                    "--taehv_ckpt",
-                    str(MODEL_PATHS["taehv"]),
                     "--text_embeds_path",
                     str(MODEL_PATHS["text_embeds"]),
                     "--video_path",
@@ -303,8 +391,6 @@ class LipForcing14B:
                     "25",
                     "--dtype",
                     "bf16",
-                    "--streaming_decoder",
-                    decoder,
                     "--local_attn_size",
                     "7",
                     "--sink_size",
@@ -312,6 +398,14 @@ class LipForcing14B:
                     "--face_cache_dir",
                     str(face_cache),
                 ]
+                if streaming_decoder is not None:
+                    command.extend(["--streaming_decoder", streaming_decoder])
+                    if streaming_decoder in ("streaming_taehv", "batch_taehv"):
+                        command.extend(["--taehv_ckpt", str(MODEL_PATHS["taehv"])])
+                if composite_mode == "full_face":
+                    command.append("--composite_full_face")
+                if save_aligned_debug:
+                    command.append("--save_aligned")
                 if exact_audio_duration:
                     command.extend(["--num_latent_frames", str(latent_frames)])
                 _run_streaming(command, RUNTIME_ROOT)
@@ -319,38 +413,25 @@ class LipForcing14B:
                     raise RuntimeError("Lip Forcing nao produziu o MP4 intermediario")
 
                 if exact_audio_duration:
-                    subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-y",
-                            "-hide_banner",
-                            "-loglevel",
-                            "error",
-                            "-nostdin",
-                            "-i",
-                            str(generated),
-                            "-i",
-                            str(audio_path),
-                            "-map",
-                            "0:v:0",
-                            "-map",
-                            "1:a:0",
-                            "-c:v",
-                            "copy",
-                            "-c:a",
-                            "aac",
-                            "-b:a",
-                            "256k",
-                            "-t",
-                            f"{duration:.6f}",
-                            "-movflags",
-                            "+faststart",
-                            str(output_path),
-                        ],
-                        check=True,
+                    _mux_exact_audio(
+                        generated, audio_path, output_path, duration
                     )
                 else:
                     shutil.move(str(generated), str(output_path))
+                if save_aligned_debug:
+                    if not generated_aligned.exists() or generated_aligned.stat().st_size == 0:
+                        raise RuntimeError(
+                            "Lip Forcing nao produziu o video alinhado de diagnostico"
+                        )
+                    if exact_audio_duration:
+                        _mux_exact_audio(
+                            generated_aligned,
+                            audio_path,
+                            aligned_output_path,
+                            duration,
+                        )
+                    else:
+                        shutil.move(str(generated_aligned), str(aligned_output_path))
             finally:
                 shutil.rmtree(workdir, ignore_errors=True)
 
@@ -362,10 +443,29 @@ class LipForcing14B:
                 "frame_rate": 25,
                 "fullpath": str(output_path),
             }
-            filenames = (True, [str(output_path)])
+            previews = [preview]
+            output_filenames = [str(output_path)]
+            if save_aligned_debug:
+                aligned_filename = aligned_output_path.name
+                previews.append(
+                    {
+                        "filename": aligned_filename,
+                        "subfolder": "",
+                        "type": "output",
+                        "format": "video/h264-mp4",
+                        "frame_rate": 25,
+                        "fullpath": str(aligned_output_path),
+                    }
+                )
+                output_filenames.append(str(aligned_output_path))
+                print(
+                    f"[LipForcing14B] Diagnostico alinhado: {aligned_output_path}",
+                    flush=True,
+                )
+            filenames = (True, output_filenames)
             print(f"[LipForcing14B] Saida final: {output_path}", flush=True)
             return {
-                "ui": {"gifs": [preview]},
+                "ui": {"gifs": previews},
                 "result": (str(output_path), filenames),
             }
 

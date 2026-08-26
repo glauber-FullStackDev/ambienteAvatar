@@ -127,10 +127,29 @@ existentes em `input` sao preservados durante a migracao.
 
 O `LipForcing14B` executa o codigo oficial fixado em um ambiente Python 3.12
 isolado. Antes de iniciar, ele descarrega todos os modelos mantidos pelo
-ComfyUI e limpa o cache CUDA. O preset usa BF16, seed 42, 25 FPS, decoder
-`streaming_taehv`, schedule destilado `0.999 -> 0.769 -> 0`, chunks de tres
-latentes e a janela de atencao treinada de sete latentes com sink 1. A saida
-usa o prefixo `LipForcing14B_Final` e aparece no preview do ComfyUI.
+ComfyUI e limpa o cache CUDA. O preset novo abre em
+`segmentwise_max_quality`, que faz o rollout completo e usa o Wan VAE para a
+decodificacao final. O node oferece estes controles:
+
+- `quality_mode=segmentwise_max_quality`: caminho oficial de qualidade maxima;
+- `quality_mode=streaming_full_vae`: pipeline streaming com Wan VAE por chunk;
+- `quality_mode=streaming_fast`: pipeline streaming com StreamingTAEHV;
+- `quality_mode=manual_decoder`: preserva o seletor `decoder` antigo e mantem
+  compatibilidade com prompts enviados pela API antes do schema 3;
+- `composite_mode=mouth_only`: altera somente a regiao da boca e preserva mais
+  do rosto original;
+- `composite_mode=full_face`: cola o rosto gerado inteiro e pode reduzir emendas,
+  mas modifica uma area maior;
+- `save_aligned_debug=true`: no modo de qualidade maxima, salva tambem
+  `<prefixo>_NNNNN_aligned.mp4`, com o rosto 512x512 antes da colagem.
+
+BF16, 25 FPS, schedule destilado `0.999 -> 0.769 -> 0`, chunks de tres latentes
+e a janela de atencao treinada de sete latentes com sink 1 permanecem fixos. A
+saida usa o prefixo `LipForcing14B_Final` e aparece no preview do ComfyUI.
+Workflows persistidos no schema 2 recebem os controles novos com
+`quality_mode=manual_decoder`, portanto continuam produzindo com o decoder que
+ja estava selecionado. O modo segmentado pode usar mais memoria em videos
+longos; para testes de qualidade, prefira trechos de 4 a 8 segundos.
 
 O modo `exact_audio_duration=true` arredonda a geracao para cima ate um chunk
 completo e depois corta o MP4 na duracao exata do audio. O mux final usa o

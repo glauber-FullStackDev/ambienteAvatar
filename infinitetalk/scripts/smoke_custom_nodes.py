@@ -46,7 +46,9 @@ def main() -> None:
             + ", ".join(sorted(obsolete_lipforcing))
         )
     lipforcing_node = lipforcing_mappings["LipForcing14B"]
-    lipforcing_inputs = lipforcing_node.INPUT_TYPES()["required"]
+    all_lipforcing_inputs = lipforcing_node.INPUT_TYPES()
+    lipforcing_inputs = all_lipforcing_inputs["required"]
+    lipforcing_optional = all_lipforcing_inputs.get("optional", {})
     if "video" not in lipforcing_inputs or "audio" not in lipforcing_inputs:
         raise SystemExit("Seletores diretos do Lip Forcing estao ausentes")
     if "video_path" in lipforcing_inputs or "audio_path" in lipforcing_inputs:
@@ -59,7 +61,27 @@ def main() -> None:
         raise SystemExit("Seed padrao do Lip Forcing invalida")
     if lipforcing_inputs["decoder"][0][0] != "streaming_taehv":
         raise SystemExit("Decoder padrao do Lip Forcing invalido")
+    expected_quality_controls = {
+        "quality_mode",
+        "composite_mode",
+        "save_aligned_debug",
+    }
+    if not expected_quality_controls.issubset(lipforcing_optional):
+        raise SystemExit("Controles de qualidade do Lip Forcing ausentes")
+    if (
+        lipforcing_optional["quality_mode"][1].get("default")
+        != "segmentwise_max_quality"
+    ):
+        raise SystemExit("Modo de qualidade padrao do Lip Forcing invalido")
     lipforcing_nodes = importlib.import_module("comfyui_lipforcing.nodes")
+    if lipforcing_nodes._quality_pipeline(
+        "segmentwise_max_quality", "streaming_taehv"
+    ) != ("inference_segmentwise.py", None):
+        raise SystemExit("Pipeline de qualidade maxima do Lip Forcing invalido")
+    if lipforcing_nodes._quality_pipeline(
+        "streaming_full_vae", "streaming_taehv"
+    ) != ("inference_streaming.py", "wan_vae"):
+        raise SystemExit("Pipeline streaming Full VAE do Lip Forcing invalido")
     if lipforcing_nodes._exact_latent_frames(1.0) != 9:
         raise SystemExit("Calculo de duracao exata do Lip Forcing invalido")
     edge_latents = lipforcing_nodes._exact_latent_frames(0.88)

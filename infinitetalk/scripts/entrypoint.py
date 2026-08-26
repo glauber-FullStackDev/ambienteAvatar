@@ -558,7 +558,7 @@ def upgrade_latentsync_audio_route(target_name: str) -> None:
 
 
 def upgrade_lipforcing_workflow(source: Path, target_name: str) -> None:
-    """Replace the broken path-loader graph while preserving valid selections."""
+    """Upgrade Lip Forcing inputs and controls while preserving user settings."""
     target = COMFYUI_HOME / "user/default/workflows" / target_name
     if not source.exists() or not target.exists():
         return
@@ -603,9 +603,8 @@ def upgrade_lipforcing_workflow(source: Path, target_name: str) -> None:
         None,
     )
 
-    def existing_selection(node: dict | None) -> str | None:
-        values = node.get("widgets_values", []) if node else []
-        value = values[0] if values and isinstance(values[0], str) else None
+    def valid_selection(value: object) -> str | None:
+        value = value if isinstance(value, str) else None
         if not value:
             return None
         candidate = (COMFYUI_HOME / "input" / value).resolve()
@@ -614,14 +613,30 @@ def upgrade_lipforcing_workflow(source: Path, target_name: str) -> None:
             return value
         return None
 
-    video_value = existing_selection(old_video_loader)
-    audio_value = existing_selection(old_audio_loader)
+    def loader_selection(node: dict | None) -> str | None:
+        values = node.get("widgets_values", []) if node else []
+        return valid_selection(values[0] if values else None)
+
     old_generator_values = target_generator.get("widgets_values", [])
-    generator_settings = (
-        list(old_generator_values[:4])
-        if isinstance(old_generator_values, list) and len(old_generator_values) >= 4
-        else list(source_generator.get("widgets_values", [None, None])[2:])
-    )
+    source_values = source_generator.get("widgets_values", [])
+    source_settings = list(source_values[2:6])
+    if target_schema >= 2 and len(old_generator_values) >= 6:
+        video_value = valid_selection(old_generator_values[0])
+        audio_value = valid_selection(old_generator_values[1])
+        generator_settings = list(old_generator_values[2:6])
+    else:
+        video_value = loader_selection(old_video_loader)
+        audio_value = loader_selection(old_audio_loader)
+        generator_settings = (
+            list(old_generator_values[:4])
+            if isinstance(old_generator_values, list)
+            and len(old_generator_values) >= 4
+            else source_settings
+        )
+
+    # Schema 1/2 keeps its previous streaming behavior after migration.
+    # New workflows open with the max-quality defaults stored in the source.
+    quality_controls = ["manual_decoder", "mouth_only", False]
 
     new_generator = copy.deepcopy(source_generator)
     new_generator["id"] = target_generator.get("id", source_generator["id"])
@@ -636,6 +651,7 @@ def upgrade_lipforcing_workflow(source: Path, target_name: str) -> None:
         video_value,
         audio_value,
         *generator_settings,
+        *quality_controls,
     ]
 
     loader_ids = {
@@ -682,7 +698,7 @@ def upgrade_lipforcing_workflow(source: Path, target_name: str) -> None:
     extra = target_workflow.setdefault("extra", {})
     extra["infinitetalk_lipforcing_schema"] = source_schema
     node_versions = extra.setdefault("node_versions", {})
-    node_versions["ComfyUI-LipForcing"] = "1.1.0"
+    node_versions["ComfyUI-LipForcing"] = "1.2.0"
     target.write_text(
         json.dumps(target_workflow, ensure_ascii=False),
         encoding="utf-8",

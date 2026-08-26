@@ -157,6 +157,9 @@ RUN chmod +x \
     && /opt/lipforcing-venv/bin/python \
         /opt/LipForcing/scripts/inference/inference_streaming.py --help \
         >/dev/null \
+    && /opt/lipforcing-venv/bin/python \
+        /opt/LipForcing/scripts/inference/inference_segmentwise.py --help \
+        >/dev/null \
     && python /opt/infinitetalk-scripts/check_dependencies.py \
     && python /opt/infinitetalk-scripts/smoke_custom_nodes.py
 

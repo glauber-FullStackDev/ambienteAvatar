@@ -92,6 +92,7 @@ required_paths = (
     ),
     Path("/opt/defaults/workflows/lipforcing14b-video-audio-docker.json"),
     Path("/opt/LipForcing/scripts/inference/inference_streaming.py"),
+    Path("/opt/LipForcing/scripts/inference/inference_segmentwise.py"),
     Path("/opt/lipforcing-venv/bin/python"),
     Path("/opt/infinitetalk-scripts/download_lipforcing_models.py"),
     Path("/opt/infinitetalk-scripts/precompute_lipforcing_text.py"),
@@ -329,9 +330,9 @@ if (
     lipforcing_nodes[3]
     .get("properties", {})
     .get("infinitetalk_lipforcing_schema")
-    != 2
+    != 3
 ):
-    raise SystemExit("Schema direto do Lip Forcing deve ser 2")
+    raise SystemExit("Schema de qualidade do Lip Forcing deve ser 3")
 if lipforcing_nodes[3].get("widgets_values") != [
     None,
     None,
@@ -339,6 +340,9 @@ if lipforcing_nodes[3].get("widgets_values") != [
     "streaming_taehv",
     True,
     "LipForcing14B_Final",
+    "segmentwise_max_quality",
+    "mouth_only",
+    False,
 ]:
     raise SystemExit("Defaults do Lip Forcing 14B estao incorretos")
 
