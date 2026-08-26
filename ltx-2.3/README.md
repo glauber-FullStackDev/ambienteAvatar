@@ -1,13 +1,16 @@
 # LTX 2.3 IA2V + ComfyUI para Vast.ai
 
-Imagem independente para executar o workflow oficial
-`video_ltx2_3_ia2v.json` do ComfyUI. Ela recebe uma imagem e um audio e gera
-video com audio e movimento sincronizados pelo LTX 2.3.
+Imagem independente para executar dois workflows oficiais do ComfyUI:
 
-O ComfyUI, o workflow e as revisoes dos modelos ficam fixados. Os pesos nao
+- `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
+- `video_ltx2_3_id_lora.json`, para transferir a identidade vocal de um audio
+  de referencia e a aparencia de uma imagem para uma nova fala descrita no
+  prompt.
+
+O ComfyUI, os workflows e as revisoes dos modelos ficam fixados. Os pesos nao
 entram na imagem Docker: no primeiro boot eles sao baixados em
 `/opt/ComfyUI/models`, validados por tamanho e mantidos no volume persistente.
-O ComfyUI so inicia depois que os cinco arquivos estiverem completos.
+O ComfyUI so inicia depois que os seis arquivos estiverem completos.
 
 ## Conteudo
 
@@ -15,6 +18,9 @@ O ComfyUI so inicia depois que os cinco arquivos estiverem completos.
 - workflow oficial no commit
   `d11b69157009227ad2a7d3a927a1eb68a3d5f281` e SHA256
   `7823a703f472d9c5e6f82c462235ff89a0fa14752ec1fd947c4422cf53e47685`;
+- workflow ID-LoRA oficial no commit
+  `04f33569dad7a1d277429bda9f35209dfa4d91cf` e SHA256
+  `fcffe421129bac16b4f0655e54130d633280cdaf6949e145221e7090be42151f`;
 - PyTorch 2.8.0, CUDA 12.8 e cuDNN 9;
 - FFmpeg, JupyterLab e todos os nodes nativos usados pelo workflow;
 - downloader retomavel via Hugging Face Hub, com repositorios e revisoes
@@ -30,12 +36,13 @@ Comfy-Org para os nodes LTX nativos da versao fixada do ComfyUI.
 | `checkpoints/` | `ltx-2.3-22b-dev-fp8.safetensors` | 27,1 GiB |
 | `text_encoders/` | `gemma_3_12B_it_fp4_mixed.safetensors` | 8,8 GiB |
 | `loras/` | `ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors` | 2,6 GiB |
+| `loras/` | `ltx-2.3-id-lora-talkvid-3k.safetensors` | 1,1 GiB |
 | `loras/` | `gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors` | 0,6 GiB |
 | `latent_upscale_models/` | `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | 0,9 GiB |
 
-Total exato: `42.958.104.950` bytes, aproximadamente `40,0 GiB`.
+Total exato: `44.115.989.254` bytes, aproximadamente `41,1 GiB`.
 
-O teste normal de boot valida o tamanho exato, sem reler 40 GiB a cada
+O teste normal de boot valida o tamanho exato, sem reler 41 GiB a cada
 inicializacao. Para uma auditoria integral dos checksums:
 
 ```bash
@@ -52,17 +59,38 @@ instancia ou executando:
 
 ## Workflow
 
-Na primeira inicializacao, uma copia intacta aparece em:
+Na primeira inicializacao, copias intactas aparecem em:
 
 ```text
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_id_lora-docker.json
 ```
 
-Se o arquivo ja existir ele nunca e sobrescrito, preservando ajustes feitos na
-interface. O preset oficial inicia em `1280x720`, 24 FPS e 9 segundos, com
+Se cada arquivo ja existir ele nunca e sobrescrito, preservando ajustes feitos na
+interface. O preset IA2V oficial inicia em `1280x720`, 24 FPS e 9 segundos, com
 prompt enhancement local. Selecione sua imagem no `Load Image`, seu audio no
 `Load Audio`, escreva a cena/prompt e enfileire o workflow. A imagem e o audio
 de exemplo referenciados pelo template oficial nao sao necessarios.
+
+### Como usar o ID-LoRA
+
+No workflow `video_ltx2_3_id_lora-docker.json`:
+
+1. envie uma imagem nitida do personagem no `Load Image`;
+2. envie no `Load Audio` uma amostra limpa da voz cuja identidade sera
+   transferida; o node nativo recomenda aproximadamente 5 segundos;
+3. preencha o prompt com as secoes abaixo e execute.
+
+```text
+[VISUAL]: A cena, aparencia, enquadramento, iluminacao e acao. Diga que a pessoa esta falando.
+[SPEECH]: As palavras exatas que a pessoa deve falar.
+[SOUNDS]: Tom de voz, volume, proximidade do microfone e sons do ambiente.
+```
+
+O audio enviado ao ID-LoRA e uma **referencia de identidade vocal**, nao uma
+faixa que sera copiada literalmente para a saida. O texto efetivamente falado
+vem de `[SPEECH]`. Para preservar um audio completo palavra por palavra seria
+necessario outro tipo de pipeline, dirigido diretamente pelo audio.
 
 Para outras resolucoes, mantenha largura e altura divisiveis por 32. O numero
 de frames usado pelo modelo deve seguir a forma `8n + 1`; os controles do

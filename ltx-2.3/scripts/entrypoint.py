@@ -17,7 +17,16 @@ DEFAULT_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v.json",
     )
 )
+DEFAULT_ID_LORA_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_ID_LORA_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_id_lora.json",
+    )
+)
 SEEDED_WORKFLOW = COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v-docker.json"
+SEEDED_ID_LORA_WORKFLOW = (
+    COMFYUI_HOME / "user/default/workflows/video_ltx2_3_id_lora-docker.json"
+)
 
 
 def prepare_directories() -> None:
@@ -33,17 +42,26 @@ def prepare_directories() -> None:
         (COMFYUI_HOME / relative).mkdir(parents=True, exist_ok=True)
 
 
-def seed_workflow() -> None:
-    if SEEDED_WORKFLOW.exists():
-        print(f"Workflow preservado: {SEEDED_WORKFLOW}")
+def seed_one_workflow(source: Path, target: Path, label: str) -> None:
+    if target.exists():
+        print(f"Workflow preservado: {target}")
         return
-    if not DEFAULT_WORKFLOW.is_file():
-        raise SystemExit(f"Workflow padrao ausente: {DEFAULT_WORKFLOW}")
-    SEEDED_WORKFLOW.parent.mkdir(parents=True, exist_ok=True)
-    temporary = SEEDED_WORKFLOW.with_suffix(".json.tmp")
-    shutil.copyfile(DEFAULT_WORKFLOW, temporary)
-    os.replace(temporary, SEEDED_WORKFLOW)
-    print(f"Workflow LTX 2.3 instalado: {SEEDED_WORKFLOW}")
+    if not source.is_file():
+        raise SystemExit(f"Workflow padrao ausente: {source}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(".json.tmp")
+    shutil.copyfile(source, temporary)
+    os.replace(temporary, target)
+    print(f"Workflow {label} instalado: {target}")
+
+
+def seed_workflows() -> None:
+    seed_one_workflow(DEFAULT_WORKFLOW, SEEDED_WORKFLOW, "LTX 2.3 IA2V")
+    seed_one_workflow(
+        DEFAULT_ID_LORA_WORKFLOW,
+        SEEDED_ID_LORA_WORKFLOW,
+        "LTX 2.3 ID-LoRA",
+    )
 
 
 def run_downloader(*arguments: str) -> None:
@@ -58,7 +76,7 @@ def serve() -> None:
         run_downloader()
     else:
         print("Download automatico desativado (DOWNLOAD_MODELS_ON_START=0).")
-    seed_workflow()
+    seed_workflows()
 
     port = os.environ.get("COMFYUI_PORT", "8188")
     extra_args = shlex.split(os.environ.get("COMFYUI_ARGS", "--preview-method auto"))

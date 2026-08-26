@@ -5,8 +5,8 @@ ambiente LongCat; o InfiniteTalk fica em [`infinitetalk/`](infinitetalk/README.m
 e a geracao de video-base por movimento fica em
 [`wan-animate/`](wan-animate/README.md). O sucessor Wan-Animate-2 em ComfyUI,
 com modelo INT8 ConvRot e encoder FP8, fica separado em
-[`wan-animate-2/`](wan-animate-2/README.md). O workflow oficial LTX 2.3 de
-imagem+audio para video fica em [`ltx-2.3/`](ltx-2.3/README.md). Cada imagem possui sua propria
+[`wan-animate-2/`](wan-animate-2/README.md). Os workflows oficiais LTX 2.3 IA2V
+e ID-LoRA ficam em [`ltx-2.3/`](ltx-2.3/README.md). Cada imagem possui sua propria
 pipeline com filtro por caminho, portanto uma alteracao em um ambiente nao
 reconstrói os outros.
 

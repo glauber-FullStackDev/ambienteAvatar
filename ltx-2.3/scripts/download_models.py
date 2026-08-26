@@ -68,6 +68,17 @@ MODEL_FILES = (
         sha256="31e0c0195fb841bf31af78e8b60858f489e87ddcea4a5239abc80943da65e3ac",
     ),
     ModelFile(
+        label="LTX 2.3 ID-LoRA TalkVid 3K",
+        repo="Comfy-Org/ltx-2.3",
+        revision="f246c0865f5214499a12b72d47464ac8f4f54bee",
+        remote_path=(
+            "split_files/loras/ltx-2.3-id-lora-talkvid-3k.safetensors"
+        ),
+        relative_path="loras/ltx-2.3-id-lora-talkvid-3k.safetensors",
+        size=1_157_884_304,
+        sha256="e5af73441743b4852f228b03e444888dff3da80d2666033af2367ab7bda6d8b9",
+    ),
+    ModelFile(
         label="Gemma prompt-enhancement LoRA",
         repo="Comfy-Org/ltx-2",
         revision="101c239b4b64dd1b45d645365339c56e0e7df4c3",
@@ -187,7 +198,7 @@ def main() -> None:
         "--verify-sha256",
         action="store_true",
         default=os.environ.get("VERIFY_MODEL_SHA256", "0") == "1",
-        help="calcula o SHA256 completo dos aproximadamente 40 GiB",
+        help="calcula o SHA256 completo dos aproximadamente 41 GiB",
     )
     args = parser.parse_args()
 

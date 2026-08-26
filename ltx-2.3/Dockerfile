@@ -5,6 +5,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG COMFYUI_COMMIT=2e47082c8ed1d1a0fe54add57f98b63433cfacbb
 ARG WORKFLOW_COMMIT=d11b69157009227ad2a7d3a927a1eb68a3d5f281
 ARG WORKFLOW_SHA256=7823a703f472d9c5e6f82c462235ff89a0fa14752ec1fd947c4422cf53e47685
+ARG ID_LORA_WORKFLOW_COMMIT=04f33569dad7a1d277429bda9f35209dfa4d91cf
+ARG ID_LORA_WORKFLOW_SHA256=fcffe421129bac16b4f0655e54130d633280cdaf6949e145221e7090be42151f
 
 ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
@@ -36,7 +38,11 @@ RUN mkdir -p /opt/defaults/workflows \
     && curl -fsSL \
         "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/${WORKFLOW_COMMIT}/templates/video_ltx2_3_ia2v.json" \
         -o /opt/defaults/workflows/video_ltx2_3_ia2v.json \
-    && echo "${WORKFLOW_SHA256}  /opt/defaults/workflows/video_ltx2_3_ia2v.json" | sha256sum -c -
+    && echo "${WORKFLOW_SHA256}  /opt/defaults/workflows/video_ltx2_3_ia2v.json" | sha256sum -c - \
+    && curl -fsSL \
+        "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/${ID_LORA_WORKFLOW_COMMIT}/templates/video_ltx2_3_id_lora.json" \
+        -o /opt/defaults/workflows/video_ltx2_3_id_lora.json \
+    && echo "${ID_LORA_WORKFLOW_SHA256}  /opt/defaults/workflows/video_ltx2_3_id_lora.json" | sha256sum -c -
 
 COPY scripts/ /opt/ltx23-scripts/
 

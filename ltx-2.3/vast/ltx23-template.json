@@ -1,9 +1,9 @@
 {
-  "name": "Ambiente Avatar - LTX 2.3 IA2V",
+  "name": "Ambiente Avatar - LTX 2.3 IA2V + ID-LoRA",
   "image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23",
   "tag": "vast",
-  "desc": "ComfyUI CUDA com o workflow oficial LTX 2.3 image+audio-to-video e modelos baixados no boot.",
-  "readme": "Abra a porta HTTP 8188 para acessar o ComfyUI. Anexe um volume persistente de pelo menos 60 GB em /opt/ComfyUI/models. No primeiro boot a imagem baixa e valida cerca de 40 GiB de modelos; o ComfyUI inicia somente depois. O workflow video_ltx2_3_ia2v-docker.json aparece em user/default/workflows.",
+  "desc": "ComfyUI CUDA com os workflows oficiais LTX 2.3 IA2V e ID-LoRA, com modelos baixados no boot.",
+  "readme": "Abra a porta HTTP 8188 para acessar o ComfyUI. Anexe um volume persistente de pelo menos 60 GB em /opt/ComfyUI/models. No primeiro boot a imagem baixa e valida cerca de 41 GiB de modelos; o ComfyUI inicia somente depois. Os workflows video_ltx2_3_ia2v-docker.json e video_ltx2_3_id_lora-docker.json aparecem em user/default/workflows.",
   "env": "-p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS=\"--preview-method auto\" -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface",
   "runtype": "args",
   "args_str": "serve",
