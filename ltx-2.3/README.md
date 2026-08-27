@@ -113,8 +113,10 @@ Na primeira inicializacao, copias intactas aparecem em:
 /opt/ComfyUI/user/default/workflows/video_ltx2_5_ia2v_distilled_8steps-docker.json
 ```
 
-Se cada arquivo ja existir ele nunca e sobrescrito, preservando ajustes feitos na
-interface. O preset IA2V oficial inicia em `1280x720`, 24 FPS e 9 segundos, com
+Se cada arquivo ja existir ele normalmente e preservado, mantendo ajustes feitos
+na interface. A unica excecao e uma revisao de schema de um workflow adaptado:
+nesse caso o arquivo antigo recebe um backup antes da versao corrigida ser
+instalada. O preset IA2V oficial inicia em `1280x720`, 24 FPS e 9 segundos, com
 prompt enhancement local. Selecione sua imagem no `Load Image`, seu audio no
 `Load Audio`, escreva a cena/prompt e enfileire o workflow. A imagem e o audio
 de exemplo referenciados pelo template oficial nao sao necessarios.
@@ -177,12 +179,15 @@ A sheet precisa ser uma unica imagem em fundo preto, sem texto visivel, com
 paineis limpos da pessoa, roupa, corpo, close-up frontal, perfil ou 3/4, props
 fixos e ambiente. O workflow redimensiona a sheet, repete a imagem pelo numero
 de frames e aplica `LTXAddVideoICLoRAGuide` no primeiro estagio com
-Ingredients strength `1.4`. A narracao original vai diretamente ao MP4 final.
+Ingredients strength `1.0`. Depois do primeiro estagio, `LTXVCropGuides` remove
+os frames da sheet antes do upscale e do decode. A narracao original vai
+diretamente ao MP4 final.
 
 Esse workflow e experimental porque combina o IA2V oficial com o IC-LoRA
 Ingredients. O modelo Ingredients foi treinado para reference sheet estatica,
 121 frames, 24 FPS e 768x448; mudar muito esses valores pode reduzir a
-fidelidade.
+fidelidade. Para outras resolucoes, mantenha largura e altura divisiveis por 32
+e componha a sheet na mesma proporcao do video para evitar distorcao.
 
 ### Como usar o LTX-2.5 IA2V destilado
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import shlex
@@ -81,17 +82,72 @@ def prepare_directories() -> None:
         (COMFYUI_HOME / relative).mkdir(parents=True, exist_ok=True)
 
 
-def seed_one_workflow(source: Path, target: Path, label: str) -> None:
+def read_schema_version(path: Path, marker: str) -> int | None:
+    try:
+        workflow = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    version = workflow.get("extra", {}).get(marker)
+    return version if isinstance(version, int) else None
+
+
+def backup_path_for(target: Path, schema_version: int) -> Path:
+    base = target.with_name(
+        f"{target.stem}.schema-v{schema_version}.backup{target.suffix}"
+    )
+    if not base.exists():
+        return base
+    index = 2
+    while True:
+        candidate = target.with_name(
+            f"{target.stem}.schema-v{schema_version}.backup-{index}{target.suffix}"
+        )
+        if not candidate.exists():
+            return candidate
+        index += 1
+
+
+def seed_one_workflow(
+    source: Path,
+    target: Path,
+    label: str,
+    *,
+    schema_marker: str | None = None,
+    schema_version: int | None = None,
+) -> None:
+    installed_version = None
     if target.exists():
-        print(f"Workflow preservado: {target}")
-        return
+        installed_version = (
+            read_schema_version(target, schema_marker) if schema_marker else None
+        )
+        needs_upgrade = (
+            schema_version is not None
+            and installed_version is not None
+            and installed_version < schema_version
+        )
+        if not needs_upgrade:
+            print(f"Workflow preservado: {target}")
+            return
     if not source.is_file():
         raise SystemExit(f"Workflow padrao ausente: {source}")
+    if schema_marker and schema_version is not None:
+        source_version = read_schema_version(source, schema_marker)
+        if source_version != schema_version:
+            raise SystemExit(
+                f"Workflow padrao {label} usa schema {source_version!r}; "
+                f"esperado {schema_version}"
+            )
     target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        assert installed_version is not None
+        backup = backup_path_for(target, installed_version)
+        shutil.copyfile(target, backup)
+        print(f"Backup do workflow antigo criado: {backup}")
     temporary = target.with_suffix(".json.tmp")
     shutil.copyfile(source, temporary)
     os.replace(temporary, target)
-    print(f"Workflow {label} instalado: {target}")
+    action = "atualizado" if installed_version is not None else "instalado"
+    print(f"Workflow {label} {action}: {target}")
 
 
 def seed_workflows() -> None:
@@ -115,6 +171,8 @@ def seed_workflows() -> None:
         DEFAULT_IA2V_INGREDIENTS_WORKFLOW,
         SEEDED_IA2V_INGREDIENTS_WORKFLOW,
         "LTX 2.3 IA2V + IC-LoRA Ingredients",
+        schema_marker="ltx23_ia2v_ingredients_schema",
+        schema_version=2,
     )
     seed_one_workflow(
         DEFAULT_LTX25_IA2V_WORKFLOW,

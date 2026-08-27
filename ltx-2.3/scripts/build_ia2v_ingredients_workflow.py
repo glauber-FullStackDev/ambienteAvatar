@@ -19,7 +19,7 @@ from build_ia2v_talkvid_workflow import (
 
 INGREDIENTS_NAME = "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"
 SCHEMA_MARKER = "ltx23_ia2v_ingredients_schema"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def build_ingredients(ia2v: dict) -> dict:
@@ -35,6 +35,9 @@ def build_ingredients(ia2v: dict) -> dict:
     stage_one_guider = one(nodes, node_id=315, node_type="CFGGuider")
     conditioning = one(nodes, node_id=307, node_type="LTXVConditioning")
     concat_latent = one(nodes, node_id=326, node_type="LTXVConcatAVLatent")
+    crop_guides = one(nodes, node_id=292, node_type="LTXVCropGuides")
+    stage_one_separate = one(nodes, node_id=309, node_type="LTXVSeparateAVLatent")
+    latent_upscaler = one(nodes, node_id=295, node_type="LTXVLatentUpsampler")
     video_vae = one(nodes, node_id=300, node_type="Reroute")
     frame_count = one(nodes, node_id=329, node_type="ComfyMathExpression")
     driving_trim = one(nodes, node_id=332, node_type="TrimAudioDuration")
@@ -72,7 +75,7 @@ def build_ingredients(ia2v: dict) -> dict:
                 }
             ],
         },
-        "widgets_values": [INGREDIENTS_NAME, 1.4],
+        "widgets_values": [INGREDIENTS_NAME, 1.0],
     }
     resize_sheet = {
         "id": 351,
@@ -171,6 +174,13 @@ def build_ingredients(ia2v: dict) -> dict:
     replace_output_links(conditioning, "negative", [772])
     replace_output_links(image_to_video, "latent", [774])
     replace_output_links(concat_latent, "latent", [654])
+    # LTXAddVideoICLoRAGuide appends the reference frames to the latent tail.
+    # The base IA2V graph only used LTXVCropGuides to clear conditioning metadata;
+    # route its latent output into stage 2 as well so the sheet is never upscaled or
+    # decoded as generated video.
+    replace_output_links(stage_one_separate, "video_latent", [657])
+    replace_output_links(crop_guides, "latent", [660])
+    replace_input_link(latent_upscaler, "samples", 660)
     replace_output_links(video_vae, "", [662, 663, 694, 773])
     replace_output_links(frame_count, "INT", [712, 766])
     replace_output_links(driving_trim, "AUDIO", [708, 696])
@@ -183,6 +193,7 @@ def build_ingredients(ia2v: dict) -> dict:
     links[649].update({"origin_id": 353, "origin_slot": 1})
     links[656].update({"origin_id": 353, "origin_slot": 1})
     links[685].update({"origin_id": 353, "origin_slot": 2})
+    links[660].update({"origin_id": 292, "origin_slot": 2})
     links[696].update({"origin_id": 332, "origin_slot": 0})
     add_link(subgraph, 774, 325, 0, 353, 3, "LATENT")
 
@@ -286,7 +297,10 @@ def build_ingredients(ia2v: dict) -> dict:
                 "- O workflow repete a sheet como video estatico pelo numero de frames e "
                 "aplica o IC-LoRA Ingredients no primeiro estagio.\n"
                 "- Prompt recomendado: `Reference sheet: ...` depois `Generated video: ...`.\n"
-                "- Defaults: 768x448, 5s, 24fps, 121 frames, IC-LoRA strength `1.4`.\n\n"
+                "- O `LTXVCropGuides` remove a sheet antes do upscale e do decode.\n"
+                "- Defaults: 768x448, 5s, 24fps, 121 frames, IC-LoRA strength `1.0`.\n"
+                "- Mantenha largura e altura divisiveis por 32 e use uma sheet com a "
+                "mesma proporcao do video.\n\n"
                 "Use uma sheet sem texto visivel, com paineis limpos. Para identidade, inclua "
                 "close-up frontal, perfil/3/4, corpo/roupa e detalhes fixos como oculos/barba."
             ],
@@ -306,7 +320,7 @@ def validate_ingredients(workflow: dict) -> None:
     links = link_map(subgraph)
 
     if workflow.get("extra", {}).get(SCHEMA_MARKER) != SCHEMA_VERSION:
-        failures.append("marcador de schema ausente")
+        failures.append(f"marcador de schema precisa ser {SCHEMA_VERSION}")
     if workflow.get("version") != 0.4:
         failures.append("versao do workflow diferente de 0.4")
 
@@ -329,8 +343,8 @@ def validate_ingredients(workflow: dict) -> None:
     loaders = [
         node for node in nodes if node.get("type") == "LTXICLoRALoaderModelOnly"
     ]
-    if len(loaders) != 1 or loaders[0]["widgets_values"] != [INGREDIENTS_NAME, 1.4]:
-        failures.append("LTXICLoRALoaderModelOnly precisa usar Ingredients strength=1.4")
+    if len(loaders) != 1 or loaders[0]["widgets_values"] != [INGREDIENTS_NAME, 1.0]:
+        failures.append("LTXICLoRALoaderModelOnly precisa usar Ingredients strength=1.0")
     if sum(node.get("type") == "LTXAddVideoICLoRAGuide" for node in nodes) != 1:
         failures.append("LTXAddVideoICLoRAGuide precisa aparecer uma vez")
     if one(nodes, node_id=351).get("type") != "ResizeImageMaskNode":
@@ -368,6 +382,31 @@ def validate_ingredients(workflow: dict) -> None:
     concat_video = one(nodes, node_id=326)["inputs"][0]["link"]
     if links[concat_video]["origin_id"] != 353:
         failures.append("audio precisa ser concatenado depois do guia Ingredients")
+    crop_node = one(nodes, node_id=292, node_type="LTXVCropGuides")
+    crop_latent = one(
+        [output for output in crop_node["outputs"] if output.get("name") == "latent"]
+    ).get("links") or []
+    upscaler_node = one(nodes, node_id=295, node_type="LTXVLatentUpsampler")
+    upscaler_samples = one(
+        [item for item in upscaler_node["inputs"] if item.get("name") == "samples"]
+    )["link"]
+    if crop_latent != [upscaler_samples]:
+        failures.append("saida latent do LTXVCropGuides precisa alimentar o upscaler")
+    if (
+        links[upscaler_samples]["origin_id"] != 292
+        or links[upscaler_samples]["origin_slot"] != 2
+    ):
+        failures.append("upscaler precisa receber o latent recortado pelo LTXVCropGuides")
+    separated_node = one(nodes, node_id=309, node_type="LTXVSeparateAVLatent")
+    separated_video_links = one(
+        [
+            output
+            for output in separated_node["outputs"]
+            if output.get("name") == "video_latent"
+        ]
+    ).get("links") or []
+    if upscaler_samples in separated_video_links:
+        failures.append("latent bruto do primeiro estagio nao pode contornar o CropGuides")
     repeat_amount = one(nodes, node_id=352)["inputs"][1]["link"]
     if links[repeat_amount]["origin_id"] != 329:
         failures.append("sheet estatica precisa repetir pelo numero de frames")
