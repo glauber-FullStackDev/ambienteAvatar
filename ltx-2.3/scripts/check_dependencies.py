@@ -211,6 +211,16 @@ def main() -> None:
     bfs_node = COMFYUI_HOME / "custom_nodes/ComfyUI-BFSNodes/__init__.py"
     if not bfs_node.is_file():
         failures.append(f"custom node BFS ausente: {bfs_node}")
+    ltxvideo_node = COMFYUI_HOME / "custom_nodes/ComfyUI-LTXVideo/__init__.py"
+    if not ltxvideo_node.is_file():
+        failures.append(f"custom node ComfyUI-LTXVideo ausente: {ltxvideo_node}")
+    else:
+        ltxvideo_source = ltxvideo_node.read_text(encoding="utf-8")
+        for node_type in ("LTXAddVideoICLoRAGuide", "LTXICLoRALoaderModelOnly"):
+            if node_type not in ltxvideo_source:
+                failures.append(
+                    f"custom node ComfyUI-LTXVideo sem mapeamento {node_type}"
+                )
     validate_workflow(
         "IA2V",
         IA2V_WORKFLOW,

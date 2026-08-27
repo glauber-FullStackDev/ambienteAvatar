@@ -24,8 +24,6 @@ REQUIRED_NODES = {
     "LTXVEmptyLatentAudio",
     "LTXVImgToVideoInplace",
     "LTXIdentityOverlapConditioning",
-    "LTXAddVideoICLoRAGuide",
-    "LTXICLoRALoaderModelOnly",
     "LTXVLatentUpsampler",
     "LTXVPreprocess",
     "LTXVReferenceAudio",
@@ -44,6 +42,10 @@ REQUIRED_NODES = {
     "UNETLoader",
     "VAEDecodeTiled",
     "VAELoader",
+}
+LTXVIDEO_STATIC_NODES = {
+    "LTXAddVideoICLoRAGuide",
+    "LTXICLoRALoaderModelOnly",
 }
 
 
@@ -81,6 +83,18 @@ def main() -> None:
         raise SystemExit(
             "Nodes exigidos pelo LTX 2.3/2.5 nao carregaram: "
             + ", ".join(sorted(missing))
+        )
+    ltxvideo_init = COMFYUI_HOME / "custom_nodes/ComfyUI-LTXVideo/__init__.py"
+    if not ltxvideo_init.is_file():
+        raise SystemExit(f"ComfyUI-LTXVideo ausente: {ltxvideo_init}")
+    ltxvideo_source = ltxvideo_init.read_text(encoding="utf-8")
+    missing_static = {
+        node for node in LTXVIDEO_STATIC_NODES if node not in ltxvideo_source
+    }
+    if missing_static:
+        raise SystemExit(
+            "Nodes IC-LoRA ausentes no ComfyUI-LTXVideo: "
+            + ", ".join(sorted(missing_static))
         )
     print("Smoke test dos nodes do LTX 2.3/2.5 concluido.")
 
