@@ -13,6 +13,7 @@ from build_ia2v_ingredients_workflow import (
     INGREDIENTS_NAME,
     validate_ingredients,
 )
+from build_ingredients_reference_workflows import validate_profile
 from build_ltx25_ia2v_workflow import (
     REQUIRED_MODELS as LTX25_REQUIRED_MODELS,
     validate_ia2v as validate_ltx25_ia2v,
@@ -50,6 +51,24 @@ IA2V_INGREDIENTS_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_ingredients.json",
     )
 )
+IA2V_INGREDIENTS_LEGACY_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_INGREDIENTS_LEGACY_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2.json",
+    )
+)
+INGREDIENTS_OFFICIAL_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_INGREDIENTS_OFFICIAL_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ingredients_official_single_stage.json",
+    )
+)
+INGREDIENTS_WANGP_I2V_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_INGREDIENTS_WANGP_I2V_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ingredients_wangp_i2v_15s.json",
+    )
+)
 LTX25_IA2V_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_LTX25_IA2V_WORKFLOW",
@@ -79,6 +98,12 @@ IA2V_BEST_FACE_MODELS = IA2V_MODELS | {
     "Best_FaceID_v1.0_LoRA.safetensors",
 }
 IA2V_INGREDIENTS_MODELS = IA2V_MODELS | {
+    INGREDIENTS_NAME,
+}
+INGREDIENTS_REFERENCE_MODELS = {
+    "ltx-2.3-22b-dev-fp8.safetensors",
+    "gemma_3_12B_it_fp4_mixed.safetensors",
+    "ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
     INGREDIENTS_NAME,
 }
 COMMON_NODE_TYPES = {
@@ -117,6 +142,31 @@ IA2V_INGREDIENTS_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXICLoRALoaderModelOnly",
     "RepeatImageBatch",
     "ResizeImageMaskNode",
+}
+INGREDIENTS_REFERENCE_NODE_TYPES = {
+    "CheckpointLoaderSimple",
+    "CreateVideo",
+    "EmptyLTXVLatentVideo",
+    "GetImageSize",
+    "GetVideoComponents",
+    "GemmaAPITextEncode",
+    "LTXAddVideoICLoRAGuide",
+    "LTXAVTextEncoderLoader",
+    "LTXICLoRALoaderModelOnly",
+    "LTXFloatToInt",
+    "LTXVAudioVAEDecode",
+    "LTXVAudioVAELoader",
+    "LTXVConcatAVLatent",
+    "LTXVConditioning",
+    "LTXVCropGuides",
+    "LTXVTiledVAEDecode",
+    "RepeatImageBatch",
+    "ResizeImageMaskNode",
+    "SaveVideo",
+}
+INGREDIENTS_WANGP_I2V_NODE_TYPES = INGREDIENTS_REFERENCE_NODE_TYPES | {
+    "LTXVImgToVideoConditionOnly",
+    "LTXVPreprocess",
 }
 LTX25_IA2V_NODE_TYPES = {
     "CLIPLoader",
@@ -293,6 +343,60 @@ def main() -> None:
             )
         except Exception as error:
             failures.append(f"workflow IA2V + IC-LoRA Ingredients invalido: {error}")
+    validate_workflow(
+        "IA2V + IC-LoRA Ingredients legado schema 2",
+        IA2V_INGREDIENTS_LEGACY_WORKFLOW,
+        None,
+        IA2V_INGREDIENTS_MODELS,
+        IA2V_INGREDIENTS_NODE_TYPES,
+        failures,
+    )
+    if IA2V_INGREDIENTS_LEGACY_WORKFLOW.is_file():
+        try:
+            validate_ingredients(
+                json.loads(
+                    IA2V_INGREDIENTS_LEGACY_WORKFLOW.read_text(encoding="utf-8")
+                ),
+                "legacy-v2",
+            )
+        except Exception as error:
+            failures.append(
+                f"workflow IA2V + IC-LoRA Ingredients legado invalido: {error}"
+            )
+    validate_workflow(
+        "IC-LoRA Ingredients oficial single-stage",
+        INGREDIENTS_OFFICIAL_WORKFLOW,
+        None,
+        INGREDIENTS_REFERENCE_MODELS,
+        INGREDIENTS_REFERENCE_NODE_TYPES,
+        failures,
+    )
+    if INGREDIENTS_OFFICIAL_WORKFLOW.is_file():
+        try:
+            validate_profile(
+                json.loads(INGREDIENTS_OFFICIAL_WORKFLOW.read_text(encoding="utf-8")),
+                "official",
+            )
+        except Exception as error:
+            failures.append(f"workflow Ingredients oficial invalido: {error}")
+    validate_workflow(
+        "IC-LoRA Ingredients WanGP I2V 15s",
+        INGREDIENTS_WANGP_I2V_WORKFLOW,
+        None,
+        INGREDIENTS_REFERENCE_MODELS,
+        INGREDIENTS_WANGP_I2V_NODE_TYPES,
+        failures,
+    )
+    if INGREDIENTS_WANGP_I2V_WORKFLOW.is_file():
+        try:
+            validate_profile(
+                json.loads(
+                    INGREDIENTS_WANGP_I2V_WORKFLOW.read_text(encoding="utf-8")
+                ),
+                "wangp-i2v-15s",
+            )
+        except Exception as error:
+            failures.append(f"workflow Ingredients WanGP I2V invalido: {error}")
     validate_workflow(
         "LTX-2.5 IA2V Distilled 8 Steps",
         LTX25_IA2V_WORKFLOW,

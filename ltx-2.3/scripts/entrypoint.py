@@ -42,6 +42,24 @@ DEFAULT_IA2V_INGREDIENTS_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_ingredients.json",
     )
 )
+DEFAULT_IA2V_INGREDIENTS_LEGACY_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_INGREDIENTS_LEGACY_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2.json",
+    )
+)
+DEFAULT_INGREDIENTS_OFFICIAL_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_INGREDIENTS_OFFICIAL_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ingredients_official_single_stage.json",
+    )
+)
+DEFAULT_INGREDIENTS_WANGP_I2V_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_INGREDIENTS_WANGP_I2V_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ingredients_wangp_i2v_15s.json",
+    )
+)
 DEFAULT_LTX25_IA2V_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_LTX25_IA2V_WORKFLOW",
@@ -60,6 +78,18 @@ SEEDED_IA2V_BEST_FACE_WORKFLOW = (
 )
 SEEDED_IA2V_INGREDIENTS_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json"
+)
+SEEDED_IA2V_INGREDIENTS_LEGACY_WORKFLOW = (
+    COMFYUI_HOME
+    / "user/default/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2-docker.json"
+)
+SEEDED_INGREDIENTS_OFFICIAL_WORKFLOW = (
+    COMFYUI_HOME
+    / "user/default/workflows/video_ltx2_3_ingredients_official_single_stage-docker.json"
+)
+SEEDED_INGREDIENTS_WANGP_I2V_WORKFLOW = (
+    COMFYUI_HOME
+    / "user/default/workflows/video_ltx2_3_ingredients_wangp_i2v_15s-docker.json"
 )
 SEEDED_LTX25_IA2V_WORKFLOW = (
     COMFYUI_HOME
@@ -172,7 +202,28 @@ def seed_workflows() -> None:
         SEEDED_IA2V_INGREDIENTS_WORKFLOW,
         "LTX 2.3 IA2V + IC-LoRA Ingredients",
         schema_marker="ltx23_ia2v_ingredients_schema",
+        schema_version=3,
+    )
+    seed_one_workflow(
+        DEFAULT_IA2V_INGREDIENTS_LEGACY_WORKFLOW,
+        SEEDED_IA2V_INGREDIENTS_LEGACY_WORKFLOW,
+        "LTX 2.3 IA2V + IC-LoRA Ingredients legado schema 2",
+        schema_marker="ltx23_ia2v_ingredients_schema",
         schema_version=2,
+    )
+    seed_one_workflow(
+        DEFAULT_INGREDIENTS_OFFICIAL_WORKFLOW,
+        SEEDED_INGREDIENTS_OFFICIAL_WORKFLOW,
+        "LTX 2.3 IC-LoRA Ingredients oficial single-stage",
+        schema_marker="ltx23_ingredients_reference_schema",
+        schema_version=1,
+    )
+    seed_one_workflow(
+        DEFAULT_INGREDIENTS_WANGP_I2V_WORKFLOW,
+        SEEDED_INGREDIENTS_WANGP_I2V_WORKFLOW,
+        "LTX 2.3 IC-LoRA Ingredients WanGP I2V 15s",
+        schema_marker="ltx23_ingredients_reference_schema",
+        schema_version=1,
     )
     seed_one_workflow(
         DEFAULT_LTX25_IA2V_WORKFLOW,

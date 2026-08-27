@@ -19,10 +19,18 @@ from build_ia2v_talkvid_workflow import (
 
 INGREDIENTS_NAME = "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"
 SCHEMA_MARKER = "ltx23_ia2v_ingredients_schema"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+CORRECTED_PROFILE = "corrected"
+LEGACY_PROFILE = "legacy-v2"
+PROFILE_SCHEMA = {CORRECTED_PROFILE: SCHEMA_VERSION, LEGACY_PROFILE: 2}
 
 
-def build_ingredients(ia2v: dict) -> dict:
+def build_ingredients(ia2v: dict, profile: str = CORRECTED_PROFILE) -> dict:
+    if profile not in PROFILE_SCHEMA:
+        raise ValueError(f"perfil Ingredients desconhecido: {profile}")
+    legacy = profile == LEGACY_PROFILE
+    schema_version = PROFILE_SCHEMA[profile]
+    width, height, sheet_short_side = (768, 448, 448) if legacy else (960, 544, 544)
     workflow = deepcopy(ia2v)
     if workflow.get("version") != 0.4:
         raise ValueError("o template IA2V oficial precisa usar o schema 0.4")
@@ -92,7 +100,7 @@ def build_ingredients(ia2v: dict) -> dict:
             "ver": "15d09abb5a187a8dcaea2fc31fe51ee96e6c9d0d",
             "Node name for S&R": "ResizeImageMaskNode",
         },
-        "widgets_values": ["scale shorter dimension", 448, "lanczos"],
+        "widgets_values": ["scale shorter dimension", sheet_short_side, "lanczos"],
     }
     repeat_sheet = {
         "id": 352,
@@ -149,9 +157,10 @@ def build_ingredients(ia2v: dict) -> dict:
         "widgets_values": [0.0, 1.0, 1.0, "disabled", False, 256, 64],
     }
 
-    # Match the Ingredients training bucket: 5 seconds at 24 fps -> 121 frames.
-    one(nodes, node_id=330, node_type="PrimitiveInt")["widgets_values"] = [768, "fixed"]
-    one(nodes, node_id=324, node_type="PrimitiveInt")["widgets_values"] = [448, "fixed"]
+    # The corrected profile uses the official spatial bucket. The legacy
+    # profile intentionally preserves the previous, smaller schema-2 preset.
+    one(nodes, node_id=330, node_type="PrimitiveInt")["widgets_values"] = [width, "fixed"]
+    one(nodes, node_id=324, node_type="PrimitiveInt")["widgets_values"] = [height, "fixed"]
     one(nodes, node_id=331, node_type="PrimitiveFloat")["widgets_values"] = [5.0]
     one(nodes, node_id=323, node_type="PrimitiveInt")["widgets_values"] = [24, "fixed"]
     distilled["widgets_values"][1] = 0.5
@@ -159,14 +168,26 @@ def build_ingredients(ia2v: dict) -> dict:
     one(nodes, node_id=315, node_type="CFGGuider")["widgets_values"] = [1]
 
     prompt = one(nodes, node_id=319, node_type="PrimitiveStringMultiline")
-    prompt["widgets_values"][0] = (
-        "Reference sheet: describe each panel in the uploaded sheet: face, hair, "
-        "skin tone, glasses, beard, outfit, body shape, key props, and location.\n\n"
-        "Generated video: a natural close-up talking-head shot of the person from "
-        "the sheet speaking to camera, with stable facial identity, realistic mouth "
-        "motion following the driving audio, subtle head movement, natural teeth, "
-        "consistent skin texture, and no subtitles or on-screen text."
-    )
+    if legacy:
+        prompt["widgets_values"][0] = (
+            "Reference sheet: describe each panel in the uploaded sheet: face, hair, "
+            "skin tone, glasses, beard, outfit, body shape, key props, and location.\n\n"
+            "Generated video: a natural close-up talking-head shot of the person from "
+            "the sheet speaking to camera, with stable facial identity, realistic mouth "
+            "motion following the driving audio, subtle head movement, natural teeth, "
+            "consistent skin texture, and no subtitles or on-screen text."
+        )
+    else:
+        prompt["widgets_values"][0] = (
+            "### Reference Sheet Description\n"
+            "Describe each panel in the uploaded sheet: face, hair, skin tone, glasses, "
+            "beard, outfit, body shape, key props, and location.\n\n"
+            "### Target Description\n"
+            "A natural close-up talking-head shot of the person from "
+            "the sheet speaking to camera, with stable facial identity, realistic mouth "
+            "motion following the driving audio, subtle head movement, natural teeth, "
+            "consistent skin texture, and no subtitles or on-screen text."
+        )
 
     replace_output_links(distilled, "MODEL", [644, 757, 763])
     replace_input_link(stage_one_guider, "model", 647)
@@ -230,10 +251,12 @@ def build_ingredients(ia2v: dict) -> dict:
     subgraph["state"]["lastNodeId"] = 353
     subgraph["state"]["lastLinkId"] = 774
     subgraph["inputNode"]["bounding"][3] += 20
-    subgraph.setdefault("extra", {})[SCHEMA_MARKER] = SCHEMA_VERSION
+    subgraph.setdefault("extra", {})[SCHEMA_MARKER] = schema_version
 
     top_subgraph = one(workflow["nodes"], node_id=340)
     top_subgraph["title"] = "LTX 2.3 IA2V + IC-LoRA Ingredients"
+    if legacy:
+        top_subgraph["title"] += " (legacy schema 2)"
     top_sheet_slot = len(top_subgraph["inputs"])
     top_subgraph["inputs"].append(
         {
@@ -266,7 +289,11 @@ def build_ingredients(ia2v: dict) -> dict:
     load_audio = one(workflow["nodes"], node_id=276, node_type="LoadAudio")
     load_audio["title"] = "Driving Audio (original narration)"
     save_video = one(workflow["nodes"], node_id=341, node_type="SaveVideo")
-    save_video["widgets_values"][0] = "video/LTX_2.3_ia2v_ingredients"
+    save_video["widgets_values"][0] = (
+        "video/LTX_2.3_ia2v_ingredients_legacy_v2"
+        if legacy
+        else "video/LTX_2.3_ia2v_ingredients"
+    )
 
     model_note = one(workflow["nodes"], node_id=103, node_type="MarkdownNote")
     note_text = model_note["widgets_values"][0]
@@ -280,6 +307,36 @@ def build_ingredients(ia2v: dict) -> dict:
         )
         model_note["widgets_values"][0] = note_text.replace(anchor, anchor + addition, 1)
 
+    prompt_help = (
+        "- Prompt legado: `Reference sheet:` seguido de `Generated video:`.\n"
+        if legacy
+        else "- Prompt recomendado: `### Reference Sheet Description` seguido de "
+        "`### Target Description`.\n"
+    )
+    sheet_background_help = (
+        "uma imagem composta em fundo preto com "
+        if legacy
+        else "uma imagem composta com fundos claros ou neutros e "
+    )
+    usage_note_text = (
+        "## IA2V + Ingredients reference sheet\n\n"
+        "- **First Frame / Main Face:** imagem inicial do video.\n"
+        "- **Driving Audio:** narracao original; ela dirige a fala e vai direto ao MP4.\n"
+        "- **Ingredients Reference Sheet:** "
+        + sheet_background_help
+        + "paineis da pessoa, roupa, props e ambiente.\n"
+        "- O workflow repete a sheet como video estatico pelo numero de frames e "
+        "aplica o IC-LoRA Ingredients no primeiro estagio.\n"
+        + prompt_help
+        + "- O `LTXVCropGuides` remove a sheet antes do upscale e do decode.\n"
+        f"- Defaults: {width}x{height}, 5s, 24fps, 121 frames, "
+        "IC-LoRA strength `1.0`.\n"
+        "- Mantenha largura e altura divisiveis por 32 e use uma sheet com a "
+        "mesma proporcao do video.\n\n"
+        "Use uma sheet sem texto visivel, com paineis limpos. Para identidade, "
+        "inclua close-up frontal, perfil/3/4, corpo/roupa e detalhes fixos como "
+        "oculos/barba."
+    )
     usage_note = deepcopy(model_note)
     usage_note.update(
         {
@@ -288,39 +345,32 @@ def build_ingredients(ia2v: dict) -> dict:
             "pos": [1060, 3530],
             "size": [720, 620],
             "order": 6,
-            "widgets_values": [
-                "## IA2V + Ingredients reference sheet\n\n"
-                "- **First Frame / Main Face:** imagem inicial do video.\n"
-                "- **Driving Audio:** narracao original; ela dirige a fala e vai direto ao MP4.\n"
-                "- **Ingredients Reference Sheet:** uma imagem composta em fundo preto com "
-                "paineis da pessoa, roupa, props e ambiente.\n"
-                "- O workflow repete a sheet como video estatico pelo numero de frames e "
-                "aplica o IC-LoRA Ingredients no primeiro estagio.\n"
-                "- Prompt recomendado: `Reference sheet: ...` depois `Generated video: ...`.\n"
-                "- O `LTXVCropGuides` remove a sheet antes do upscale e do decode.\n"
-                "- Defaults: 768x448, 5s, 24fps, 121 frames, IC-LoRA strength `1.0`.\n"
-                "- Mantenha largura e altura divisiveis por 32 e use uma sheet com a "
-                "mesma proporcao do video.\n\n"
-                "Use uma sheet sem texto visivel, com paineis limpos. Para identidade, inclua "
-                "close-up frontal, perfil/3/4, corpo/roupa e detalhes fixos como oculos/barba."
-            ],
+            "widgets_values": [usage_note_text],
         }
     )
     workflow["nodes"].extend([sheet_image, usage_note])
     workflow["last_node_id"] = 355
     workflow["last_link_id"] = max(workflow.get("last_link_id", 0), 774)
-    workflow.setdefault("extra", {})[SCHEMA_MARKER] = SCHEMA_VERSION
+    workflow.setdefault("extra", {})[SCHEMA_MARKER] = schema_version
+    workflow["extra"]["ltx23_ia2v_ingredients_profile"] = profile
     return workflow
 
 
-def validate_ingredients(workflow: dict) -> None:
+def validate_ingredients(workflow: dict, profile: str = CORRECTED_PROFILE) -> None:
+    if profile not in PROFILE_SCHEMA:
+        raise ValueError(f"perfil Ingredients desconhecido: {profile}")
+    legacy = profile == LEGACY_PROFILE
+    schema_version = PROFILE_SCHEMA[profile]
+    width, height, sheet_short_side = (768, 448, 448) if legacy else (960, 544, 544)
     failures: list[str] = []
     subgraph = workflow["definitions"]["subgraphs"][0]
     nodes = subgraph["nodes"]
     links = link_map(subgraph)
 
-    if workflow.get("extra", {}).get(SCHEMA_MARKER) != SCHEMA_VERSION:
-        failures.append(f"marcador de schema precisa ser {SCHEMA_VERSION}")
+    if workflow.get("extra", {}).get(SCHEMA_MARKER) != schema_version:
+        failures.append(f"marcador de schema precisa ser {schema_version}")
+    if workflow.get("extra", {}).get("ltx23_ia2v_ingredients_profile") != profile:
+        failures.append(f"marcador de perfil precisa ser {profile}")
     if workflow.get("version") != 0.4:
         failures.append("versao do workflow diferente de 0.4")
 
@@ -352,16 +402,30 @@ def validate_ingredients(workflow: dict) -> None:
     if sum(node.get("type") == "RepeatImageBatch" for node in nodes) != 1:
         failures.append("RepeatImageBatch precisa aparecer uma vez")
 
-    if one(nodes, node_id=330)["widgets_values"][0] != 768:
-        failures.append("largura padrao precisa ser 768")
-    if one(nodes, node_id=324)["widgets_values"][0] != 448:
-        failures.append("altura padrao precisa ser 448")
+    if one(nodes, node_id=330)["widgets_values"][0] != width:
+        failures.append(f"largura padrao precisa ser {width}")
+    if one(nodes, node_id=324)["widgets_values"][0] != height:
+        failures.append(f"altura padrao precisa ser {height}")
     if one(nodes, node_id=331)["widgets_values"] != [5.0]:
         failures.append("duracao padrao precisa ser 5s")
     if one(nodes, node_id=323)["widgets_values"][0] != 24:
         failures.append("fps padrao precisa ser 24")
     if one(nodes, node_id=349)["widgets_values"] != [False]:
         failures.append("prompt enhancer precisa iniciar desligado")
+    if one(nodes, node_id=351)["widgets_values"] != [
+        "scale shorter dimension",
+        sheet_short_side,
+        "lanczos",
+    ]:
+        failures.append(f"sheet precisa usar lado curto {sheet_short_side}")
+    prompt_text = one(nodes, node_id=319)["widgets_values"][0]
+    prompt_markers = (
+        ("Reference sheet:", "Generated video:")
+        if legacy
+        else ("### Reference Sheet Description", "### Target Description")
+    )
+    if not all(marker in prompt_text for marker in prompt_markers):
+        failures.append("prompt nao corresponde ao perfil selecionado")
 
     create_video = one(nodes, node_type="CreateVideo")
     create_audio_link = one(
@@ -457,11 +521,16 @@ def main() -> None:
         description="Cria o workflow LTX 2.3 IA2V + IC-LoRA Ingredients"
     )
     parser.add_argument("--ia2v", type=Path, required=True)
+    parser.add_argument(
+        "--profile",
+        choices=(CORRECTED_PROFILE, LEGACY_PROFILE),
+        default=CORRECTED_PROFILE,
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    workflow = build_ingredients(load_json(args.ia2v))
-    validate_ingredients(workflow)
+    workflow = build_ingredients(load_json(args.ia2v), args.profile)
+    validate_ingredients(workflow, args.profile)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix(args.output.suffix + ".tmp")
     temporary.write_text(
@@ -469,7 +538,7 @@ def main() -> None:
         encoding="utf-8",
     )
     temporary.replace(args.output)
-    print(f"Workflow IA2V + Ingredients criado: {args.output}")
+    print(f"Workflow IA2V + Ingredients ({args.profile}) criado: {args.output}")
 
 
 if __name__ == "__main__":

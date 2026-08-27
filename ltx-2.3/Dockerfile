@@ -11,6 +11,7 @@ ARG LTX25_WORKFLOW_COMMIT=1121504798345b1bb4e6350991f90512c4ba1ed9
 ARG LTX25_WORKFLOW_SHA256=0a88024394467250013ce611ee46d01cc7e73078a0899e4c80709080c5101f71
 ARG BFSNODES_COMMIT=0a2553869254eef4f3f735fdd9fea04614c3dd7e
 ARG LTXVIDEO_COMMIT=15d09abb5a187a8dcaea2fc31fe51ee96e6c9d0d
+ARG INGREDIENTS_WORKFLOW_SHA256=a9d75c1c8546d5e0125d16ac071abd473b45bbfdcfbec87b1cf7abc17dd90d32
 
 ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
@@ -51,7 +52,9 @@ RUN git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git \
     && git -C "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo" \
         checkout --detach "${LTXVIDEO_COMMIT}" \
     && pip install -r \
-        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/requirements.txt"
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/requirements.txt" \
+    && echo "${INGREDIENTS_WORKFLOW_SHA256}  ${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/example_workflows/2.3/LTX-2.3_ICLoRA_Ingredients_Single_Stage_Distilled.json" \
+        | sha256sum -c -
 
 RUN mkdir -p /opt/defaults/workflows \
     && curl -fsSL \
@@ -77,6 +80,7 @@ RUN chmod +x \
         /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
         /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
         /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
+        /opt/ltx23-scripts/build_ingredients_reference_workflows.py \
         /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
     && mkdir -p \
         "${COMFYUI_HOME}/input" \
@@ -99,7 +103,20 @@ RUN chmod +x \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json \
     && python /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
+        --profile corrected \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_ingredients.json \
+    && python /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
+        --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
+        --profile legacy-v2 \
+        --output /opt/defaults/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2.json \
+    && python /opt/ltx23-scripts/build_ingredients_reference_workflows.py \
+        --official "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/example_workflows/2.3/LTX-2.3_ICLoRA_Ingredients_Single_Stage_Distilled.json" \
+        --profile official \
+        --output /opt/defaults/workflows/video_ltx2_3_ingredients_official_single_stage.json \
+    && python /opt/ltx23-scripts/build_ingredients_reference_workflows.py \
+        --official "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/example_workflows/2.3/LTX-2.3_ICLoRA_Ingredients_Single_Stage_Distilled.json" \
+        --profile wangp-i2v-15s \
+        --output /opt/defaults/workflows/video_ltx2_3_ingredients_wangp_i2v_15s.json \
     && python /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
         --i2v /opt/defaults/workflows/video_ltx2_5_i2v.json \
         --output /opt/defaults/workflows/video_ltx2_5_ia2v_distilled_8steps.json \

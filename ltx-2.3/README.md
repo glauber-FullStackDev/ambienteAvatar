@@ -1,7 +1,7 @@
 # LTX 2.3/2.5 IA2V + ComfyUI para Vast.ai
 
-Imagem independente para executar dois workflows oficiais do ComfyUI e quatro
-adaptacoes prontas:
+Imagem independente para executar tres workflows oficiais do ComfyUI/Lightricks
+e seis adaptacoes prontas:
 
 - `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
 - `video_ltx2_3_id_lora.json`, para transferir a identidade vocal de um audio
@@ -14,6 +14,13 @@ adaptacoes prontas:
 - `video_ltx2_3_ia2v_ingredients.json`, que preserva a narracao original e usa
   uma reference sheet IC-LoRA Ingredients para reforcar identidade, roupa,
   props e ambiente no primeiro estagio.
+- `video_ltx2_3_ia2v_ingredients_legacy_v2.json`, copia intacta do preset
+  Ingredients anterior em 768x448, mantida para regressao e comparacao.
+- `video_ltx2_3_ingredients_official_single_stage.json`, copia adaptada do
+  workflow Ingredients oficial, single-stage, 960x544 e 10 segundos.
+- `video_ltx2_3_ingredients_wangp_i2v_15s.json`, variante comparativa inspirada
+  no teste do WanGP: reference sheet durante todos os 361 frames e start image
+  I2V opcional, a 24 FPS.
 - `video_ltx2_5_ia2v_distilled_8steps.json`, que combina imagem e narracao no
   transformer LTX-2.5 destilado INT8 ConvRot com a agenda oficial de 8 passos.
 
@@ -110,6 +117,9 @@ Na primeira inicializacao, copias intactas aparecem em:
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_ingredients_official_single_stage-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_ingredients_wangp_i2v_15s-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_5_ia2v_distilled_8steps-docker.json
 ```
 
@@ -173,21 +183,58 @@ No workflow `video_ltx2_3_ia2v_ingredients-docker.json`:
 2. envie uma sheet composta no `Ingredients Reference Sheet`;
 3. envie a narracao completa no `Driving Audio`;
 4. escreva o prompt em duas partes: `Reference sheet:` e `Generated video:`;
-5. comece com os defaults `768x448`, 5 segundos, 24 FPS e seed fixa.
+5. comece com os defaults `960x544`, 5 segundos, 24 FPS e seed fixa.
 
-A sheet precisa ser uma unica imagem em fundo preto, sem texto visivel, com
-paineis limpos da pessoa, roupa, corpo, close-up frontal, perfil ou 3/4, props
-fixos e ambiente. O workflow redimensiona a sheet, repete a imagem pelo numero
+A sheet precisa ser uma unica imagem sem texto visivel, com paineis limpos da
+pessoa, roupa, corpo, close-up frontal, perfil ou 3/4, props fixos e ambiente.
+O exemplo oficial usa fundos claros dentro dos paineis e divisorias pretas; o
+fundo inteiro nao precisa ser preto. O workflow redimensiona a sheet, repete a imagem pelo numero
 de frames e aplica `LTXAddVideoICLoRAGuide` no primeiro estagio com
 Ingredients strength `1.0`. Depois do primeiro estagio, `LTXVCropGuides` remove
 os frames da sheet antes do upscale e do decode. A narracao original vai
 diretamente ao MP4 final.
 
 Esse workflow e experimental porque combina o IA2V oficial com o IC-LoRA
-Ingredients. O modelo Ingredients foi treinado para reference sheet estatica,
-121 frames, 24 FPS e 768x448; mudar muito esses valores pode reduzir a
-fidelidade. Para outras resolucoes, mantenha largura e altura divisiveis por 32
-e componha a sheet na mesma proporcao do video para evitar distorcao.
+Ingredients. O preset corrigido usa o bucket espacial oficial 960x544, mas
+mantem 121 frames/5 segundos para reduzir o custo do teste IA2V com audio.
+Mudar muito esses valores pode reduzir a fidelidade. Para outras resolucoes,
+mantenha largura e altura divisiveis por 32 e componha a sheet na mesma
+proporcao do video para evitar distorcao.
+
+### Como comparar com o teste do WanGP
+
+Use primeiro `video_ltx2_3_ingredients_official_single_stage-docker.json` como
+controle. Ele conserva o grafo oficial Ingredients, mas troca os nomes dos
+pesos pelas variantes que a imagem ja baixa: checkpoint DEV FP8, Gemma FP4 e
+Distilled LoRA dinamico. Isso evita outro download grande, mas nao e paridade
+numerica perfeita com os pesos BF16 do exemplo. O lado curto da sheet e
+544; com a sheet oficial 1088x608, a geracao fica proxima de 960x544. O node
+`LTXICLoRALoaderModelOnly` le do proprio LoRA o fator de referencia e o
+`LTXAddVideoICLoRAGuide` aplica essa reducao internamente. Nao altere o fator
+para `1`: a grade menor faz parte do condicionamento para o qual o LoRA foi
+treinado.
+
+Depois use `video_ltx2_3_ingredients_wangp_i2v_15s-docker.json`. Ele reproduz
+os dois comportamentos relevantes da branch mostrada no post: a sheet e
+repetida por toda a duracao, nao por apenas um frame, e uma start image pode
+condicionar o primeiro frame. O preset usa 361 frames (`8n+1`) a 24 FPS. Por
+ser single-stage longo, consome bastante RAM/VRAM; se houver OOM, teste 241
+frames antes de reduzir a resolucao.
+
+No prompt, siga o formato oficial `### Reference Sheet Description` e
+`### Target Description`. Descreva cada painel e depois a cena, movimentos,
+fala e sons. O formato anterior `Reference sheet:` / `Generated video:` ainda
+funciona como texto livre, mas nao e o formato usado no exemplo oficial.
+
+O workflow IA2V Ingredients continua instalado com o mesmo nome e agora usa
+schema 3, lado curto 544 e prompt no formato oficial. No primeiro boot da imagem
+nova, uma instalacao schema 2 recebe backup antes da atualizacao. Ele e util
+quando a fala precisa seguir um arquivo de audio fornecido; os dois novos
+presets geram audio a partir do prompt, como no teste do WanGP.
+
+Para uma comparacao exata com o comportamento antigo, use
+`video_ltx2_3_ia2v_ingredients_legacy_v2-docker.json`. Ele conserva 768x448,
+pre-resize 448 e os cabecalhos de prompt antigos, mesmo em uma instalacao nova.
 
 ### Como usar o LTX-2.5 IA2V destilado
 
