@@ -17,6 +17,7 @@ MODELS = Path(os.environ.get("COMFYUI_MODELS", "/opt/ComfyUI/models"))
 DOWNLOADS = MODELS / ".downloads/ltx23"
 TOKEN = os.environ.get("HF_TOKEN") or None
 DOWNLOAD_HEADROOM = 2 * 1024**3
+DOWNLOAD_LTX25_MODELS = os.environ.get("DOWNLOAD_LTX25_MODELS_ON_START", "1") == "1"
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class ModelFile:
     relative_path: str
     size: int
     sha256: str
+    group: str = "ltx23"
 
     @property
     def target(self) -> Path:
@@ -127,6 +129,7 @@ MODEL_FILES = (
         ),
         size=21_504_034_224,
         sha256="c4279eeff115cbeaca494bd2183e7d768c38fe85a184dc6afbb7159157c44334",
+        group="ltx25",
     ),
     ModelFile(
         label="LTX 2.5 Gemma 4 12B INT8 ConvRot",
@@ -142,6 +145,17 @@ MODEL_FILES = (
         ),
         size=15_372_969_374,
         sha256="6ce688a0aa98a5fa36a9f1e6c3f42152a498cc2b53ee8c15674c64244f91487f",
+        group="ltx25",
+    ),
+    ModelFile(
+        label="LTX 2.5 Gemma 4 E2B prompt enhancer INT8 ConvRot",
+        repo="Comfy-Org/gemma-4",
+        revision="main",
+        remote_path="text_encoders/gemma4_e2b_it_int8_convrot.safetensors",
+        relative_path="text_encoders/gemma4_e2b_it_int8_convrot.safetensors",
+        size=5_199_997_904,
+        sha256="efeca0fcad2f863e5ed0a75e3af952b72bc963604c1dda6d20aee87a32b17566",
+        group="ltx25",
     ),
     ModelFile(
         label="LTX 2.5 video VAE BF16",
@@ -151,6 +165,7 @@ MODEL_FILES = (
         relative_path="vae/ltx-2.5-video-vae-bf16.safetensors",
         size=1_472_223_346,
         sha256="847e14ca7f3355debca0cea4eaa24ac0fbcdf0061da054ac89ca638a869ddba3",
+        group="ltx25",
     ),
     ModelFile(
         label="LTX 2.5 audio VAE BF16",
@@ -160,6 +175,7 @@ MODEL_FILES = (
         relative_path="vae/ltx-2.5-audio-vae-bf16.safetensors",
         size=364_866_540,
         sha256="c52733d37f6a7fb7949c3dc0fb468c6cb2169e4d836983a73babb9f0d54837a5",
+        group="ltx25",
     ),
     ModelFile(
         label="LTX 2.5 spatial upscaler x2 BF16",
@@ -175,8 +191,15 @@ MODEL_FILES = (
         ),
         size=995_778_752,
         sha256="eb5a71fe4068ee87ccdb1c3aa635e547ca76bd2d30ae20ae889f2c325c0677e8",
+        group="ltx25",
     ),
 )
+
+
+def selected_model_files() -> tuple[ModelFile, ...]:
+    if DOWNLOAD_LTX25_MODELS:
+        return MODEL_FILES
+    return tuple(model for model in MODEL_FILES if model.group != "ltx25")
 
 
 def file_sha256(path: Path) -> str:
@@ -197,7 +220,7 @@ def is_valid(model: ModelFile, verify_sha256: bool = False) -> bool:
 
 
 def required_download_bytes() -> int:
-    return sum(model.size for model in MODEL_FILES if not is_valid(model))
+    return sum(model.size for model in selected_model_files() if not is_valid(model))
 
 
 def check_free_space() -> None:
@@ -241,10 +264,12 @@ def download(model: ModelFile, verify_sha256: bool) -> None:
             )
         )
     except GatedRepoError as error:
-        raise RuntimeError(
-            "Acesso ao LTX-2.5 nao autorizado. Aceite os termos em "
-            "https://huggingface.co/Lightricks/LTX-2.5 e configure HF_TOKEN."
-        ) from error
+        if model.repo == "Lightricks/LTX-2.5":
+            raise RuntimeError(
+                "Acesso ao LTX-2.5 nao autorizado. Aceite os termos em "
+                "https://huggingface.co/Lightricks/LTX-2.5 e configure HF_TOKEN."
+            ) from error
+        raise
     if downloaded.stat().st_size != model.size:
         raise RuntimeError(
             f"Tamanho invalido para {model.label}: "
@@ -260,7 +285,7 @@ def download(model: ModelFile, verify_sha256: bool) -> None:
 
 def verify(verify_sha256: bool) -> bool:
     success = True
-    for model in MODEL_FILES:
+    for model in selected_model_files():
         if is_valid(model, verify_sha256):
             detail = "tamanho e SHA256" if verify_sha256 else "tamanho"
             print(f"  [OK] {model.label} ({detail}): {model.target}")
@@ -279,19 +304,24 @@ def main() -> None:
         "--verify-sha256",
         action="store_true",
         default=os.environ.get("VERIFY_MODEL_SHA256", "0") == "1",
-        help="calcula o SHA256 completo dos aproximadamente 80,4 GiB",
+        help="calcula o SHA256 completo dos modelos selecionados",
     )
     args = parser.parse_args()
 
     if args.verify_only:
         raise SystemExit(0 if verify(args.verify_sha256) else 1)
 
+    if not DOWNLOAD_LTX25_MODELS:
+        print(
+            "Download dos modelos LTX 2.5 desativado "
+            "(DOWNLOAD_LTX25_MODELS_ON_START=0)."
+        )
     check_free_space()
-    for model in MODEL_FILES:
+    for model in selected_model_files():
         download(model, args.verify_sha256)
     if not verify(args.verify_sha256):
         raise SystemExit(1)
-    print("Todos os modelos do LTX 2.3/2.5 estao prontos.")
+    print("Todos os modelos selecionados do LTX 2.3/2.5 estao prontos.")
 
 
 if __name__ == "__main__":

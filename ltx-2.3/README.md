@@ -57,14 +57,18 @@ ambiente e o BFSNodes, fixado para manter o workflow Best Face-ID reproduzivel.
 | `latent_upscale_models/` | `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | 0,9 GiB |
 | `diffusion_models/` | `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | 20,0 GiB |
 | `text_encoders/` | `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | 14,3 GiB |
+| `text_encoders/` | `gemma4_e2b_it_int8_convrot.safetensors` | 4,8 GiB |
 | `vae/` | `ltx-2.5-video-vae-bf16.safetensors` | 1,4 GiB |
 | `vae/` | `ltx-2.5-audio-vae-bf16.safetensors` | 0,3 GiB |
 | `latent_upscale_models/` | `ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors` | 0,9 GiB |
 
-O LTX-2.5 acrescenta `39.709.872.236` bytes, aproximadamente `37,0 GiB`.
-Total exato da imagem: `86.292.504.874` bytes, aproximadamente `80,4 GiB`.
+O LTX-2.5 acrescenta `44.909.870.140` bytes, aproximadamente `41,8 GiB`.
+Total exato dos modelos: `91.492.502.778` bytes, aproximadamente `85,2 GiB`.
+Para pular todos os pesos LTX-2.5 no boot, configure
+`DOWNLOAD_LTX25_MODELS_ON_START=0`; os workflows continuam instalados, mas o
+workflow 2.5 so roda depois que esses pesos forem baixados.
 
-O teste normal de boot valida o tamanho exato, sem reler 80,4 GiB a cada
+O teste normal de boot valida o tamanho exato, sem reler 85,2 GiB a cada
 inicializacao. Para uma auditoria integral dos checksums:
 
 ```bash
@@ -162,8 +166,8 @@ upscale usa mais 3 passos, ambas com CFG de video/audio em `1`.
 
 Esse IA2V e uma adaptacao local do I2V 2.5 oficial; ainda nao existe um template
 IA2V 2.5 publicado pela Comfy-Org. Comece com 5 segundos. O prompt enhancer
-permanece no grafo, desligado, mas seu peso opcional de aproximadamente 4,8 GiB
-nao e baixado pela imagem.
+permanece no grafo e inicia desligado, mas seu Gemma 4 E2B e baixado quando
+`DOWNLOAD_LTX25_MODELS_ON_START=1`.
 
 ### Como usar o ID-LoRA
 
@@ -194,7 +198,7 @@ workflow fazem esse ajuste a partir da duracao e do FPS.
 Use uma GPU com **48 GB de VRAM** para os presets de 720p. Recomenda-se tambem
 64 GB ou mais de RAM do host, CUDA 12.8 ou superior e 160 GB de disco da
 instancia. Anexe um volume persistente de no minimo 100 GB ao caminho exato
-`/opt/ComfyUI/models`; **120 GB** oferece margem adequada para os 80,4 GiB de
+`/opt/ComfyUI/models`; **120 GB** oferece margem adequada para os 85,2 GiB de
 pesos, downloads parciais e cache.
 
 Existem dois templates prontos:
@@ -211,7 +215,7 @@ Image: ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23
 Tag: vast
 Launch mode: Entrypoint/Args
 Args: serve
-Docker options: -p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS="--preview-method auto" -e DOWNLOAD_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface -e HF_TOKEN=hf_SEU_TOKEN
+Docker options: -p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS="--preview-method auto" -e DOWNLOAD_MODELS_ON_START=1 -e DOWNLOAD_LTX25_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface -e HF_TOKEN=hf_SEU_TOKEN
 Disk: 160 GB
 Persistent volume: 120 GB mounted at /opt/ComfyUI/models
 ```

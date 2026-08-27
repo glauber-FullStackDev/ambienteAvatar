@@ -117,7 +117,16 @@ def run_downloader(*arguments: str) -> None:
 def serve() -> None:
     prepare_directories()
     if os.environ.get("DOWNLOAD_MODELS_ON_START", "1") == "1":
-        print("Verificando os modelos do LTX 2.3/2.5 antes de iniciar o ComfyUI...")
+        if os.environ.get("DOWNLOAD_LTX25_MODELS_ON_START", "1") == "1":
+            print(
+                "Verificando os modelos do LTX 2.3/2.5 "
+                "antes de iniciar o ComfyUI..."
+            )
+        else:
+            print(
+                "Verificando os modelos do LTX 2.3; "
+                "LTX 2.5 desativado por DOWNLOAD_LTX25_MODELS_ON_START=0."
+            )
         run_downloader()
     else:
         print("Download automatico desativado (DOWNLOAD_MODELS_ON_START=0).")

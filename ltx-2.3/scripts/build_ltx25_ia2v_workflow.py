@@ -24,6 +24,7 @@ STAGE_TWO_SIGMAS = "0.85, 0.7250, 0.4219, 0.0"
 REQUIRED_MODELS = {
     "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
     "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+    "gemma4_e2b_it_int8_convrot.safetensors",
     "ltx-2.5-video-vae-bf16.safetensors",
     "ltx-2.5-audio-vae-bf16.safetensors",
     "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
@@ -317,8 +318,9 @@ def build_ia2v(i2v: dict) -> dict:
     )
     model_note = one(workflow["nodes"], node_id=401, node_type="MarkdownNote")
     model_note["widgets_values"][0] = (
-        "**Docker preset:** prompt enhancement starts disabled and its optional "
-        "Gemma E2B checkpoint is not downloaded.\n\n"
+        "**Docker preset:** all LTX-2.5 weights listed here are downloaded when "
+        "`DOWNLOAD_LTX25_MODELS_ON_START=1`. Prompt enhancement still starts "
+        "disabled for faster first tests.\n\n"
         + model_note["widgets_values"][0]
     )
 
@@ -342,7 +344,8 @@ def build_ia2v(i2v: dict) -> dict:
             "- O MP4 recebe diretamente o audio original recortado.\n"
             "- Agenda destilada oficial: 8 passos na primeira etapa e 3 na etapa "
             "de upscale; CFG de video/audio em `1`.\n"
-            "- Prompt enhancer fica desligado e seu modelo opcional nao e baixado.\n"
+            "- Prompt enhancer fica desligado por padrao, mas seu Gemma 4 E2B "
+            "e baixado quando os modelos 2.5 estao habilitados.\n"
             "- Comece com 5 segundos e uma foto frontal bem iluminada."
         ],
     }

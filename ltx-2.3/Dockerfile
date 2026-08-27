@@ -15,6 +15,7 @@ ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
     COMFYUI_PORT=8188 \
     DOWNLOAD_MODELS_ON_START=1 \
+    DOWNLOAD_LTX25_MODELS_ON_START=1 \
     HF_HOME=/opt/ComfyUI/models/.cache/huggingface \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
