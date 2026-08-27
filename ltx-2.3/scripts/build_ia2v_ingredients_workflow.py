@@ -38,6 +38,7 @@ def build_ingredients(ia2v: dict) -> dict:
     video_vae = one(nodes, node_id=300, node_type="Reroute")
     frame_count = one(nodes, node_id=329, node_type="ComfyMathExpression")
     driving_trim = one(nodes, node_id=332, node_type="TrimAudioDuration")
+    image_to_video = one(nodes, node_id=325, node_type="LTXVImgToVideoInplace")
     decoded_audio = one(nodes, node_id=303, node_type="LTXVAudioVAEDecode")
     create_video = one(nodes, node_id=312, node_type="CreateVideo")
 
@@ -135,7 +136,7 @@ def build_ingredients(ia2v: dict) -> dict:
         "outputs": [
             {"name": "positive", "type": "CONDITIONING", "links": [648, 655]},
             {"name": "negative", "type": "CONDITIONING", "links": [649, 656]},
-            {"name": "latent", "type": "LATENT", "links": [654]},
+            {"name": "latent", "type": "LATENT", "links": [685]},
         ],
         "properties": {
             "aux_id": "Lightricks/ComfyUI-LTXVideo",
@@ -168,7 +169,8 @@ def build_ingredients(ia2v: dict) -> dict:
     replace_input_link(stage_one_guider, "model", 647)
     replace_output_links(conditioning, "positive", [771])
     replace_output_links(conditioning, "negative", [772])
-    replace_output_links(concat_latent, "latent", [774])
+    replace_output_links(image_to_video, "latent", [774])
+    replace_output_links(concat_latent, "latent", [654])
     replace_output_links(video_vae, "", [662, 663, 694, 773])
     replace_output_links(frame_count, "INT", [712, 766])
     replace_output_links(driving_trim, "AUDIO", [708, 696])
@@ -180,8 +182,9 @@ def build_ingredients(ia2v: dict) -> dict:
     links[655].update({"origin_id": 353, "origin_slot": 0})
     links[649].update({"origin_id": 353, "origin_slot": 1})
     links[656].update({"origin_id": 353, "origin_slot": 1})
-    links[654].update({"origin_id": 353, "origin_slot": 2})
+    links[685].update({"origin_id": 353, "origin_slot": 2})
     links[696].update({"origin_id": 332, "origin_slot": 0})
+    add_link(subgraph, 774, 325, 0, 353, 3, "LATENT")
 
     sheet_input = {
         "id": "e8d8f733-5579-4452-88df-a31b6a390118",
@@ -210,7 +213,6 @@ def build_ingredients(ia2v: dict) -> dict:
     add_link(subgraph, 771, 307, 0, 353, 0, "CONDITIONING")
     add_link(subgraph, 772, 307, 1, 353, 1, "CONDITIONING")
     add_link(subgraph, 773, 300, 0, 353, 2, "VAE")
-    add_link(subgraph, 774, 326, 0, 353, 3, "LATENT")
 
     nodes.extend([ingredients_loader, resize_sheet, repeat_sheet, guide])
     subgraph["name"] = "Video Generation (LTX-2.3 IA2V + Ingredients)"
@@ -361,8 +363,11 @@ def validate_ingredients(workflow: dict) -> None:
     if links[stage_two_model]["origin_id"] != 293:
         failures.append("segundo estagio precisa continuar no distilled LoRA")
     guide_latent = one(nodes, node_id=353)["inputs"][3]["link"]
-    if links[guide_latent]["origin_id"] != 326:
-        failures.append("guia Ingredients precisa receber o latent IA2V combinado")
+    if links[guide_latent]["origin_id"] != 325:
+        failures.append("guia Ingredients precisa receber o latent de video antes do audio")
+    concat_video = one(nodes, node_id=326)["inputs"][0]["link"]
+    if links[concat_video]["origin_id"] != 353:
+        failures.append("audio precisa ser concatenado depois do guia Ingredients")
     repeat_amount = one(nodes, node_id=352)["inputs"][1]["link"]
     if links[repeat_amount]["origin_id"] != 329:
         failures.append("sheet estatica precisa repetir pelo numero de frames")
