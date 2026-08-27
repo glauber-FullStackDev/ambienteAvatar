@@ -44,6 +44,8 @@ completos.
 - ComfyUI-LTXVideo no commit
   `15d09abb5a187a8dcaea2fc31fe51ee96e6c9d0d`, necessario aos nodes IC-LoRA
   Ingredients;
+- patch de compatibilidade do ComfyUI-LTXVideo para `kornia>=0.8.3`, removendo
+  o import quebrado de `pad` e usando `torch.nn.functional.pad`;
 - FFmpeg, JupyterLab e todos os nodes usados pelos workflows;
 - downloader retomavel via Hugging Face Hub, com repositorios e revisoes
   imutaveis.
@@ -51,6 +53,9 @@ completos.
 Os nodes LTX IA2V/ID-LoRA sao nativos da versao fixada do ComfyUI. Os custom
 nodes adicionais sao BFSNodes, para Best Face-ID, e ComfyUI-LTXVideo, para
 IC-LoRA Ingredients.
+
+O build valida tambem os imports de `torch`, `torchvision` e `torchaudio`, para
+evitar publicar uma imagem com pacotes desalinhados.
 
 ## Modelos baixados na inicializacao
 

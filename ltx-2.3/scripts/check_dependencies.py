@@ -221,6 +221,17 @@ def main() -> None:
                 failures.append(
                     f"custom node ComfyUI-LTXVideo sem mapeamento {node_type}"
                 )
+    ltxvideo_pyramid = (
+        COMFYUI_HOME / "custom_nodes/ComfyUI-LTXVideo/pyramid_blending.py"
+    )
+    if not ltxvideo_pyramid.is_file():
+        failures.append(f"arquivo ComfyUI-LTXVideo ausente: {ltxvideo_pyramid}")
+    else:
+        ltxvideo_pyramid_source = ltxvideo_pyramid.read_text(encoding="utf-8")
+        if "pad = F.pad" not in ltxvideo_pyramid_source:
+            failures.append("shim Kornia pad ausente no ComfyUI-LTXVideo")
+        if "    pad,\n" in ltxvideo_pyramid_source:
+            failures.append("import quebrado de pad ainda existe no ComfyUI-LTXVideo")
     validate_workflow(
         "IA2V",
         IA2V_WORKFLOW,
@@ -301,10 +312,14 @@ def main() -> None:
     try:
         import huggingface_hub  # noqa: F401
         import torch
+        import torchaudio
+        import torchvision
     except Exception as error:
         failures.append(f"dependencia Python nao importou: {error}")
     else:
         print(f"PyTorch: {torch.__version__}; CUDA da build: {torch.version.cuda}")
+        print(f"TorchVision: {torchvision.__version__}")
+        print(f"TorchAudio: {torchaudio.__version__}")
 
     if failures:
         for failure in failures:

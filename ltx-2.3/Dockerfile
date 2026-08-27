@@ -73,6 +73,7 @@ RUN chmod +x \
         /opt/ltx23-scripts/container-entrypoint.sh \
         /opt/ltx23-scripts/entrypoint.py \
         /opt/ltx23-scripts/download_models.py \
+        /opt/ltx23-scripts/patch_ltxvideo_kornia.py \
         /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
         /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
         /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
@@ -88,6 +89,7 @@ RUN chmod +x \
         "${COMFYUI_HOME}/output" \
         "${COMFYUI_HOME}/user/default/workflows" \
         /var/log/portal \
+    && python /opt/ltx23-scripts/patch_ltxvideo_kornia.py \
     && python /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
         --id-lora /opt/defaults/workflows/video_ltx2_3_id_lora.json \
