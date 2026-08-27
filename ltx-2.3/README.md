@@ -1,6 +1,6 @@
 # LTX 2.3/2.5 IA2V + ComfyUI para Vast.ai
 
-Imagem independente para executar dois workflows oficiais do ComfyUI e tres
+Imagem independente para executar dois workflows oficiais do ComfyUI e quatro
 adaptacoes prontas:
 
 - `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
@@ -11,13 +11,17 @@ adaptacoes prontas:
   TalkVid 3K como reforco de identidade no primeiro estagio.
 - `video_ltx2_3_ia2v_best_face.json`, que preserva a narracao original e usa o
   Best Face-ID v1.0 como referencia visual separada para reforcar o rosto.
+- `video_ltx2_3_ia2v_ingredients.json`, que preserva a narracao original e usa
+  uma reference sheet IC-LoRA Ingredients para reforcar identidade, roupa,
+  props e ambiente no primeiro estagio.
 - `video_ltx2_5_ia2v_distilled_8steps.json`, que combina imagem e narracao no
   transformer LTX-2.5 destilado INT8 ConvRot com a agenda oficial de 8 passos.
 
 O ComfyUI, os workflows e as revisoes dos modelos ficam fixados. Os pesos nao
 entram na imagem Docker: no primeiro boot eles sao baixados em
 `/opt/ComfyUI/models`, validados por tamanho e mantidos no volume persistente.
-O ComfyUI so inicia depois que os doze arquivos estiverem completos.
+O ComfyUI so inicia depois que os quatorze arquivos selecionados estiverem
+completos.
 
 ## Conteudo
 
@@ -37,12 +41,16 @@ O ComfyUI so inicia depois que os doze arquivos estiverem completos.
 - ComfyUI-BFSNodes no commit
   `0a2553869254eef4f3f735fdd9fea04614c3dd7e`, necessario ao condicionamento
   Best Face-ID;
+- ComfyUI-LTXVideo no commit
+  `15d09abb5a187a8dcaea2fc31fe51ee96e6c9d0d`, necessario aos nodes IC-LoRA
+  Ingredients;
 - FFmpeg, JupyterLab e todos os nodes usados pelos workflows;
 - downloader retomavel via Hugging Face Hub, com repositorios e revisoes
   imutaveis.
 
-Os nodes LTX sao nativos da versao fixada do ComfyUI. O unico custom node deste
-ambiente e o BFSNodes, fixado para manter o workflow Best Face-ID reproduzivel.
+Os nodes LTX IA2V/ID-LoRA sao nativos da versao fixada do ComfyUI. Os custom
+nodes adicionais sao BFSNodes, para Best Face-ID, e ComfyUI-LTXVideo, para
+IC-LoRA Ingredients.
 
 ## Modelos baixados na inicializacao
 
@@ -53,6 +61,7 @@ ambiente e o BFSNodes, fixado para manter o workflow Best Face-ID reproduzivel.
 | `loras/` | `ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors` | 2,6 GiB |
 | `loras/` | `ltx-2.3-id-lora-talkvid-3k.safetensors` | 1,1 GiB |
 | `loras/` | `Best_FaceID_v1.0_LoRA.safetensors` | 2,3 GiB |
+| `loras/` | `ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors` | 1,2 GiB |
 | `loras/` | `gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors` | 0,6 GiB |
 | `latent_upscale_models/` | `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | 0,9 GiB |
 | `diffusion_models/` | `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | 20,0 GiB |
@@ -63,12 +72,12 @@ ambiente e o BFSNodes, fixado para manter o workflow Best Face-ID reproduzivel.
 | `latent_upscale_models/` | `ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors` | 0,9 GiB |
 
 O LTX-2.5 acrescenta `44.909.870.140` bytes, aproximadamente `41,8 GiB`.
-Total exato dos modelos: `91.492.502.778` bytes, aproximadamente `85,2 GiB`.
+Total exato dos modelos: `92.801.281.116` bytes, aproximadamente `86,4 GiB`.
 Para pular todos os pesos LTX-2.5 no boot, configure
 `DOWNLOAD_LTX25_MODELS_ON_START=0`; os workflows continuam instalados, mas o
 workflow 2.5 so roda depois que esses pesos forem baixados.
 
-O teste normal de boot valida o tamanho exato, sem reler 85,2 GiB a cada
+O teste normal de boot valida o tamanho exato, sem reler 86,4 GiB a cada
 inicializacao. Para uma auditoria integral dos checksums:
 
 ```bash
@@ -95,6 +104,7 @@ Na primeira inicializacao, copias intactas aparecem em:
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_id_lora-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_5_ia2v_distilled_8steps-docker.json
 ```
 
@@ -148,6 +158,27 @@ sobre o IA2V oficial. Comece com 6 a 8 segundos. O Best Face-ID melhora a
 preservacao visual da identidade, mas o sincronismo labial continua vindo do
 condicionamento de audio do IA2V.
 
+### Como usar o IA2V + IC-LoRA Ingredients
+
+No workflow `video_ltx2_3_ia2v_ingredients-docker.json`:
+
+1. envie a imagem inicial no `First Frame / Main Face`;
+2. envie uma sheet composta no `Ingredients Reference Sheet`;
+3. envie a narracao completa no `Driving Audio`;
+4. escreva o prompt em duas partes: `Reference sheet:` e `Generated video:`;
+5. comece com os defaults `768x448`, 5 segundos, 24 FPS e seed fixa.
+
+A sheet precisa ser uma unica imagem em fundo preto, sem texto visivel, com
+paineis limpos da pessoa, roupa, corpo, close-up frontal, perfil ou 3/4, props
+fixos e ambiente. O workflow redimensiona a sheet, repete a imagem pelo numero
+de frames e aplica `LTXAddVideoICLoRAGuide` no primeiro estagio com
+Ingredients strength `1.4`. A narracao original vai diretamente ao MP4 final.
+
+Esse workflow e experimental porque combina o IA2V oficial com o IC-LoRA
+Ingredients. O modelo Ingredients foi treinado para reference sheet estatica,
+121 frames, 24 FPS e 768x448; mudar muito esses valores pode reduzir a
+fidelidade.
+
 ### Como usar o LTX-2.5 IA2V destilado
 
 No workflow `video_ltx2_5_ia2v_distilled_8steps-docker.json`:
@@ -198,7 +229,7 @@ workflow fazem esse ajuste a partir da duracao e do FPS.
 Use uma GPU com **48 GB de VRAM** para os presets de 720p. Recomenda-se tambem
 64 GB ou mais de RAM do host, CUDA 12.8 ou superior e 160 GB de disco da
 instancia. Anexe um volume persistente de no minimo 100 GB ao caminho exato
-`/opt/ComfyUI/models`; **120 GB** oferece margem adequada para os 85,2 GiB de
+`/opt/ComfyUI/models`; **120 GB** oferece margem adequada para os 86,4 GiB de
 pesos, downloads parciais e cache.
 
 Existem dois templates prontos:

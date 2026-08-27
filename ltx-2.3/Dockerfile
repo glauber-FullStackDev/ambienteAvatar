@@ -10,6 +10,7 @@ ARG ID_LORA_WORKFLOW_SHA256=fcffe421129bac16b4f0655e54130d633280cdaf6949e145221e
 ARG LTX25_WORKFLOW_COMMIT=1121504798345b1bb4e6350991f90512c4ba1ed9
 ARG LTX25_WORKFLOW_SHA256=0a88024394467250013ce611ee46d01cc7e73078a0899e4c80709080c5101f71
 ARG BFSNODES_COMMIT=0a2553869254eef4f3f735fdd9fea04614c3dd7e
+ARG LTXVIDEO_COMMIT=15d09abb5a187a8dcaea2fc31fe51ee96e6c9d0d
 
 ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
@@ -45,6 +46,13 @@ RUN git clone https://github.com/alisson-anjos/ComfyUI-BFSNodes.git \
     && pip install -r \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-BFSNodes/requirements.txt"
 
+RUN git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo" \
+    && git -C "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo" \
+        checkout --detach "${LTXVIDEO_COMMIT}" \
+    && pip install -r \
+        "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/requirements.txt"
+
 RUN mkdir -p /opt/defaults/workflows \
     && curl -fsSL \
         "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/${WORKFLOW_COMMIT}/templates/video_ltx2_3_ia2v.json" \
@@ -67,6 +75,7 @@ RUN chmod +x \
         /opt/ltx23-scripts/download_models.py \
         /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
         /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
+        /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
         /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
     && mkdir -p \
         "${COMFYUI_HOME}/input" \
@@ -86,6 +95,9 @@ RUN chmod +x \
     && python /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json \
+    && python /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
+        --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
+        --output /opt/defaults/workflows/video_ltx2_3_ia2v_ingredients.json \
     && python /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
         --i2v /opt/defaults/workflows/video_ltx2_5_i2v.json \
         --output /opt/defaults/workflows/video_ltx2_5_ia2v_distilled_8steps.json \

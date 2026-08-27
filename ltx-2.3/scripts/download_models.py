@@ -91,6 +91,18 @@ MODEL_FILES = (
         sha256="7aaab2f1bff2af121e0751120ad16a3e443b4223a04b78c51740029d25f17994",
     ),
     ModelFile(
+        label="LTX 2.3 IC-LoRA Ingredients",
+        repo="Comfy-Org/ltx-2.3",
+        revision="ae386fe2afb1b06c1a47afdc78f6835e3f5fcf91",
+        remote_path=(
+            "split_files/loras/"
+            "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"
+        ),
+        relative_path="loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
+        size=1_308_778_338,
+        sha256="515e4e139001ac6282357a5b35372e42e98b3affd5fcc886a52242abeed19559",
+    ),
+    ModelFile(
         label="Gemma prompt-enhancement LoRA",
         repo="Comfy-Org/ltx-2",
         revision="101c239b4b64dd1b45d645365339c56e0e7df4c3",

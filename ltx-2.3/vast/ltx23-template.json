@@ -3,7 +3,7 @@
   "image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23",
   "tag": "vast",
   "desc": "ComfyUI CUDA com LTX 2.3 e LTX 2.5 IA2V destilado de 8 passos, com modelos baixados no boot.",
-  "readme": "Abra a porta HTTP 8188 para acessar o ComfyUI. Anexe um volume persistente recomendado de 120 GB em /opt/ComfyUI/models. A imagem baixa e valida 85,2 GiB de pesos quando DOWNLOAD_LTX25_MODELS_ON_START=1 e instala cinco workflows, incluindo video_ltx2_5_ia2v_distilled_8steps-docker.json. Antes do primeiro boot com LTX 2.5, aceite os termos de Lightricks/LTX-2.5 no Hugging Face e adicione HF_TOKEN nas variaveis Docker.",
+  "readme": "Abra a porta HTTP 8188 para acessar o ComfyUI. Anexe um volume persistente recomendado de 120 GB em /opt/ComfyUI/models. A imagem baixa e valida 86,4 GiB de pesos quando DOWNLOAD_LTX25_MODELS_ON_START=1 e instala seis workflows, incluindo video_ltx2_3_ia2v_ingredients-docker.json e video_ltx2_5_ia2v_distilled_8steps-docker.json. Antes do primeiro boot com LTX 2.5, aceite os termos de Lightricks/LTX-2.5 no Hugging Face e adicione HF_TOKEN nas variaveis Docker.",
   "env": "-p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS=\"--preview-method auto\" -e DOWNLOAD_MODELS_ON_START=1 -e DOWNLOAD_LTX25_MODELS_ON_START=1 -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface",
   "runtype": "args",
   "args_str": "serve",

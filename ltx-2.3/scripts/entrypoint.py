@@ -35,6 +35,12 @@ DEFAULT_IA2V_BEST_FACE_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
     )
 )
+DEFAULT_IA2V_INGREDIENTS_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_INGREDIENTS_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_ingredients.json",
+    )
+)
 DEFAULT_LTX25_IA2V_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_LTX25_IA2V_WORKFLOW",
@@ -50,6 +56,9 @@ SEEDED_IA2V_TALKVID_WORKFLOW = (
 )
 SEEDED_IA2V_BEST_FACE_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json"
+)
+SEEDED_IA2V_INGREDIENTS_WORKFLOW = (
+    COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json"
 )
 SEEDED_LTX25_IA2V_WORKFLOW = (
     COMFYUI_HOME
@@ -101,6 +110,11 @@ def seed_workflows() -> None:
         DEFAULT_IA2V_BEST_FACE_WORKFLOW,
         SEEDED_IA2V_BEST_FACE_WORKFLOW,
         "LTX 2.3 IA2V + Best Face-ID",
+    )
+    seed_one_workflow(
+        DEFAULT_IA2V_INGREDIENTS_WORKFLOW,
+        SEEDED_IA2V_INGREDIENTS_WORKFLOW,
+        "LTX 2.3 IA2V + IC-LoRA Ingredients",
     )
     seed_one_workflow(
         DEFAULT_LTX25_IA2V_WORKFLOW,
