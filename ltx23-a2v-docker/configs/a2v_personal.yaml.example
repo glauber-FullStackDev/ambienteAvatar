@@ -1,0 +1,124 @@
+# LTX-2.3 personal Audio-to-Video LoRA template.
+# Derived from packages/ltx-trainer/configs/a2v_lora.yaml at commit
+# a95ab856bf29407b6b066ede0abe1846050db56c.
+#
+# Copy to /workspace/configs/a2v_personal.yaml and review every TUNE ME value.
+
+model:
+  model_path: /workspace/models/ltx-2.3/ltx-2.3-22b-dev.safetensors
+  text_encoder_path: /workspace/models/gemma-3-12b
+  training_mode: lora
+  # Set only through LTX_RESUME_CHECKPOINT or deliberately edit this path.
+  load_checkpoint: null
+
+lora:
+  # TUNE ME: example baseline, not a final recommendation for this identity/dataset.
+  rank: 32
+  alpha: 32
+  dropout: 0.0
+  target_modules:
+    - to_k
+    - to_q
+    - to_v
+    - to_out.0
+
+# SAFETY-CRITICAL A2V SEMANTICS. Do not change these modality flags.
+training_strategy:
+  name: flexible
+  video:
+    is_generated: true
+    latents_dir: latents
+  audio:
+    is_generated: false
+    latents_dir: audio_latents
+
+optimization:
+  # TUNE ME: official example baseline only.
+  learning_rate: 1.0e-4
+  # TUNE ME: official example baseline only.
+  steps: 2000
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  optimizer_type: adamw
+  scheduler_type: linear
+  scheduler_params: {}
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: bf16
+  # TUNE ME for available VRAM: null, int8-quanto, int4-quanto, int2-quanto,
+  # fp8-quanto, or fp8uz-quanto.
+  quantization: null
+  load_text_encoder_in_8bit: false
+  offload_optimizer_during_validation: false
+
+data:
+  preprocessed_data_root: /workspace/dataset/preprocessed
+  num_dataloader_workers: 2
+
+validation:
+  samples:
+    # Replace both the prompt and audio path. The audio must exist before launch.
+    - prompt: >-
+        TUNE ME: describe the person, framing, scene, motion, and the visible
+        speaking performance expected for this validation audio.
+      conditions:
+        - type: audio_to_video
+          audio: /workspace/validation/audio/example.wav
+
+  negative_prompt: >-
+    blurry, out of focus, overexposed, underexposed, low contrast, washed out colors,
+    excessive noise, flickering, motion blur, distorted proportions, deformed facial
+    features, asymmetrical face, missing facial features, extra limbs, disfigured hands,
+    mismatched lip sync, distorted voice, robotic voice, echo, off-sync audio, jittery
+    movement, inconsistent framing, or AI artifacts.
+
+  # TUNE ME: example only. Must match the chosen aspect ratio; official order is W,H,F.
+  # Width/height must be divisible by 32 and frames must satisfy F % 8 == 1.
+  video_dims: [768, 448, 89]
+  frame_rate: 25.0
+  seed: 42
+  inference_steps: 30
+  # Override at runtime with LTX_VALIDATION_INTERVAL if desired.
+  interval: 300
+  video_cfg_scale: 3.0
+  audio_cfg_scale: 1.0
+  video_stg_scale: 1.0
+  audio_stg_scale: 0.0
+  stg_blocks: [28]
+  guidance_rescale: 0.7
+  video_modality_guidance_scale: 3.0
+  audio_modality_guidance_scale: 1.0
+  generate_audio: false
+  generate_video: true
+  skip_initial_validation: true
+
+checkpoints:
+  # Override at runtime with LTX_CHECKPOINT_INTERVAL if desired.
+  interval: 300
+  # Keep several comparable checkpoints without unlimited disk growth.
+  keep_last_n: 5
+  precision: bfloat16
+  no_resume: false
+  # Full state preserves optimizer, scheduler, RNG, step, and W&B run ID.
+  save_training_state: full
+
+flow_matching:
+  timestep_sampling_mode: shifted_logit_normal
+  timestep_sampling_params: {}
+
+hub:
+  push_to_hub: false
+  hub_model_id: null
+
+wandb:
+  enabled: true
+  # train_a2v.sh replaces this with WANDB_PROJECT at runtime.
+  project: ltx23-personal-a2v
+  entity: null
+  tags: [ltx2, ltx23, lora, a2v, personal]
+  log_validation_videos: true
+
+seed: 42
+output_dir: /workspace/outputs/personal_a2v

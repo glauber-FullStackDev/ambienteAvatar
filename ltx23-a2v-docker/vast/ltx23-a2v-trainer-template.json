@@ -1,0 +1,31 @@
+{
+  "name": "LTX-2.3 Personal A2V LoRA Trainer",
+  "image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-a2v",
+  "tag": "vast",
+  "desc": "Official Lightricks LTX-2.3 trainer for Audio-to-Video LoRA training, with JupyterLab, W&B, preprocessing and automatic model download.",
+  "readme": "Use persistent storage mounted at /workspace. Before starting, accept the model terms for Lightricks/LTX-2.3 and google/gemma-3-12b-it-qat-q4_0-unquantized, then set HF_TOKEN as a Docker environment variable. This template sets AUTO_DOWNLOAD_MODELS=1, so startup downloads the LTX-2.3 dev checkpoint and Gemma into /workspace/models before Jupyter starts. Set JUPYTER_TOKEN to a strong secret. After startup, upload dataset.json plus videos into /workspace/dataset/raw/, copy configs/a2v_personal.yaml.example to configs/a2v_personal.yaml, set WANDB_API_KEY, then run preprocess_a2v.sh and train_a2v.sh in tmux. Do not place HF_TOKEN or WANDB_API_KEY in notebooks, image tags or template files.",
+  "env": "-p 8888:8888 -e AUTO_DOWNLOAD_MODELS=1 -e LTX_MODELS_DIR=/workspace/models -e HF_HOME=/workspace/.cache/huggingface -e WANDB_DIR=/workspace/logs/wandb -e WANDB_PROJECT=ltx23-personal-a2v -e JUPYTER_TOKEN=CHANGE_ME -e HF_TOKEN=SET_IN_VAST_SECRET_ENV -e WANDB_API_KEY=SET_AFTER_DATA_PREPROCESSING",
+  "runtype": "args",
+  "args_str": "",
+  "recommended_disk_space": 250,
+  "extra_filters": {
+    "cuda_max_good": {
+      "gte": 13.2
+    },
+    "gpu_ram": {
+      "gte": 80
+    },
+    "num_gpus": {
+      "gte": 1
+    },
+    "disk_space": {
+      "gte": 250
+    },
+    "direct_port_count": {
+      "gte": 1
+    }
+  },
+  "private": true,
+  "href": "https://github.com/glauber-fullstackdev/ambienteAvatar/tree/main/ltx23-a2v-docker",
+  "repo": "glauber-fullstackdev/ambienteAvatar"
+}
