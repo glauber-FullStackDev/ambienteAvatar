@@ -59,7 +59,10 @@ data:
 
 validation:
   samples:
-    # Replace both the prompt and audio path. The audio must exist before launch.
+    # Replace prompt and audio path. The audio must exist before launch.
+    # video_dims is optional per sample and overrides the fallback below. Its
+    # order is width, height, frames, so horizontal and vertical tests can run
+    # together in one validation pass.
     - prompt: >-
         TUNE ME: if LTX_LORA_TRIGGER was set during preprocessing, begin this
         prompt with the exact same trigger token. Then describe the person, framing, scene, motion, and the visible
@@ -67,6 +70,8 @@ validation:
       conditions:
         - type: audio_to_video
           audio: /workspace/validation/audio/example.wav
+      # Example horizontal validation at 25 FPS: 960x544, 89 frames (3.56 s).
+      video_dims: [960, 544, 89]
 
   negative_prompt: >-
     blurry, out of focus, overexposed, underexposed, low contrast, washed out colors,
@@ -75,7 +80,7 @@ validation:
     mismatched lip sync, distorted voice, robotic voice, echo, off-sync audio, jittery
     movement, inconsistent framing, or AI artifacts.
 
-  # TUNE ME: example only. Must match the chosen aspect ratio; official order is W,H,F.
+  # TUNE ME: fallback for a sample without video_dims. Official order is W,H,F.
   # Width/height must be divisible by 32 and frames must satisfy F % 8 == 1.
   video_dims: [768, 448, 89]
   frame_rate: 25.0

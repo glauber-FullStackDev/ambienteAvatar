@@ -185,19 +185,32 @@ cp /workspace/configs/a2v_personal.yaml.example \
 nano /workspace/configs/a2v_personal.yaml
 ```
 
-Em `validation.samples`, use seu trigger, um prompt visual e o áudio de teste:
+Em `validation.samples`, use seu trigger, um prompt visual e o áudio de teste.
+Cada sample pode ter seu próprio `video_dims`; portanto, horizontal e vertical
+podem ser validados na mesma rodada, sem parar ou duplicar o treino:
 
 ```yaml
 validation:
   samples:
     - prompt: >-
-        glauberavatar, falando diretamente para a câmera, plano médio,
+        glauberavatar, horizontal video, falando diretamente para a câmera, plano médio,
         iluminação suave de estúdio, fundo neutro, expressão natural,
         movimentos faciais sincronizados com o áudio.
       conditions:
         - type: audio_to_video
           audio: /workspace/validation/audio/meu_teste.wav
-  video_dims: [768, 448, 89]
+      video_dims: [960, 544, 89] # largura, altura, frames
+
+    - prompt: >-
+        glauberavatar, vertical portrait video, falando diretamente para a câmera,
+        plano médio, iluminação suave de estúdio, fundo neutro e expressão natural.
+      conditions:
+        - type: audio_to_video
+          audio: /workspace/validation/audio/meu_teste.wav
+      video_dims: [544, 960, 89]
+
+  # Fallback somente para samples sem video_dims próprio.
+  video_dims: [960, 544, 89]
   frame_rate: 25.0
   interval: 300
 ```
