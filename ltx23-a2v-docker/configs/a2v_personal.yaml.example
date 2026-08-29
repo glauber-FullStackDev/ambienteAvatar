@@ -61,7 +61,8 @@ validation:
   samples:
     # Replace both the prompt and audio path. The audio must exist before launch.
     - prompt: >-
-        TUNE ME: describe the person, framing, scene, motion, and the visible
+        TUNE ME: if LTX_LORA_TRIGGER was set during preprocessing, begin this
+        prompt with the exact same trigger token. Then describe the person, framing, scene, motion, and the visible
         speaking performance expected for this validation audio.
       conditions:
         - type: audio_to_video

@@ -98,6 +98,7 @@ check_ltx_environment.sh
 | `CUDA_VISIBLE_DEVICES` | GPU selection | NVIDIA runtime default |
 | `LTX_RESOLUTION_BUCKET` | Preprocessing bucket in task-friendly `FxHxW` order | required |
 | `LTX_FRAME_COUNT` | Required frames in each bucket | `89` |
+| `LTX_LORA_TRIGGER` | Optional unique token prepended to every training caption during preprocessing | unset |
 | `LTX_VALIDATION_INTERVAL` | Optional runtime override of YAML validation interval | YAML value |
 | `LTX_CHECKPOINT_INTERVAL` | Optional runtime override of YAML checkpoint interval | YAML value |
 | `LTX_RESUME_CHECKPOINT` | Explicit LoRA `.safetensors` to resume | unset |
@@ -213,6 +214,26 @@ export LTX_VAE_TILING=1          # optional for memory pressure
 export LTX_PREPROCESS_OVERWRITE=1 # recompute existing artifacts
 preprocess_a2v.sh
 ```
+
+### Trigger token (recommended for a personal LoRA)
+
+Choose one unique, simple token before preprocessing, for example `glauberavatar`. Do not use a common word or your full name. Apply it consistently:
+
+```bash
+export LTX_LORA_TRIGGER=glauberavatar
+export LTX_RESOLUTION_BUCKET=89x448x768
+preprocess_a2v.sh
+```
+
+The official preprocess script prepends that token to every caption before computing text conditions. Put the exact same token at the beginning of every validation or inference prompt:
+
+```yaml
+prompt: >-
+  glauberavatar, speaking directly to camera, medium shot, soft studio lighting,
+  natural expression and accurate lip synchronization.
+```
+
+If preprocessing already ran without the trigger, rerun it with `LTX_PREPROCESS_OVERWRITE=1`; otherwise the cached text conditions still lack the token.
 
 The exact official command is printed before execution. Successful preprocessing is verified to contain non-empty `.pt` files in `latents/`, `audio_latents/`, and `conditions/`.
 

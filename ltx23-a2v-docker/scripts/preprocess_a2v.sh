@@ -57,6 +57,10 @@ command=(
   --batch-size "${LTX_PREPROCESS_BATCH_SIZE:-1}"
 )
 
+if [[ -n "${LTX_LORA_TRIGGER:-}" ]]; then
+  command+=(--lora-trigger "${LTX_LORA_TRIGGER}")
+fi
+
 if [[ "${LTX_VAE_TILING:-0}" == 1 ]]; then
   command+=(--vae-tiling)
 fi
