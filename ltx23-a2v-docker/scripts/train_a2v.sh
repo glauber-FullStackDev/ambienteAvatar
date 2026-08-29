@@ -33,7 +33,7 @@ fi
 
 mkdir -p /workspace/logs
 
-SOURCE_CONFIG="${CONFIG_PATH}" EFFECTIVE_CONFIG="${EFFECTIVE_CONFIG}" \
+SOURCE_CONFIG="${CONFIG_PATH}" TARGET_CONFIG="${EFFECTIVE_CONFIG}" \
 WANDB_PROJECT="${WANDB_PROJECT:-ltx23-personal-a2v}" \
 LTX_RESUME_CHECKPOINT="${LTX_RESUME_CHECKPOINT:-}" \
 LTX_VALIDATION_INTERVAL="${LTX_VALIDATION_INTERVAL:-}" \
@@ -44,7 +44,7 @@ from pathlib import Path
 import yaml
 
 source = Path(os.environ["SOURCE_CONFIG"])
-target = Path(os.environ["EFFECTIVE_CONFIG"])
+target = Path(os.environ["TARGET_CONFIG"])
 config = yaml.safe_load(source.read_text())
 
 strategy = config.get("training_strategy", {})
