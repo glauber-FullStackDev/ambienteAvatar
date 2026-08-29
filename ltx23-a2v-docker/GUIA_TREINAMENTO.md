@@ -168,11 +168,13 @@ Envie um áudio seu para:
 /workspace/validation/audio/meu_audio_4s.mp3
 ```
 
-Como os clipes de treino têm 89 frames a 25 FPS, crie um WAV de 3,56 segundos para a validação:
+Como os clipes de treino têm 89 frames a 25 FPS, crie um WAV **estéreo** de
+3,56 segundos para a validação. O encoder de áudio do LTX espera dois canais;
+`-ac 2` também duplica corretamente um áudio de voz que originalmente seja mono:
 
 ```bash
 ffmpeg -i /workspace/validation/audio/meu_audio_4s.mp3 \
-  -t 3.56 -ar 48000 -ac 1 \
+  -t 3.56 -ar 48000 -ac 2 \
   /workspace/validation/audio/meu_teste.wav
 ```
 

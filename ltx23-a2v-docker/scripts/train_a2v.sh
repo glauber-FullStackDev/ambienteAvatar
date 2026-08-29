@@ -40,6 +40,7 @@ LTX_VALIDATION_INTERVAL="${LTX_VALIDATION_INTERVAL:-}" \
 LTX_CHECKPOINT_INTERVAL="${LTX_CHECKPOINT_INTERVAL:-}" \
 /opt/LTX-2/.venv/bin/python - <<'PY'
 import os
+import subprocess
 from pathlib import Path
 import yaml
 
@@ -70,6 +71,20 @@ for sample in config.get("validation", {}).get("samples", []):
             audio = Path(condition.get("audio", ""))
             if not audio.is_file():
                 raise SystemExit(f"Validation audio is missing: {audio}")
+            probe = subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", "a:0",
+                    "-show_entries", "stream=channels", "-of",
+                    "default=noprint_wrappers=1:nokey=1", str(audio),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if probe.returncode != 0 or probe.stdout.strip() != "2":
+                raise SystemExit(
+                    f"Validation audio must be stereo (2 channels): {audio}. "
+                    "Recreate it with: ffmpeg -i INPUT -t 3.56 -ar 48000 -ac 2 OUTPUT.wav"
+                )
 
 config.setdefault("wandb", {})["project"] = os.environ["WANDB_PROJECT"]
 resume = os.environ.get("LTX_RESUME_CHECKPOINT")
