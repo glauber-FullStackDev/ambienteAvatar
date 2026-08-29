@@ -35,6 +35,7 @@ REQUIRED_NODES = {
     "LTXVSeparateAVLatent",
     "LTXVTiledVAEDecode",
     "LatentUpscaleModelLoader",
+    "LastFrameFromBatch",
     "ManualSigmas",
     "LoadAudio",
     "LoadImage",

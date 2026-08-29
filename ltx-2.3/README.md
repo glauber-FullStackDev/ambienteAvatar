@@ -1,7 +1,7 @@
 # LTX 2.3/2.5 IA2V + ComfyUI para Vast.ai
 
 Imagem independente para executar tres workflows oficiais do ComfyUI/Lightricks
-e seis adaptacoes prontas:
+e sete adaptacoes prontas:
 
 - `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
 - `video_ltx2_3_id_lora.json`, para transferir a identidade vocal de um audio
@@ -11,6 +11,8 @@ e seis adaptacoes prontas:
   TalkVid 3K como reforco de identidade no primeiro estagio.
 - `video_ltx2_3_ia2v_best_face.json`, que preserva a narracao original e usa o
   Best Face-ID v1.0 como referencia visual separada para reforcar o rosto.
+- `video_ltx2_3_ia2v_personal_lora.json`, que aplica o LoRA pessoal
+  `glauberavatar.safetensors` ao IA2V e salva o ultimo frame final em PNG.
 - `video_ltx2_3_ia2v_ingredients.json`, que preserva a narracao original e usa
   uma reference sheet IC-LoRA Ingredients para reforcar identidade, roupa,
   props e ambiente no primeiro estagio.
@@ -27,6 +29,9 @@ e seis adaptacoes prontas:
 O ComfyUI, os workflows e as revisoes dos modelos ficam fixados. Os pesos nao
 entram na imagem Docker: no primeiro boot eles sao baixados em
 `/opt/ComfyUI/models`, validados por tamanho e mantidos no volume persistente.
+O LoRA pessoal `glauberavatar.safetensors` (408 MB) e a excecao: ele e
+incorporado no build e copiado para o volume de modelos no boot, quando houver
+um volume persistente montado.
 O ComfyUI so inicia depois que os quatorze arquivos selecionados estiverem
 completos.
 
@@ -54,6 +59,8 @@ completos.
 - patch de compatibilidade do ComfyUI-LTXVideo para `kornia>=0.8.3`, removendo
   o import quebrado de `pad` e usando `torch.nn.functional.pad`;
 - FFmpeg, JupyterLab e todos os nodes usados pelos workflows;
+- o node local `Extract Last Video Frame`, que seleciona o ultimo frame
+  decodificado para salvamento em PNG;
 - downloader retomavel via Hugging Face Hub, com repositorios e revisoes
   imutaveis.
 
@@ -116,6 +123,7 @@ Na primeira inicializacao, copias intactas aparecem em:
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_id_lora-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_personal_lora-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ingredients_official_single_stage-docker.json
@@ -130,6 +138,14 @@ instalada. O preset IA2V oficial inicia em `1280x720`, 24 FPS e 9 segundos, com
 prompt enhancement local. Selecione sua imagem no `Load Image`, seu audio no
 `Load Audio`, escreva a cena/prompt e enfileire o workflow. A imagem e o audio
 de exemplo referenciados pelo template oficial nao sao necessarios.
+
+### Como usar o IA2V + LoRA pessoal
+
+No workflow `video_ltx2_3_ia2v_personal_lora-docker.json`, envie a imagem e a
+narracao como no IA2V original. O LoRA `glauberavatar.safetensors` inicia em
+`1.0` e atua depois do LoRA distilled oficial nas duas etapas. Cada execucao
+salva o MP4 em `output/video/` e o ultimo frame, sem compressao de video, em
+`output/images/last_frame/`. Use esse PNG como `Load Image` na proxima geracao.
 
 ### Como usar o IA2V + TalkVid
 

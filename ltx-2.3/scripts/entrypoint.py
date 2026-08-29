@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import shlex
@@ -34,6 +35,12 @@ DEFAULT_IA2V_BEST_FACE_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_IA2V_BEST_FACE_WORKFLOW",
         "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
+    )
+)
+DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora.json",
     )
 )
 DEFAULT_IA2V_INGREDIENTS_WORKFLOW = Path(
@@ -76,6 +83,13 @@ SEEDED_IA2V_TALKVID_WORKFLOW = (
 SEEDED_IA2V_BEST_FACE_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json"
 )
+SEEDED_IA2V_PERSONAL_LORA_WORKFLOW = (
+    COMFYUI_HOME
+    / "user/default/workflows/video_ltx2_3_ia2v_personal_lora-docker.json"
+)
+PERSONAL_LORA_SOURCE = Path("/opt/ltx23-assets/glauberavatar.safetensors")
+PERSONAL_LORA_TARGET = COMFYUI_HOME / "models/loras/glauberavatar.safetensors"
+PERSONAL_LORA_SHA256 = "c9443d3aad3151125c086c10e6a423ccc973bd445aa67cd5a537bdd57f6df78a"
 SEEDED_IA2V_INGREDIENTS_WORKFLOW = (
     COMFYUI_HOME / "user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json"
 )
@@ -110,6 +124,31 @@ def prepare_directories() -> None:
         "user/default/workflows",
     ):
         (COMFYUI_HOME / relative).mkdir(parents=True, exist_ok=True)
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def ensure_personal_lora() -> None:
+    if not PERSONAL_LORA_SOURCE.is_file():
+        raise SystemExit(f"LoRA pessoal incorporado ausente: {PERSONAL_LORA_SOURCE}")
+    if sha256(PERSONAL_LORA_SOURCE) != PERSONAL_LORA_SHA256:
+        raise SystemExit("checksum inválido do LoRA pessoal incorporado")
+    if PERSONAL_LORA_TARGET.is_file():
+        if sha256(PERSONAL_LORA_TARGET) != PERSONAL_LORA_SHA256:
+            raise SystemExit(
+                f"LoRA pessoal existente tem checksum diferente: {PERSONAL_LORA_TARGET}"
+            )
+        return
+    temporary = PERSONAL_LORA_TARGET.with_suffix(".safetensors.tmp")
+    shutil.copyfile(PERSONAL_LORA_SOURCE, temporary)
+    os.replace(temporary, PERSONAL_LORA_TARGET)
+    print(f"LoRA pessoal instalado no volume de modelos: {PERSONAL_LORA_TARGET}")
 
 
 def read_schema_version(path: Path, marker: str) -> int | None:
@@ -198,6 +237,13 @@ def seed_workflows() -> None:
         "LTX 2.3 IA2V + Best Face-ID",
     )
     seed_one_workflow(
+        DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW,
+        SEEDED_IA2V_PERSONAL_LORA_WORKFLOW,
+        "LTX 2.3 IA2V + LoRA pessoal",
+        schema_marker="ltx23_ia2v_personal_lora_schema",
+        schema_version=1,
+    )
+    seed_one_workflow(
         DEFAULT_IA2V_INGREDIENTS_WORKFLOW,
         SEEDED_IA2V_INGREDIENTS_WORKFLOW,
         "LTX 2.3 IA2V + IC-LoRA Ingredients",
@@ -239,6 +285,7 @@ def run_downloader(*arguments: str) -> None:
 
 def serve() -> None:
     prepare_directories()
+    ensure_personal_lora()
     if os.environ.get("DOWNLOAD_MODELS_ON_START", "1") == "1":
         if os.environ.get("DOWNLOAD_LTX25_MODELS_ON_START", "1") == "1":
             print(

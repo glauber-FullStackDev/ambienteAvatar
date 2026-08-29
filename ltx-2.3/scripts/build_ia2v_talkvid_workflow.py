@@ -55,7 +55,7 @@ def add_link(
     )
 
 
-def replace_input_link(node: dict, input_name: str, link_id: int) -> None:
+def replace_input_link(node: dict, input_name: str, link_id: int | None) -> None:
     target = one([item for item in node["inputs"] if item.get("name") == input_name])
     target["link"] = link_id
 

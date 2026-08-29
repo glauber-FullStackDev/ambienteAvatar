@@ -18,6 +18,10 @@ from build_ltx25_ia2v_workflow import (
     REQUIRED_MODELS as LTX25_REQUIRED_MODELS,
     validate_ia2v as validate_ltx25_ia2v,
 )
+from build_ia2v_personal_lora_workflow import (
+    PERSONAL_LORA_NAME,
+    validate_personal_lora,
+)
 
 
 COMFYUI_HOME = Path(os.environ.get("COMFYUI_HOME", "/opt/ComfyUI"))
@@ -43,6 +47,12 @@ IA2V_BEST_FACE_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_IA2V_BEST_FACE_WORKFLOW",
         "/opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json",
+    )
+)
+IA2V_PERSONAL_LORA_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora.json",
     )
 )
 IA2V_INGREDIENTS_WORKFLOW = Path(
@@ -97,6 +107,7 @@ IA2V_TALKVID_MODELS = IA2V_MODELS | ID_LORA_MODELS
 IA2V_BEST_FACE_MODELS = IA2V_MODELS | {
     "Best_FaceID_v1.0_LoRA.safetensors",
 }
+IA2V_PERSONAL_LORA_MODELS = IA2V_MODELS | {PERSONAL_LORA_NAME}
 IA2V_INGREDIENTS_MODELS = IA2V_MODELS | {
     INGREDIENTS_NAME,
 }
@@ -136,6 +147,10 @@ IA2V_TALKVID_NODE_TYPES = IA2V_NODE_TYPES | {
 }
 IA2V_BEST_FACE_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXIdentityOverlapConditioning",
+}
+IA2V_PERSONAL_LORA_NODE_TYPES = IA2V_NODE_TYPES | {
+    "LastFrameFromBatch",
+    "SaveImage",
 }
 IA2V_INGREDIENTS_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXAddVideoICLoRAGuide",
@@ -328,6 +343,21 @@ def main() -> None:
             )
         except Exception as error:
             failures.append(f"workflow IA2V + Best Face-ID invalido: {error}")
+    validate_workflow(
+        "IA2V + LoRA pessoal",
+        IA2V_PERSONAL_LORA_WORKFLOW,
+        None,
+        IA2V_PERSONAL_LORA_MODELS,
+        IA2V_PERSONAL_LORA_NODE_TYPES,
+        failures,
+    )
+    if IA2V_PERSONAL_LORA_WORKFLOW.is_file():
+        try:
+            validate_personal_lora(
+                json.loads(IA2V_PERSONAL_LORA_WORKFLOW.read_text(encoding="utf-8"))
+            )
+        except Exception as error:
+            failures.append(f"workflow IA2V + LoRA pessoal invalido: {error}")
     validate_workflow(
         "IA2V + IC-LoRA Ingredients",
         IA2V_INGREDIENTS_WORKFLOW,
