@@ -88,6 +88,8 @@ COPY scripts/ /usr/local/bin/
 COPY configs/a2v_personal.yaml.example /opt/ltx23-a2v/configs/a2v_personal.yaml.example
 
 RUN chmod 0755 /usr/local/bin/start.sh \
+        /usr/local/bin/bootstrap_a2v.sh \
+        /usr/local/bin/init_workspace.sh \
         /usr/local/bin/check_ltx_environment.sh \
         /usr/local/bin/download_ltx_models.sh \
         /usr/local/bin/preprocess_a2v.sh \

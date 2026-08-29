@@ -93,7 +93,7 @@ check_ltx_environment.sh
 | `HF_TOKEN` | Hugging Face read token; required only for model download | unset |
 | `WANDB_API_KEY` | W&B credential; required when W&B is enabled | unset |
 | `WANDB_PROJECT` | Effective W&B project | `ltx23-personal-a2v` |
-| `JUPYTER_TOKEN` | Jupyter authentication token | randomly generated at startup |
+| `JUPYTER_TOKEN` | Authentication for the image's standalone Jupyter only; unused in Vast Jupyter mode | randomly generated at startup |
 | `LTX_MODELS_DIR` | Model root | `/workspace/models` |
 | `CUDA_VISIBLE_DEVICES` | GPU selection | NVIDIA runtime default |
 | `LTX_RESOLUTION_BUCKET` | Preprocessing bucket in task-friendly `FxHxW` order | required |
@@ -102,7 +102,8 @@ check_ltx_environment.sh
 | `LTX_VALIDATION_INTERVAL` | Optional runtime override of YAML validation interval | YAML value |
 | `LTX_CHECKPOINT_INTERVAL` | Optional runtime override of YAML checkpoint interval | YAML value |
 | `LTX_RESUME_CHECKPOINT` | Explicit LoRA `.safetensors` to resume | unset |
-| `AUTO_DOWNLOAD_MODELS` | Download/verify model weights before Jupyter starts | `0` |
+| `DOWNLOAD_MODELS_ON_START` | Download/verify model weights during image bootstrap | `0` |
+| `AUTO_DOWNLOAD_MODELS` | Backward-compatible alias for `DOWNLOAD_MODELS_ON_START` | `0` |
 
 Secrets are read only from the runtime environment. The scripts never print `HF_TOKEN` or `WANDB_API_KEY`, never persist them, and never use them as build arguments.
 
@@ -134,11 +135,33 @@ The entrypoint idempotently creates this layout on every start and seeds the exa
 
 Mount persistent Vast.ai storage at `/workspace`. The Dockerfile declares it as a volume.
 
-## JupyterLab
+## JupyterLab: standalone Docker
 
 JupyterLab listens on `0.0.0.0:8888`, uses `/workspace` as its root, and allows root inside the container. Authentication is never disabled.
 
 If `JUPYTER_TOKEN` is present, its value is used but not printed. Otherwise the entrypoint generates a strong random token and prints it once in the startup log.
+
+## JupyterLab: Vast.ai (recommended)
+
+Use Vast's **Jupyter-python notebook + SSH** mode, enable **JupyterLab** and
+direct connections, and use `/workspace` as the Jupyter directory. Vast owns
+the Jupyter process and its authentication: do **not** map port 8888 and do
+**not** set `JUPYTER_TOKEN` for this mode.
+
+Vast replaces the Docker entrypoint when Jupyter mode is selected. Therefore
+the included [On-start script](vast/onstart.sh) starts only
+`bootstrap_a2v.sh` in the background; it never starts a second Jupyter server.
+The bootstrap creates the persistent workspace and downloads/verifies the model
+weights when `DOWNLOAD_MODELS_ON_START=1`. Its log is:
+
+```bash
+tail -n 200 -f /workspace/logs/bootstrap.log
+```
+
+The script uses `env >> /etc/environment || true`, matching the existing LTX
+2.3 Vast template, so Docker variables such as `HF_TOKEN` are also available
+from terminals opened in Jupyter. Treat the instance and its persistent volume
+as private while that token is configured.
 
 ## Download models
 
@@ -157,7 +180,7 @@ The explicit, idempotent download fetches:
 
 By default, models are never downloaded at container startup. On HTTP 401/403, accept the LTX/Gemma model terms on Hugging Face and ensure the token has read access to gated repositories.
 
-For a managed Vast.ai instance, the included [Vast template](vast/ltx23-a2v-trainer-template.json) deliberately sets `AUTO_DOWNLOAD_MODELS=1`. This is opt-in and requires `HF_TOKEN`; without a token, startup stops with a clear error instead of opening an unusable Jupyter session.
+For a managed Vast.ai instance, the included [Vast template](vast/ltx23-a2v-trainer-template.json) deliberately sets `DOWNLOAD_MODELS_ON_START=1`. This is opt-in and requires `HF_TOKEN`; when the token or access terms are wrong, the failure is recorded in `/workspace/logs/bootstrap.log` while Vast Jupyter remains available for correction.
 
 ## Dataset
 
@@ -336,10 +359,10 @@ Directories are rejected by `train_a2v.sh` so it cannot silently select a checkp
 ## Vast.ai lifecycle
 
 1. Push to `main` or run the `Build and publish LTX-2.3 A2V trainer image` workflow manually. It publishes `ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-a2v:vast`.
-2. Create a Vast.ai GPU instance with persistent storage mounted at `/workspace` and port 8888 exposed.
-3. Open JupyterLab using the runtime or generated token.
+2. Create a Vast.ai GPU instance with persistent storage mounted at `/workspace`, using Vast's Jupyter + SSH mode.
+3. Open JupyterLab from the Vast instance panel; Vast manages its access token.
 4. Upload `dataset.json` and MP4 files below `/workspace/dataset/raw/`.
-5. With the included Vast template, set `HF_TOKEN` before startup and model download runs automatically. For a manual container, set `HF_TOKEN`, run `download_ltx_models.sh`, then unset it.
+5. With the included Vast template, set `HF_TOKEN` before startup and follow automatic download with `tail -f /workspace/logs/bootstrap.log`. For a manual container, set `HF_TOKEN`, run `download_ltx_models.sh`, then unset it.
 6. Run `check_ltx_environment.sh`.
 7. Set `LTX_RESOLUTION_BUCKET` and run `preprocess_a2v.sh`.
 8. Copy/edit `a2v_personal.yaml.example` to `a2v_personal.yaml`.
