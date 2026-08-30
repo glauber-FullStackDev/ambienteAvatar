@@ -13,6 +13,7 @@ ARG BFSNODES_COMMIT=0a2553869254eef4f3f735fdd9fea04614c3dd7e
 ARG LTXVIDEO_COMMIT=15d09abb5a187a8dcaea2fc31fe51ee96e6c9d0d
 ARG INGREDIENTS_WORKFLOW_SHA256=a9d75c1c8546d5e0125d16ac071abd473b45bbfdcfbec87b1cf7abc17dd90d32
 ARG PERSONAL_LORA_SHA256=c9443d3aad3151125c086c10e6a423ccc973bd445aa67cd5a537bdd57f6df78a
+ARG PERSONAL_WORKFLOW_SHA256=f2b4a56c5b63ebb7522d5a1b2d191b599aaff4307a7e64c4f6b7dfa652a765a5
 
 ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
@@ -74,6 +75,7 @@ RUN mkdir -p /opt/defaults/workflows \
 COPY scripts/ /opt/ltx23-scripts/
 COPY custom_nodes/ComfyUI-LastFrameExport/ "${COMFYUI_HOME}/custom_nodes/ComfyUI-LastFrameExport/"
 COPY --chmod=644 assets/glauberavatar.safetensors /opt/ltx23-assets/glauberavatar.safetensors
+COPY --chmod=644 assets/video_ltx2_3_ia2v_personal_source.json /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json
 
 RUN chmod +x \
         /opt/ltx23-scripts/container-entrypoint.sh \
@@ -98,6 +100,7 @@ RUN chmod +x \
         "${COMFYUI_HOME}/user/default/workflows" \
         /var/log/portal \
     && echo "${PERSONAL_LORA_SHA256}  /opt/ltx23-assets/glauberavatar.safetensors" | sha256sum -c - \
+    && echo "${PERSONAL_WORKFLOW_SHA256}  /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json" | sha256sum -c - \
     && install -m 0644 /opt/ltx23-assets/glauberavatar.safetensors "${COMFYUI_HOME}/models/loras/glauberavatar.safetensors" \
     && python /opt/ltx23-scripts/patch_ltxvideo_kornia.py \
     && python /opt/ltx23-scripts/build_ia2v_talkvid_workflow.py \
@@ -108,7 +111,7 @@ RUN chmod +x \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_best_face.json \
     && python /opt/ltx23-scripts/build_ia2v_personal_lora_workflow.py \
-        --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
+        --source /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora.json \
     && python /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \

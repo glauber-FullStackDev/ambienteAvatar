@@ -241,7 +241,7 @@ def seed_workflows() -> None:
         SEEDED_IA2V_PERSONAL_LORA_WORKFLOW,
         "LTX 2.3 IA2V + LoRA pessoal",
         schema_marker="ltx23_ia2v_personal_lora_schema",
-        schema_version=1,
+        schema_version=2,
     )
     seed_one_workflow(
         DEFAULT_IA2V_INGREDIENTS_WORKFLOW,
