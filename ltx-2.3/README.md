@@ -1,7 +1,7 @@
 # LTX 2.3/2.5 IA2V + ComfyUI para Vast.ai
 
 Imagem independente para executar tres workflows oficiais do ComfyUI/Lightricks
-e sete adaptacoes prontas:
+e oito adaptacoes prontas:
 
 - `video_ltx2_3_ia2v.json`, para gerar video a partir de imagem, audio e prompt;
 - `video_ltx2_3_id_lora.json`, para transferir a identidade vocal de um audio
@@ -13,6 +13,8 @@ e sete adaptacoes prontas:
   Best Face-ID v1.0 como referencia visual separada para reforcar o rosto.
 - `video_ltx2_3_ia2v_personal_lora.json`, que aplica o LoRA pessoal
   `glauberavatar.safetensors` ao IA2V e salva o ultimo frame final em PNG.
+- `video_ltx2_3_a2v_personal_lora.json`, A2V puro por audio e prompt, sem
+  imagem inicial, usando o mesmo LoRA pessoal e exportando o ultimo frame PNG.
 - `video_ltx2_3_ia2v_ingredients.json`, que preserva a narracao original e usa
   uma reference sheet IC-LoRA Ingredients para reforcar identidade, roupa,
   props e ambiente no primeiro estagio.
@@ -124,6 +126,7 @@ Na primeira inicializacao, copias intactas aparecem em:
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_talkvid-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_best_face-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_personal_lora-docker.json
+/opt/ComfyUI/user/default/workflows/video_ltx2_3_a2v_personal_lora-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ia2v_ingredients_legacy_v2-docker.json
 /opt/ComfyUI/user/default/workflows/video_ltx2_3_ingredients_official_single_stage-docker.json
@@ -146,6 +149,14 @@ narracao como no IA2V original. O LoRA `glauberavatar.safetensors` inicia em
 `1.0` e atua depois do LoRA distilled oficial nas duas etapas. Cada execucao
 salva o MP4 em `output/video/` e o ultimo frame, sem compressao de video, em
 `output/images/last_frame/`. Use esse PNG como `Load Image` na proxima geracao.
+
+### Como usar o A2V + LoRA pessoal
+
+No workflow `video_ltx2_3_a2v_personal_lora-docker.json`, envie apenas a
+narracao e escreva o prompt com o trigger `glauberavatar`. Nao ha `Load Image`:
+o audio e o prompt guiam a geracao. O MP4 vai para `output/video/` e o ultimo
+frame PNG, visivel e salvavel no `Save Image` ao lado do `Save Video`, vai para
+`output/images/last_frame/`.
 
 ### Como usar o IA2V + TalkVid
 

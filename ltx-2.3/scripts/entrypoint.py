@@ -43,6 +43,12 @@ DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW = Path(
         "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora.json",
     )
 )
+DEFAULT_A2V_PERSONAL_LORA_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_A2V_PERSONAL_LORA_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_a2v_personal_lora.json",
+    )
+)
 DEFAULT_IA2V_INGREDIENTS_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_IA2V_INGREDIENTS_WORKFLOW",
@@ -86,6 +92,9 @@ SEEDED_IA2V_BEST_FACE_WORKFLOW = (
 SEEDED_IA2V_PERSONAL_LORA_WORKFLOW = (
     COMFYUI_HOME
     / "user/default/workflows/video_ltx2_3_ia2v_personal_lora-docker.json"
+)
+SEEDED_A2V_PERSONAL_LORA_WORKFLOW = (
+    COMFYUI_HOME / "user/default/workflows/video_ltx2_3_a2v_personal_lora-docker.json"
 )
 PERSONAL_LORA_SOURCE = Path("/opt/ltx23-assets/glauberavatar.safetensors")
 PERSONAL_LORA_TARGET = COMFYUI_HOME / "models/loras/glauberavatar.safetensors"
@@ -242,6 +251,13 @@ def seed_workflows() -> None:
         "LTX 2.3 IA2V + LoRA pessoal",
         schema_marker="ltx23_ia2v_personal_lora_schema",
         schema_version=2,
+    )
+    seed_one_workflow(
+        DEFAULT_A2V_PERSONAL_LORA_WORKFLOW,
+        SEEDED_A2V_PERSONAL_LORA_WORKFLOW,
+        "LTX 2.3 A2V + LoRA pessoal",
+        schema_marker="ltx23_a2v_personal_lora_schema",
+        schema_version=1,
     )
     seed_one_workflow(
         DEFAULT_IA2V_INGREDIENTS_WORKFLOW,

@@ -22,6 +22,7 @@ from build_ia2v_personal_lora_workflow import (
     PERSONAL_LORA_NAME,
     validate_personal_lora,
 )
+from build_a2v_personal_lora_workflow import validate_a2v
 
 
 COMFYUI_HOME = Path(os.environ.get("COMFYUI_HOME", "/opt/ComfyUI"))
@@ -53,6 +54,12 @@ IA2V_PERSONAL_LORA_WORKFLOW = Path(
     os.environ.get(
         "DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW",
         "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora.json",
+    )
+)
+A2V_PERSONAL_LORA_WORKFLOW = Path(
+    os.environ.get(
+        "DEFAULT_A2V_PERSONAL_LORA_WORKFLOW",
+        "/opt/defaults/workflows/video_ltx2_3_a2v_personal_lora.json",
     )
 )
 IA2V_INGREDIENTS_WORKFLOW = Path(
@@ -108,6 +115,7 @@ IA2V_BEST_FACE_MODELS = IA2V_MODELS | {
     "Best_FaceID_v1.0_LoRA.safetensors",
 }
 IA2V_PERSONAL_LORA_MODELS = IA2V_MODELS | {PERSONAL_LORA_NAME}
+A2V_PERSONAL_LORA_MODELS = IA2V_PERSONAL_LORA_MODELS
 IA2V_INGREDIENTS_MODELS = IA2V_MODELS | {
     INGREDIENTS_NAME,
 }
@@ -152,6 +160,9 @@ IA2V_PERSONAL_LORA_NODE_TYPES = IA2V_NODE_TYPES | {
     "LastFrameFromBatch",
     "SaveImage",
 }
+A2V_PERSONAL_LORA_NODE_TYPES = (IA2V_PERSONAL_LORA_NODE_TYPES - {
+    "LTXVImgToVideoInplace",
+})
 IA2V_INGREDIENTS_NODE_TYPES = IA2V_NODE_TYPES | {
     "LTXAddVideoICLoRAGuide",
     "LTXICLoRALoaderModelOnly",
@@ -358,6 +369,21 @@ def main() -> None:
             )
         except Exception as error:
             failures.append(f"workflow IA2V + LoRA pessoal invalido: {error}")
+    validate_workflow(
+        "A2V + LoRA pessoal",
+        A2V_PERSONAL_LORA_WORKFLOW,
+        None,
+        A2V_PERSONAL_LORA_MODELS,
+        A2V_PERSONAL_LORA_NODE_TYPES,
+        failures,
+    )
+    if A2V_PERSONAL_LORA_WORKFLOW.is_file():
+        try:
+            validate_a2v(
+                json.loads(A2V_PERSONAL_LORA_WORKFLOW.read_text(encoding="utf-8"))
+            )
+        except Exception as error:
+            failures.append(f"workflow A2V + LoRA pessoal invalido: {error}")
     validate_workflow(
         "IA2V + IC-LoRA Ingredients",
         IA2V_INGREDIENTS_WORKFLOW,

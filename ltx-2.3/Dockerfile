@@ -86,6 +86,7 @@ RUN chmod +x \
         /opt/ltx23-scripts/build_ia2v_best_face_workflow.py \
         /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
         /opt/ltx23-scripts/build_ia2v_personal_lora_workflow.py \
+        /opt/ltx23-scripts/build_a2v_personal_lora_workflow.py \
         /opt/ltx23-scripts/build_ingredients_reference_workflows.py \
         /opt/ltx23-scripts/build_ltx25_ia2v_workflow.py \
     && mkdir -p \
@@ -113,6 +114,9 @@ RUN chmod +x \
     && python /opt/ltx23-scripts/build_ia2v_personal_lora_workflow.py \
         --source /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora.json \
+    && python /opt/ltx23-scripts/build_a2v_personal_lora_workflow.py \
+        --source /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json \
+        --output /opt/defaults/workflows/video_ltx2_3_a2v_personal_lora.json \
     && python /opt/ltx23-scripts/build_ia2v_ingredients_workflow.py \
         --ia2v /opt/defaults/workflows/video_ltx2_3_ia2v.json \
         --profile corrected \
