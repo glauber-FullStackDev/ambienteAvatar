@@ -1,0 +1,23 @@
+{
+  "name": "ltx23-ia2v-personal-lora",
+  "imageName": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v1",
+  "endpointType": "QUEUE",
+  "workersMin": 0,
+  "workersMax": 1,
+  "idleTimeout": 30,
+  "executionTimeout": 7200,
+  "gpuTypes": [
+    "NVIDIA RTX A6000",
+    "NVIDIA A40"
+  ],
+  "env": {
+    "MINIO_ENDPOINT": "https://minio.example.com",
+    "MINIO_BUCKET": "ltx-serverless",
+    "MINIO_REGION": "us-east-1",
+    "MINIO_ACCESS_KEY": "CONFIGURE_AS_SECRET",
+    "MINIO_SECRET_KEY": "CONFIGURE_AS_SECRET",
+    "MINIO_OUTPUT_PREFIX": "ltx-ia2v/results",
+    "MINIO_PRESIGN_EXPIRES_SECONDS": "86400",
+    "MINIO_ALLOWED_HOST": "minio.example.com"
+  }
+}
