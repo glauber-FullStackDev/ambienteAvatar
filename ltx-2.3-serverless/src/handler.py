@@ -83,10 +83,13 @@ def _s3_client():
     # Some S3-compatible gateways close a request while boto3 waits for the
     # optional 100-continue response. Sending the body directly is compatible
     # with S3 and avoids that proxy-specific failure mode.
-    client.meta.events.register(
-        "before-send.s3.PutObject",
-        lambda request, **_: request.headers.pop("Expect", None),
-    )
+    def remove_expect_header(request, **_):
+        request.headers.pop("Expect", None)
+        # Event handlers may return an HTTP response to short-circuit botocore;
+        # this mutation hook must explicitly return None instead.
+        return None
+
+    client.meta.events.register("before-send.s3.PutObject", remove_expect_header)
     return client
 
 
