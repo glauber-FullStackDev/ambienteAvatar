@@ -150,7 +150,13 @@ def compile_workflow(source: dict[str, Any]) -> dict[str, Any]:
 
     prompt[VIDEO_SAVE_ID] = {
         "class_type": "SaveVideo",
-        "inputs": {"video": ["312", 0], "filename_prefix": "video/jobs/__JOB_ID__/LTX_2.3_ia2v_personal_lora"},
+        "inputs": {
+            "video": ["312", 0],
+            "filename_prefix": "video/jobs/__JOB_ID__/LTX_2.3_ia2v_personal_lora",
+            # SaveVideo on the pinned ComfyUI release requires this input even
+            # when it uses its automatic video/container choice.
+            "format": "auto",
+        },
         "_meta": {"title": "Serverless video output"},
     }
     prompt[LAST_FRAME_ID] = {

@@ -27,6 +27,7 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(self.template["269"]["class_type"], "LoadImage")
         self.assertEqual(self.template["276"]["class_type"], "LoadAudio")
         self.assertEqual(self.template["9001"]["class_type"], "SaveVideo")
+        self.assertEqual(self.template["9001"]["inputs"]["format"], "auto")
         self.assertEqual(self.template["9003"]["class_type"], "SaveImage")
         self.assertNotIn("300", self.template)
         self.assertEqual(self.template["295"]["inputs"]["vae"], ["317", 2])
