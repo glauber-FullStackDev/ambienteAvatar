@@ -30,7 +30,7 @@ WORKFLOW_PATH = Path("/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_ap
 PERSONAL_LORA_SOURCE = Path("/opt/ltx23-assets/glauberavatar.safetensors")
 PERSONAL_LORA_TARGET = COMFYUI_HOME / "models/loras/glauberavatar.safetensors"
 DEFAULTS = {
-    "width": 720,
+    "width": 704,
     "height": 1280,
     "duration_seconds": 18.0,
     "fps": 24,
@@ -41,6 +41,14 @@ DEFAULTS = {
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
 POLL_SECONDS = float(os.environ.get("COMFY_POLL_SECONDS", "2"))
+RUNPOD_VOLUME_ROOT = Path(os.environ.get("RUNPOD_VOLUME_ROOT", "/runpod-volume"))
+ENV_ALIASES = {
+    "MINIO_ENDPOINT": "S3_ENDPOINT",
+    "MINIO_BUCKET": "S3_BUCKET",
+    "MINIO_REGION": "S3_REGION",
+    "MINIO_ACCESS_KEY": "S3_ACCESS_KEY_ID",
+    "MINIO_SECRET_KEY": "S3_SECRET_ACCESS_KEY",
+}
 
 
 class InputError(ValueError):
@@ -48,7 +56,7 @@ class InputError(ValueError):
 
 
 def _required_env(name: str) -> str:
-    value = os.environ.get(name)
+    value = os.environ.get(name) or os.environ.get(ENV_ALIASES.get(name, ""))
     if not value:
         raise RuntimeError(f"Variável obrigatória ausente: {name}")
     return value
@@ -153,7 +161,51 @@ def _ensure_personal_lora() -> None:
         shutil.copyfile(PERSONAL_LORA_SOURCE, PERSONAL_LORA_TARGET)
 
 
+def _configure_model_storage() -> None:
+    """Use the attached Runpod Network Volume without requiring a custom mount.
+
+    Serverless mounts a Network Volume at /runpod-volume.  The model downloader
+    and ComfyUI both use /opt/ComfyUI/models, so make that directory a symlink
+    when a volume is available.  With no attached volume, local container disk
+    remains a supported development fallback.
+    """
+    if not RUNPOD_VOLUME_ROOT.is_dir():
+        LOG.warning("Network Volume ausente; modelos serão efêmeros neste worker")
+        return
+
+    persistent_models = RUNPOD_VOLUME_ROOT / "models"
+    persistent_models.mkdir(parents=True, exist_ok=True)
+    models_path = COMFYUI_HOME / "models"
+    if models_path.is_symlink():
+        if models_path.resolve() == persistent_models.resolve():
+            return
+        models_path.unlink()
+    elif models_path.exists():
+        # This directory is created empty by the Docker image.  Model files are
+        # downloaded only after this point, so replacing it cannot lose output.
+        shutil.rmtree(models_path)
+    models_path.symlink_to(persistent_models, target_is_directory=True)
+    os.environ["COMFYUI_MODELS"] = str(models_path)
+    os.environ["HF_HOME"] = str(RUNPOD_VOLUME_ROOT / "huggingface")
+    LOG.info("Modelos persistentes configurados em %s", persistent_models)
+
+
+def _assert_workflow_nodes_available() -> None:
+    """Fail the worker at boot with a useful message if a custom node is absent."""
+    template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    required = {node["class_type"] for node in template.values()}
+    response = requests.get(f"{COMFYUI_URL}/object_info", timeout=30)
+    response.raise_for_status()
+    available = set(response.json())
+    missing = sorted(required - available)
+    if missing:
+        raise RuntimeError(
+            "ComfyUI iniciou, mas faltam nós do workflow: " + ", ".join(missing)
+        )
+
+
 def start_comfyui() -> None:
+    _configure_model_storage()
     _ensure_personal_lora()
     subprocess.run([sys.executable, "/opt/serverless/src/bootstrap_models.py"], check=True)
     log_path = Path("/var/log/portal/comfyui-serverless.log")
@@ -165,6 +217,7 @@ def start_comfyui() -> None:
     while time.monotonic() < deadline:
         try:
             if requests.get(f"{COMFYUI_URL}/system_stats", timeout=5).ok:
+                _assert_workflow_nodes_available()
                 LOG.info("ComfyUI pronto")
                 return
         except requests.RequestException:
@@ -226,7 +279,11 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
         template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
         workflow = build_job_workflow(template, values, job_id)
         response = requests.post(f"{COMFYUI_URL}/prompt", json={"prompt": workflow, "client_id": job_id}, timeout=60)
-        response.raise_for_status()
+        if not response.ok:
+            raise RuntimeError(
+                f"ComfyUI recusou o workflow (HTTP {response.status_code}): "
+                f"{response.text[:10_000]}"
+            )
         prompt_id = response.json().get("prompt_id")
         if not prompt_id:
             raise RuntimeError(f"ComfyUI recusou o workflow: {response.text}")

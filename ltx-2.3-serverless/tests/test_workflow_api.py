@@ -36,7 +36,7 @@ class WorkflowApiTests(unittest.TestCase):
                 "image_filename": "jobs/a/input.png",
                 "audio_filename": "jobs/a/audio.wav",
                 "prompt": "glauberavatar speaking naturally",
-                "width": 720,
+                "width": 704,
                 "height": 1280,
                 "duration_seconds": 12,
                 "fps": 24,

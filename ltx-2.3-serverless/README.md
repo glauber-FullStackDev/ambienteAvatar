@@ -18,8 +18,11 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
 
 O modelo LTX 2.3 não é incorporado na imagem. No primeiro worker ele baixa
 somente os pesos necessários ao IA2V Personal LoRA (LTX 2.5 é excluído).
-Use o cache de modelos/FlashBoot do Runpod para reduzir os cold starts
-subsequentes.
+Para não baixar os modelos novamente após escala para zero, anexe um Network
+Volume de pelo menos 60 GB (100 GB recomendado). A imagem detecta o volume
+montado pelo Runpod em `/runpod-volume` e persiste automaticamente os modelos
+em `/runpod-volume/models`. FlashBoot reduz a retomada de um worker pausado,
+mas não substitui o volume persistente.
 
 ## Build e publicação
 
@@ -28,7 +31,7 @@ Execute na raiz do repositório:
 ```bash
 docker buildx build --platform linux/amd64 \
   -f ltx-2.3-serverless/Dockerfile \
-  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v1 \
+  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2 \
   --push .
 ```
 
@@ -66,6 +69,11 @@ Runpod. Nunca os adicione a Dockerfile, Git ou ao agente.
 | `MINIO_ALLOWED_HOST` | Não | Host permitido para URLs de entrada; padrão é o host de `MINIO_ENDPOINT` |
 | `HF_TOKEN` | Não | Use apenas se o Hugging Face exigir autenticação para download |
 
+Os nomes equivalentes `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`,
+`S3_ACCESS_KEY_ID` e `S3_SECRET_ACCESS_KEY` também são aceitos para facilitar
+a integração com o FlowScript. Prefira um único conjunto de nomes para evitar
+configurações divergentes.
+
 O cliente/agente não recebe `MINIO_ACCESS_KEY` ou `MINIO_SECRET_KEY`. Ele deve
 obter URLs pré-assinadas de upload do seu backend/MinIO e, depois do upload,
 passá-las ao Runpod.
@@ -83,7 +91,7 @@ curl --request POST "https://api.runpod.ai/v2/$ENDPOINT_ID/run" \
       "image_url": "https://minio.example.com/ltx-serverless/input/avatar.png?...",
       "audio_url": "https://minio.example.com/ltx-serverless/input/fala.wav?...",
       "prompt": "glauberavatar speaking naturally to camera",
-      "width": 720,
+      "width": 704,
       "height": 1280,
       "duration_seconds": 18,
       "fps": 24,
@@ -96,7 +104,8 @@ curl --request POST "https://api.runpod.ai/v2/$ENDPOINT_ID/run" \
 ```
 
 Parâmetros obrigatórios: `image_url`, `audio_url` e `prompt`. Os demais são
-opcionais. Largura e altura precisam ser divisíveis por 32. A API mantém fixos
+opcionais. Largura e altura precisam ser divisíveis por 32; o padrão é
+`704x1280`. A API mantém fixos
 checkpoint, LoRAs técnicos e modelo de upscale; apenas a força do LoRA pessoal
 e da imagem são ajustáveis.
 
@@ -132,3 +141,5 @@ URLs e os logs do job no Runpod.
 - **Não há URL final:** verifique as credenciais e a política `PutObject`/
   `GetObject` do bucket.
 - **Job expira:** aumente `execution timeout` no endpoint, não `min workers`.
+- **ComfyUI recusa o workflow:** a resposta inclui o detalhe da validação no
+  status do job; confira também se a imagem publicada é a `:v2` ou posterior.
