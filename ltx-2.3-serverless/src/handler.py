@@ -41,6 +41,9 @@ DEFAULTS = {
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
 POLL_SECONDS = float(os.environ.get("COMFY_POLL_SECONDS", "2"))
+S3_CONNECT_TIMEOUT_SECONDS = int(os.environ.get("S3_CONNECT_TIMEOUT_SECONDS", "20"))
+S3_READ_TIMEOUT_SECONDS = int(os.environ.get("S3_READ_TIMEOUT_SECONDS", "600"))
+S3_UPLOAD_ATTEMPTS = int(os.environ.get("S3_UPLOAD_ATTEMPTS", "3"))
 RUNPOD_VOLUME_ROOT = Path(os.environ.get("RUNPOD_VOLUME_ROOT", "/runpod-volume"))
 ENV_ALIASES = {
     "MINIO_ENDPOINT": "S3_ENDPOINT",
@@ -63,14 +66,28 @@ def _required_env(name: str) -> str:
 
 
 def _s3_client():
-    return boto3.client(
+    client = boto3.client(
         "s3",
         endpoint_url=_required_env("MINIO_ENDPOINT"),
         region_name=os.environ.get("MINIO_REGION", "us-east-1"),
         aws_access_key_id=_required_env("MINIO_ACCESS_KEY"),
         aws_secret_access_key=_required_env("MINIO_SECRET_KEY"),
-        config=Config(signature_version="s3v4", s3={"addressing_style": os.environ.get("MINIO_ADDRESSING_STYLE", "path")}),
+        config=Config(
+            signature_version="s3v4",
+            connect_timeout=S3_CONNECT_TIMEOUT_SECONDS,
+            read_timeout=S3_READ_TIMEOUT_SECONDS,
+            retries={"max_attempts": 5, "mode": "standard"},
+            s3={"addressing_style": os.environ.get("MINIO_ADDRESSING_STYLE", "path")},
+        ),
     )
+    # Some S3-compatible gateways close a request while boto3 waits for the
+    # optional 100-continue response. Sending the body directly is compatible
+    # with S3 and avoids that proxy-specific failure mode.
+    client.meta.events.register(
+        "before-send.s3.PutObject",
+        lambda request, **_: request.headers.pop("Expect", None),
+    )
+    return client
 
 
 def _allowed_input_host(url: str) -> None:
@@ -252,7 +269,16 @@ def _newest_file(folder: Path, suffix: str) -> Path:
 
 def _upload_result(client, path: Path, key: str) -> str:
     bucket = _required_env("MINIO_BUCKET")
-    client.upload_file(str(path), bucket, key, ExtraArgs={"ContentType": "video/mp4" if path.suffix == ".mp4" else "image/png"})
+    content_type = "video/mp4" if path.suffix == ".mp4" else "image/png"
+    for attempt in range(1, S3_UPLOAD_ATTEMPTS + 1):
+        try:
+            client.upload_file(str(path), bucket, key, ExtraArgs={"ContentType": content_type})
+            break
+        except Exception:
+            if attempt == S3_UPLOAD_ATTEMPTS:
+                raise
+            LOG.warning("Falha ao enviar %s (tentativa %s/%s)", key, attempt, S3_UPLOAD_ATTEMPTS)
+            time.sleep(min(attempt * 3, 10))
     return client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=int(os.environ.get("MINIO_PRESIGN_EXPIRES_SECONDS", "86400")))
 
 

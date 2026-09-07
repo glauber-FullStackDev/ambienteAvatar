@@ -67,6 +67,9 @@ Runpod. Nunca os adicione a Dockerfile, Git ou ao agente.
 | `MINIO_OUTPUT_PREFIX` | Não | Padrão `ltx-ia2v/results` |
 | `MINIO_PRESIGN_EXPIRES_SECONDS` | Não | Padrão `86400` (24 h) |
 | `MINIO_ALLOWED_HOST` | Não | Host permitido para URLs de entrada; padrão é o host de `MINIO_ENDPOINT` |
+| `S3_CONNECT_TIMEOUT_SECONDS` | Não | Padrão `20`; timeout de conexão com o storage S3 |
+| `S3_READ_TIMEOUT_SECONDS` | Não | Padrão `600`; timeout para uploads de resultado |
+| `S3_UPLOAD_ATTEMPTS` | Não | Padrão `3`; tentativas para enviar MP4/PNG ao storage |
 | `HF_TOKEN` | Não | Use apenas se o Hugging Face exigir autenticação para download |
 
 Os nomes equivalentes `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`,
