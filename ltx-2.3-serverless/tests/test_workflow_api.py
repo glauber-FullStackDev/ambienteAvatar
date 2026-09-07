@@ -28,6 +28,8 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(self.template["276"]["class_type"], "LoadAudio")
         self.assertEqual(self.template["9001"]["class_type"], "SaveVideo")
         self.assertEqual(self.template["9003"]["class_type"], "SaveImage")
+        self.assertNotIn("300", self.template)
+        self.assertEqual(self.template["295"]["inputs"]["vae"], ["317", 2])
 
     def test_job_values_are_applied_only_to_supported_controls(self) -> None:
         workflow = build_job_workflow(

@@ -48,6 +48,48 @@ def _node_values(node: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _is_workflow_link(value: Any, prompt: dict[str, Any]) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == 2
+        and isinstance(value[0], str)
+        and value[0] in prompt
+        and isinstance(value[1], int)
+    )
+
+
+def _remove_reroutes(prompt: dict[str, Any]) -> None:
+    """Remove UI-only Reroute nodes and reconnect their consumers for /prompt."""
+    reroutes = {
+        node_id: node
+        for node_id, node in prompt.items()
+        if node["class_type"] == "Reroute"
+    }
+
+    def upstream(link: list[Any]) -> list[Any]:
+        node_id = link[0]
+        if node_id not in reroutes:
+            return link
+        source = next(
+            (
+                value
+                for value in reroutes[node_id]["inputs"].values()
+                if _is_workflow_link(value, prompt)
+            ),
+            None,
+        )
+        if source is None:
+            raise ValueError(f"Reroute {node_id} sem entrada conectada")
+        return upstream(source)
+
+    for node in prompt.values():
+        for name, value in node["inputs"].items():
+            if _is_workflow_link(value, prompt):
+                node["inputs"][name] = upstream(value)
+    for node_id in reroutes:
+        del prompt[node_id]
+
+
 def compile_workflow(source: dict[str, Any]) -> dict[str, Any]:
     """Flatten the one subgraph used by the existing IA2V Personal LoRA workflow."""
     top_nodes = {int(node["id"]): node for node in source["nodes"]}
@@ -121,6 +163,7 @@ def compile_workflow(source: dict[str, Any]) -> dict[str, Any]:
         "inputs": {"images": [LAST_FRAME_ID, 0], "filename_prefix": "images/last_frame/jobs/__JOB_ID__/LTX_2.3_ia2v_personal_lora"},
         "_meta": {"title": "Serverless last-frame output"},
     }
+    _remove_reroutes(prompt)
     return prompt
 
 
