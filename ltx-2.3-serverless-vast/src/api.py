@@ -36,6 +36,7 @@ def health() -> dict[str, str]:
 
 
 @app.get("/benchmark")
+@app.post("/benchmark")
 def benchmark() -> dict[str, str]:
     return {"status": "ok", "benchmark": True}
 
