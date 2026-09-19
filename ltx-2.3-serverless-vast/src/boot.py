@@ -26,7 +26,7 @@ LOG = logging.getLogger("ltx23-vast.boot")
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
 MODEL_SERVER_PORT = int(os.environ.get("MODEL_SERVER_PORT", "18080"))
-WORKER_PORT = int(os.environ.get("WORKER_PORT", "3000"))
+WORKER_PORT = int(os.environ.setdefault("WORKER_PORT", "3000"))
 MODEL_LOG_FILE = Path(os.environ.get("MODEL_LOG_FILE", "/var/log/model/model.log"))
 PYWORKER_REPO = os.environ.get("PYWORKER_REPO", "").strip()
 PYWORKER_REF = os.environ.get("PYWORKER_REF", "").strip()
