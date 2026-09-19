@@ -1,0 +1,41 @@
+{
+  "endpoint": {
+    "name": "ltx23-ia2v-personal-lora-vast",
+    "min_workers": 0,
+    "max_workers": 1,
+    "min_load": 1,
+    "target_util": 0.9,
+    "inactivity_timeout": 600,
+    "cold_mult": 3,
+    "min_cold_load": 0,
+    "max_queue_time": 60,
+    "target_queue_time": 15
+  },
+  "workergroup": {
+    "template_image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless-vast:v1",
+    "search_params": {
+      "gpu_ram": { "gte": 48 },
+      "cuda_max_good": { "gte": 12.8 },
+      "num_gpus": { "gte": 1 },
+      "disk_space": { "gte": 100 }
+    },
+    "env": {
+      "PYWORKER_REPO": "https://github.com/glauber-FullStackDev/ltx23-vast-pyworker",
+      "MINIO_ENDPOINT": "https://minio.example.com",
+      "MINIO_BUCKET": "ltx-serverless",
+      "MINIO_REGION": "us-east-1",
+      "MINIO_ACCESS_KEY": "CONFIGURE_AS_SECRET",
+      "MINIO_SECRET_KEY": "CONFIGURE_AS_SECRET",
+      "MINIO_OUTPUT_PREFIX": "ltx-ia2v/results",
+      "MINIO_PRESIGN_EXPIRES_SECONDS": "86400",
+      "MINIO_ALLOWED_HOST": "minio.example.com",
+      "WEBHOOK_URL": "https://backend.example.com/hooks/ltx-job",
+      "WEBHOOK_SECRET": "CONFIGURE_AS_SECRET",
+      "WEBHOOK_ALLOWED_HOSTS": "backend.example.com",
+      "WEBHOOK_RETRIES": "5",
+      "PERSIST_JOB_STATUS": "1",
+      "BENCHMARK_RUNS": "1",
+      "MODEL_VOLUME_ROOT": "/vast-volume"
+    }
+  }
+}
