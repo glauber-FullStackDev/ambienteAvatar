@@ -58,6 +58,10 @@ config = WorkerConfig(
     model_server_port=MODEL_SERVER_PORT,
     model_log_file=MODEL_LOG_FILE,
     model_healthcheck_url="/health",
+    # Client dispatches create short-lived sessions; with max_workers=1 the
+    # default cap of 10 exhausts after a few renders, so lift the limit here
+    # (0 = unlimited per vastai SDK) and let idle workers cool down instead.
+    max_sessions=0,
     handlers=[
         HandlerConfig(
             route="/submit",
