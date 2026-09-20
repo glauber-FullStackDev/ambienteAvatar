@@ -31,13 +31,13 @@ app = FastAPI(title="LTX 2.3 IA2V Personal LoRA — Vast model server", version=
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
+def health() -> dict[str, Any]:
     return {"status": "ok"}
 
 
 @app.get("/benchmark")
 @app.post("/benchmark")
-def benchmark() -> dict[str, str]:
+def benchmark() -> dict[str, Any]:
     return {"status": "ok", "benchmark": True}
 
 
