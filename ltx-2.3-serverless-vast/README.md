@@ -76,6 +76,13 @@ Use `vast/endpoint-config.example.json` como referência (painel **Serverless**,
 - GPU: `gpu_ram >= 48`, `cuda_max_good >= 12.8`, disco `>= 100 GB`;
 - Registrar `PYWORKER_REPO` e as variáveis abaixo.
 
+> **Importante:** a API da Vast aceita **apenas um** campo de filtro por
+> workergroup (`search_params` **ou** `search_query`). Se o template tiver
+> filtros de GPU salvos (extra_filters) e você também filtrar na etapa
+> "Select GPU Instances", o save falha com `invalid_args search_params and
+> search_query conflict`. Deixe os filtros de GPU **somente na etapa de GPU do
+> workergroup** e mantenha o template sem `extra_filters`.
+
 > Ajuste `min_workers` para `0` só depois de validar o cold start; o boot baixa
 > modelos e pode levar vários minutos na primeira vez.
 
@@ -112,9 +119,10 @@ Os nomes `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`,
 
 ## Chamar a API (SDK Vast)
 
-O endpoint é **assíncrono**: `/submit` responde `202` com `job_id`; o render
-roda em background, o backend do projeto pode assimilar o estado via **webhook**,
-e o cliente pode acompanhar com `/status` através de uma sessão.
+O endpoint é **assíncrono** e funciona **sem sessão** (com `max_workers=1` há
+um único worker, então requests roteadas sempre caem nele): `/submit` responde
+`202` com `job_id`, o render roda em background e o backend do projeto recebe o
+resultado via **webhook**. `/status` serve para polling como fallback.
 
 ```python
 import asyncio
@@ -123,18 +131,23 @@ from vastai import Serverless
 async def main():
     async with Serverless() as client:
         endpoint = await client.get_endpoint(name="ltx23-ia2v-personal-lora-vast")
-        # sessão prende o job ao mesmo worker enquanto durar o render
-        async with await endpoint.session(cost=100, lifetime=120) as session:
-            submitted = await session.request("/submit", {
-                "project_id": "uuid-do-projeto",
-                "image_url": "https://minio.example.com/…/avatar.png?X-Amz-...",
-                "audio_url": "https://minio.example.com/…/fala.wav?X-Amz-...",
-                "prompt": "glauberavatar speaking naturally to camera",
-                "job_id": None,  # opcional; sem ele o worker gera um
-            }, cost=100)
-            print(submitted["response"])  # {"job_id","project_id","status":"queued"}
+        submitted = await endpoint.request("/submit", {
+            "project_id": "uuid-do-projeto",
+            "image_url": "https://minio.example.com/…/avatar.png?X-Amz-...",
+            "audio_url": "https://minio.example.com/…/fala.wav?X-Amz-...",
+            "prompt": "glauberavatar speaking naturally to camera",
+            "job_id": None,  # opcional; sem ele o worker gera um
+        }, cost=100)
+        print(submitted["response"])  # {"job_id","project_id","status":"queued"}
 asyncio.run(main())
 ```
+
+> **Não abra sessão por dispatch.** Sessão com `lifetime` longo mantém o worker
+> **hot** (custando GPU) durante todo o lifetime mesmo ocioso, e consome slots
+> de `max_sessions`. O `worker.py` deste worker vem com `max_sessions=0`
+> (ilimitado) justamente para tolerar clientes que criam sessões; o padrão
+> recomendado é session-less como acima. Sessões só fazem sentido com múltiplos
+> workers para manter afinidade (polling no mesmo worker).
 
 Parâmetros opcionais idênticos ao Runpod: `width`, `height` (múltiplos de 32,
 padrão `704x1280`), `duration_seconds` (≥1 e ≤30), `fps`, `audio_start_seconds`,

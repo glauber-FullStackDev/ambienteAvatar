@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Example client for the LTX 2.3 IA2V Vast serverless endpoint.
 
-Pattern: open a worker session, submit the job asynchronously, poll /status,
-then close. The job also fires a webhook to the project backend on completion.
+Pattern (session-less): with max_workers=1 the endpoint has a single worker,
+so plain routed requests always hit it. /submit returns 202 immediately, the
+render runs in background, and the project backend receives the result via
+webhook. /status is a fallback for polling.
 """
 import asyncio
 
@@ -12,30 +14,28 @@ ENDPOINT_NAME = "ltx23-ia2v-personal-lora-vast"
 
 
 async def submit_and_wait(endpoint, *, project_id: str, image_url: str, audio_url: str, prompt: str, **params):
-    # lifetime long enough for the render (minutes); polling renews the lease.
-    async with await endpoint.session(cost=100, lifetime=120) as session:
-        result = await session.request(
-            "/submit",
-            {
-                "project_id": project_id,
-                "image_url": image_url,
-                "audio_url": audio_url,
-                "prompt": prompt,
-                "webhook": {"extra_params": {"origin": "sample-client"}},
-                **params,
-            },
-            cost=100,
-        )
-        submit = result["response"]
-        print("submitted:", submit)
+    result = await endpoint.request(
+        "/submit",
+        {
+            "project_id": project_id,
+            "image_url": image_url,
+            "audio_url": audio_url,
+            "prompt": prompt,
+            "webhook": {"extra_params": {"origin": "sample-client"}},
+            **params,
+        },
+        cost=100,
+    )
+    submit = result["response"]
+    print("submitted:", submit)
 
-        while True:
-            polled = await session.request("/status", {"job_id": submit["job_id"]}, retry=False)
-            state = polled["response"]
-            print(f"[{submit['job_id']}] {state['status']}")
-            if state["status"] in ("completed", "failed"):
-                return state
-            await asyncio.sleep(2)
+    while True:
+        polled = await endpoint.request("/status", {"job_id": submit["job_id"]}, retry=False)
+        state = polled["response"]
+        print(f"[{submit['job_id']}] {state['status']}")
+        if state["status"] in ("completed", "failed"):
+            return state
+        await asyncio.sleep(2)
 
 
 async def main() -> None:
@@ -44,8 +44,8 @@ async def main() -> None:
         state = await submit_and_wait(
             endpoint,
             project_id="projeto-abc",
-            image_url="https://minio.example.com/ltx-serverless/input/avatar.png?X-Amz-...",
-            audio_url="https://minio.example.com/ltx-serverless/input/fala.wav?X-Amz-...",
+            image_url="https://s3.fluxaassist.io/ltx-serverless/input/avatar.png?X-Amz-...",
+            audio_url="https://s3.fluxaassist.io/ltx-serverless/input/fala.wav?X-Amz-...",
             prompt="glauberavatar speaking naturally to camera",
             width=704,
             height=1280,
