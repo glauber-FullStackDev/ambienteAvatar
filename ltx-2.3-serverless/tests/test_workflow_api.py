@@ -129,6 +129,17 @@ class Ltx25IcloraWorkflowTests(unittest.TestCase):
         self.assertEqual(prompt["131"]["inputs"]["model"], ["130", 0])
         self.assertEqual(prompt["163"]["inputs"]["model"], ["132", 0])
 
+    def test_int_casts_feed_int_inputs(self) -> None:
+        prompt = self.template["prompt"]
+        self.assertEqual(prompt["193"]["class_type"], "LTXFloatToInt")
+        self.assertEqual(prompt["194"]["class_type"], "LTXFloatToInt")
+        self.assertEqual(prompt["195"]["class_type"], "LTXFloatToInt")
+        self.assertEqual(prompt["193"]["inputs"]["a"], ["190", 0])
+        self.assertEqual(prompt["152"]["inputs"]["width"], ["193", 0])
+        self.assertEqual(prompt["152"]["inputs"]["height"], ["194", 0])
+        self.assertEqual(prompt["152"]["inputs"]["length"], ["195", 0])
+        self.assertEqual(prompt["151"]["inputs"]["amount"], ["195", 0])
+
     def test_prompt_falls_back_to_template_preset(self) -> None:
         workflow = build_job_workflow(self.template, self._values(prompt=""), "a")
         self.assertIn(

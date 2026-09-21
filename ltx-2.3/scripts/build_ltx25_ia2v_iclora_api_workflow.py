@@ -97,6 +97,9 @@ def build_template() -> dict:
         "[MATH] frames = 1+floor(dur*fps/8)*8",
         {"expression": "1 + floor(a*b/8)*8", "values.a": ["106", 0], "values.b": ["107", 0]},
     )
+    prompt["193"] = _node("193", "LTXFloatToInt", "[MATH] width -> INT", {"a": ["190", 0]})
+    prompt["194"] = _node("194", "LTXFloatToInt", "[MATH] height -> INT", {"a": ["191", 0]})
+    prompt["195"] = _node("195", "LTXFloatToInt", "[MATH] frames -> INT", {"a": ["192", 0]})
 
     # --- [PREPROCESS] Imagem ------------------------------------------------
     prompt["112"] = _node(
@@ -182,12 +185,12 @@ def build_template() -> dict:
 
     # --- [CONDITIONING + ANCHOR + GUIDE] ---------------------------------------
     prompt["150"] = _node("150", "LTXVConditioning", "[COND] frame rate", {"positive": ["143", 0], "negative": ["140", 0], "frame_rate": ["107", 0]})
-    prompt["151"] = _node("151", "RepeatImageBatch", "[GUIDE] Repete first frame", {"image": ["113", 0], "amount": ["192", 0]})
+    prompt["151"] = _node("151", "RepeatImageBatch", "[GUIDE] Repete first frame", {"image": ["113", 0], "amount": ["195", 0]})
     prompt["152"] = _node(
         "152",
         "EmptyLTXVLatentVideo",
         "[ANCHOR] Latente base (W/2 x H/2)",
-        {"width": ["190", 0], "height": ["191", 0], "length": ["192", 0], "batch_size": 1},
+        {"width": ["193", 0], "height": ["194", 0], "length": ["195", 0], "batch_size": 1},
     )
     prompt["153"] = _node(
         "153",
