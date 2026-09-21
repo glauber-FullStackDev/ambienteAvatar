@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "ltx-2.3-serverless" / "src"))
 from workflow_api import (  # noqa: E402
     IMAGE_STRENGTH_ID,
     PERSONAL_LORA_ID,
+    PROMPT_ENHANCE_ID,
     build_job_workflow,
     compile_workflow,
 )
@@ -47,11 +48,13 @@ class WorkflowApiTests(unittest.TestCase):
                 "seed": 42,
                 "lora_strength": 1.25,
                 "image_strength": 0.6,
+                "enable_prompt_enhance": False,
             },
             "a",
         )
         self.assertEqual(workflow[PERSONAL_LORA_ID]["inputs"]["strength_model"], 1.25)
         self.assertEqual(workflow[IMAGE_STRENGTH_ID]["inputs"]["strength"], 0.6)
+        self.assertIs(workflow[PROMPT_ENHANCE_ID]["inputs"]["value"], False)
         self.assertEqual(workflow["269"]["inputs"]["image"], "jobs/a/input.png")
         self.assertIn("jobs/a", workflow["9001"]["inputs"]["filename_prefix"])
 

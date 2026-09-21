@@ -35,8 +35,9 @@ DEFAULTS = {
     "duration_seconds": 18.0,
     "fps": 24,
     "audio_start_seconds": 0.0,
-    "lora_strength": 1.0,
-    "image_strength": 0.7,
+    "lora_strength": 0.7,
+    "image_strength": 1.0,
+    "enable_prompt_enhance": True,
 }
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
@@ -139,6 +140,20 @@ def _number(value: Any, name: str, *, minimum: float, maximum: float, integer: b
     return converted
 
 
+def _boolean(value: Any, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    raise InputError(f"{name} precisa ser booleano")
+
+
 def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise InputError("input precisa ser um objeto JSON")
@@ -168,8 +183,9 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
         "fps": _number(raw.get("fps", DEFAULTS["fps"]), "fps", minimum=8, maximum=30, integer=True),
         "audio_start_seconds": _number(raw.get("audio_start_seconds", DEFAULTS["audio_start_seconds"]), "audio_start_seconds", minimum=0, maximum=3600),
         "seed": seed,
-        "lora_strength": _number(raw.get("lora_strength", DEFAULTS["lora_strength"]), "lora_strength", minimum=0, maximum=2),
+        "lora_strength": _number(raw.get("lora_strength", DEFAULTS["lora_strength"]), "lora_strength", minimum=0, maximum=1),
         "image_strength": _number(raw.get("image_strength", DEFAULTS["image_strength"]), "image_strength", minimum=0, maximum=1),
+        "enable_prompt_enhance": _boolean(raw.get("enable_prompt_enhance", DEFAULTS["enable_prompt_enhance"]), "enable_prompt_enhance"),
     }
 
 

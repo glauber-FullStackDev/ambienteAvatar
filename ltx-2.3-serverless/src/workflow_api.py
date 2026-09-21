@@ -19,6 +19,7 @@ FPS_ID = "323"
 AUDIO_START_ID = "332"
 SEED_ID = "286"
 PERSONAL_LORA_ID = "350"
+PROMPT_ENHANCE_ID = "349"
 IMAGE_STRENGTH_ID = "325"
 VIDEO_SAVE_ID = "9001"
 LAST_FRAME_ID = "9002"
@@ -186,6 +187,7 @@ def build_job_workflow(template: dict[str, Any], values: dict[str, Any], job_id:
         (AUDIO_START_ID, "start_index"): values["audio_start_seconds"],
         (SEED_ID, "noise_seed"): values["seed"],
         (PERSONAL_LORA_ID, "strength_model"): values["lora_strength"],
+        (PROMPT_ENHANCE_ID, "value"): values["enable_prompt_enhance"],
         (IMAGE_STRENGTH_ID, "strength"): values["image_strength"],
     }
     for (node_id, name), value in updates.items():
