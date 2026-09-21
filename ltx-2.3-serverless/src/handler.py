@@ -224,33 +224,91 @@ def _assert_workflow_nodes_available() -> None:
         )
 
 
-def start_comfyui() -> None:
-    _configure_model_storage()
-    _ensure_personal_lora()
-    subprocess.run([sys.executable, "/opt/serverless/src/bootstrap_models.py"], check=True)
+_COMFYUI_PROC: subprocess.Popen | None = None
+
+
+def _comfyui_alive() -> bool:
+    try:
+        return requests.get(f"{COMFYUI_URL}/system_stats", timeout=5).ok
+    except requests.RequestException:
+        return False
+
+
+def _launch_comfyui() -> None:
+    global _COMFYUI_PROC
     log_path = Path("/var/log/portal/comfyui-serverless.log")
     log_path.parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(COMFYUI_HOME / "main.py"), "--listen", "127.0.0.1", "--port", os.environ.get("COMFYUI_PORT", "8188"), "--preview-method", "none"]
     with log_path.open("ab") as log_file:
-        subprocess.Popen(command, cwd=COMFYUI_HOME, stdout=log_file, stderr=subprocess.STDOUT)
+        _COMFYUI_PROC = subprocess.Popen(command, cwd=COMFYUI_HOME, stdout=log_file, stderr=subprocess.STDOUT)
     deadline = time.monotonic() + int(os.environ.get("COMFY_STARTUP_TIMEOUT_SECONDS", "21600"))
     while time.monotonic() < deadline:
-        try:
-            if requests.get(f"{COMFYUI_URL}/system_stats", timeout=5).ok:
-                _assert_workflow_nodes_available()
-                LOG.info("ComfyUI pronto")
-                return
-        except requests.RequestException:
-            pass
+        if _comfyui_alive():
+            _assert_workflow_nodes_available()
+            LOG.info("ComfyUI pronto")
+            return
+        if _COMFYUI_PROC.poll() is not None:
+            break
         time.sleep(2)
     raise RuntimeError(f"ComfyUI não ficou pronto; consulte {log_path}")
 
 
+def _stop_comfyui() -> None:
+    global _COMFYUI_PROC
+    process = _COMFYUI_PROC
+    _COMFYUI_PROC = None
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=10)
+
+
+def _restart_comfyui(reason: str) -> None:
+    LOG.warning("Reiniciando ComfyUI: %s", reason)
+    _stop_comfyui()
+    shutil.rmtree(COMFYUI_HOME / "temp", ignore_errors=True)
+    _launch_comfyui()
+
+
+def _ensure_comfyui() -> None:
+    if _comfyui_alive():
+        return
+    _restart_comfyui("ComfyUI não respondeu ao health check")
+
+
+def start_comfyui() -> None:
+    _configure_model_storage()
+    _ensure_personal_lora()
+    subprocess.run([sys.executable, "/opt/serverless/src/bootstrap_models.py"], check=True)
+    _launch_comfyui()
+
+
 def _wait_for_history(prompt_id: str) -> dict[str, Any]:
     deadline = time.monotonic() + COMFY_TIMEOUT_SECONDS
+    consecutive_failures = 0
     while time.monotonic() < deadline:
-        response = requests.get(f"{COMFYUI_URL}/history/{prompt_id}", timeout=20)
-        response.raise_for_status()
+        try:
+            response = requests.get(f"{COMFYUI_URL}/history/{prompt_id}", timeout=20)
+            response.raise_for_status()
+        except requests.RequestException as error:
+            consecutive_failures += 1
+            if consecutive_failures >= 3 or not _comfyui_alive():
+                _restart_comfyui(f"ComfyUI indisponível durante o job (prompt {prompt_id})")
+                raise RuntimeError(
+                    "ComfyUI caiu durante a execução do job; prompt perdido"
+                ) from error
+            LOG.warning(
+                "Falha transitória ao consultar /history (%s/3): %s",
+                consecutive_failures,
+                error,
+            )
+            time.sleep(min(POLL_SECONDS * consecutive_failures, 10))
+            continue
+        consecutive_failures = 0
         history = response.json().get(prompt_id)
         if history:
             status = history.get("status", {})
@@ -303,6 +361,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     values.update({"image_filename": image_name, "audio_filename": audio_name})
     input_root = COMFYUI_HOME / "input"
     try:
+        _ensure_comfyui()
         _download(values["image_url"], input_root / image_name)
         _download(values["audio_url"], input_root / audio_name)
         template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
