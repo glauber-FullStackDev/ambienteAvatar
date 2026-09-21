@@ -293,7 +293,12 @@ def _configure_model_storage() -> None:
 def _assert_workflow_nodes_available() -> None:
     """Fail the worker at boot with a useful message if a custom node is absent."""
     template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    required = {node["class_type"] for node in template.values()}
+    nodes = template["prompt"].values() if "prompt" in template else template.values()
+    required = {
+        node["class_type"]
+        for node in nodes
+        if isinstance(node, dict) and "class_type" in node
+    }
     response = requests.get(f"{COMFYUI_URL}/object_info", timeout=30)
     response.raise_for_status()
     available = set(response.json())
