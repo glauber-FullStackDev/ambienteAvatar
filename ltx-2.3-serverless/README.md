@@ -1,7 +1,7 @@
-# LTX 2.5 IA2V IC-LoRA — Runpod Serverless
+# LTX 2.5 IA2V — Runpod Serverless
 
-Este diretório gera uma imagem independente para o workflow **LTX 2.5 IA2V +
-IC-LoRA Ingredients (guia visual persistente) + LoRA pessoal (opcional)**.
+Este diretório gera uma imagem independente para o workflow **LTX 2.5 IA2V
+(padrão oficial A2V two-stage destilado) + LoRA pessoal (opcional)**.
 Ele não altera `../ltx-2.3/` nem substitui a imagem usada no Vast.ai.
 
 O worker recebe URLs pré-assinadas de imagem e áudio no MinIO, executa o
@@ -11,31 +11,26 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
 
 - **First frame anchor** — `LTXVImgToVideoInplace` fixa o frame 0
   (`first_frame_strength`, default `1.0`) na passada base e no refine.
-- **Persistent guide** — `LTXAddVideoICLoRAGuide` repete a imagem de entrada
-  como guia in-context durante o vídeo inteiro (`guiding_strength`, default
-  `0.5`), com `LTXICLoRALoaderModelOnly` (IC-LoRA Ingredients). Os tokens do
-  guia são removidos entre as passadas por `LTXVCropGuides`.
-  **`guiding_strength: 0` desliga o guia por completo** (bypass real dos nós).
-  Valores altos (≥ 0.8) estabilizam muito a cena mas tendem a suprimir a
-  articulação da fala e "puxar" os frames de volta ao primeiro frame
-  (efeito elástico) — para talking head, comece em 0.3–0.5.
-  Opcionalmente, `reference_image_url` adiciona um **segundo guia** (keyframe)
-  em `reference_frame_idx` (negativo conta do fim; `-1` = última frame) com
-  força `reference_guiding_strength` — útil para ancorar o fim do vídeo na
-  mesma identidade e reduzir deriva. Sem `reference_image_url`, o guia
-  adicional é removido do workflow do job.
-- **LoRA de identidade** — `glauberavatar.safetensors` encadeado depois do
-  IC-LoRA (`lora_strength`, default `0.7`; envie `0` para desligar).
+- **LoRA de identidade** — `glauberavatar.safetensors` único LoRA da cadeia
+  (`lora_strength`, default `0.7`; envie `0` para desligar).
 - **Áudio / lipsync** — o áudio dirigente é codificado e congelado
   (noise mask zero); o LTX 2.5 gera lipsync nativo a partir dele.
 - **Geração** — duas passadas destiladas (8 + 3 passos, CFG 1), base em W/2×H/2
   e refine com upscaler latente x2.
 - **Prompt enhancer** — desligado por padrão (`enable_prompt_enhance`);
   quando ligado usa o Gemma 4 E2B.
+- **Decode** — `VAEDecodeTiled` com `decode_tile_size` configurável
+  (default `512`; `1024` reduz emendas de tile em faces — testar se aparecerem
+  manchas/regiões sujas no rosto).
+
+> Nota: a versão anterior com IC-LoRA Ingredients (guia visual persistente e
+> keyframe de referência) foi revertida — sem tokens de guia o IC-LoRA
+> suprimia o movimento, e com guia forte o vídeo "voltava" ao frame inicial
+> (efeito elástico). O histórico permanece no git.
 
 O prompt padrão (usado quando o job não envia `prompt`) comanda apenas
 movimento e performance — composição, cenário e enquadramento ficam sob
-responsabilidade do first frame e do guia persistente.
+responsabilidade do first frame.
 
 ## Pré-requisitos
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download only the LTX 2.5 files used by the IC-LoRA IA2V workflow."""
+"""Download only the LTX 2.5 files used by the IA2V workflow."""
 from __future__ import annotations
 
 import sys
@@ -17,7 +17,6 @@ REQUIRED_PATHS = {
     "vae/ltx-2.5-video-vae-bf16.safetensors",
     "vae/ltx-2.5-audio-vae-bf16.safetensors",
     "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
-    "loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
 }
 
 

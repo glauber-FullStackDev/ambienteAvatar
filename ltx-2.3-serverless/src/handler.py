@@ -29,7 +29,7 @@ COMFYUI_URL = f"http://127.0.0.1:{os.environ.get('COMFYUI_PORT', '8188')}"
 WORKFLOW_PATH = Path(
     os.environ.get(
         "WORKFLOW_PATH",
-        "/opt/defaults/workflows/video_ltx2_5_ia2v_iclora_api.json",
+        "/opt/defaults/workflows/video_ltx2_5_ia2v_api.json",
     )
 )
 LEGACY_WORKFLOW_PATH = Path(
@@ -48,10 +48,9 @@ DEFAULTS = {
     "audio_start_seconds": 0.0,
     "lora_strength": 0.7,
     "first_frame_strength": 1.0,
-    "guiding_strength": 0.5,
-    "iclora_strength": 0.9,
     "cfg": 1.0,
     "image_strength": 1.0,
+    "decode_tile_size": 512,
     "enable_prompt_enhance": None,
 }
 DEFAULT_PROMPT = (
@@ -207,16 +206,6 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
     negative_prompt = (negative_prompt or "").strip()
     if len(negative_prompt) > 12_000:
         raise InputError("negative_prompt excede 12000 caracteres")
-    reference_image_url = raw.get("reference_image_url")
-    if reference_image_url is not None:
-        if not isinstance(reference_image_url, str) or not reference_image_url.strip():
-            raise InputError("reference_image_url precisa ser uma URL válida")
-        reference_image_url = reference_image_url.strip()
-    reference_frame_idx = raw.get("reference_frame_idx")
-    if reference_frame_idx is None:
-        reference_frame_idx = -1
-    else:
-        reference_frame_idx = _number(reference_frame_idx, "reference_frame_idx", minimum=-4096, maximum=4096, integer=True)
     width = _number(raw.get("width", DEFAULTS["width"]), "width", minimum=256, maximum=1920, integer=True)
     height = _number(raw.get("height", DEFAULTS["height"]), "height", minimum=256, maximum=1920, integer=True)
     if width % 32 or height % 32:
@@ -229,9 +218,6 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         "image_url": image_url,
         "audio_url": audio_url,
-        "reference_image_url": reference_image_url,
-        "reference_frame_idx": reference_frame_idx,
-        "reference_guiding_strength": _number(raw.get("reference_guiding_strength", DEFAULTS["guiding_strength"]), "reference_guiding_strength", minimum=0, maximum=1),
         "prompt": prompt.strip(),
         "negative_prompt": negative_prompt,
         "width": width,
@@ -242,10 +228,9 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
         "seed": seed,
         "lora_strength": _number(raw.get("lora_strength", DEFAULTS["lora_strength"]), "lora_strength", minimum=0, maximum=1),
         "first_frame_strength": _number(raw.get("first_frame_strength", DEFAULTS["first_frame_strength"]), "first_frame_strength", minimum=0, maximum=1),
-        "guiding_strength": _number(raw.get("guiding_strength", DEFAULTS["guiding_strength"]), "guiding_strength", minimum=0, maximum=1),
-        "iclora_strength": _number(raw.get("iclora_strength", DEFAULTS["iclora_strength"]), "iclora_strength", minimum=0, maximum=1.5),
         "cfg": _number(raw.get("cfg", DEFAULTS["cfg"]), "cfg", minimum=0, maximum=8),
         "image_strength": _number(raw.get("image_strength", DEFAULTS["image_strength"]), "image_strength", minimum=0, maximum=1),
+        "decode_tile_size": _number(raw.get("decode_tile_size", DEFAULTS["decode_tile_size"]), "decode_tile_size", minimum=256, maximum=1024, integer=True),
         "enable_prompt_enhance": None if raw.get("enable_prompt_enhance") is None else _boolean(raw.get("enable_prompt_enhance"), "enable_prompt_enhance"),
         "base_sigmas": _sigmas(raw.get("base_sigmas"), "base_sigmas"),
         "refine_sigmas": _sigmas(raw.get("refine_sigmas"), "refine_sigmas"),
@@ -442,25 +427,12 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     values = validate_input(job.get("input", {}))
     image_name = f"jobs/{job_id}/input{_file_extension(values['image_url'], '.png')}"
     audio_name = f"jobs/{job_id}/audio{_file_extension(values['audio_url'], '.wav')}"
-    reference_name = (
-        f"jobs/{job_id}/reference{_file_extension(values['reference_image_url'], '.png')}"
-        if values.get("reference_image_url")
-        else None
-    )
-    values.update(
-        {
-            "image_filename": image_name,
-            "audio_filename": audio_name,
-            "reference_image_filename": reference_name,
-        }
-    )
+    values.update({"image_filename": image_name, "audio_filename": audio_name})
     input_root = COMFYUI_HOME / "input"
     try:
         _ensure_comfyui()
         _download(values["image_url"], input_root / image_name)
         _download(values["audio_url"], input_root / audio_name)
-        if reference_name:
-            _download(values["reference_image_url"], input_root / reference_name)
         template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
         workflow = build_job_workflow(template, values, job_id)
         response = requests.post(f"{COMFYUI_URL}/prompt", json={"prompt": workflow, "client_id": job_id}, timeout=60)
@@ -494,11 +466,8 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
                     "audio_start_seconds",
                     "lora_strength",
                     "first_frame_strength",
-                    "guiding_strength",
-                    "reference_frame_idx",
-                    "reference_guiding_strength",
-                    "iclora_strength",
                     "cfg",
+                    "decode_tile_size",
                     "enable_prompt_enhance",
                     "base_sigmas",
                     "refine_sigmas",

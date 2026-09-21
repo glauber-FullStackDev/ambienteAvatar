@@ -11,7 +11,7 @@ ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
     COMFYUI_PORT=8188 \
     DOWNLOAD_LTX25_MODELS_ON_START=1 \
-    WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_iclora_api.json \
+    WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_api.json \
     LEGACY_WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json \
     HF_HOME=/opt/ComfyUI/models/.cache/huggingface \
     PYTHONUNBUFFERED=1 \
@@ -49,8 +49,8 @@ RUN pip install "huggingface_hub[hf_xet]>=0.34,<2" -r /opt/serverless/requiremen
     && mkdir -p "${COMFYUI_HOME}/input" "${COMFYUI_HOME}/output" "${COMFYUI_HOME}/models/loras" /opt/defaults/workflows /var/log/portal \
     && echo "${PERSONAL_LORA_SHA256}  /opt/ltx23-assets/glauberavatar.safetensors" | sha256sum -c - \
     && python /opt/ltx23-scripts/patch_ltxvideo_kornia.py \
-    && python /opt/ltx23-scripts/build_ltx25_ia2v_iclora_api_workflow.py \
-        --output /opt/defaults/workflows/video_ltx2_5_ia2v_iclora_api.json \
+    && python /opt/ltx23-scripts/build_ltx25_ia2v_api_workflow.py \
+        --output /opt/defaults/workflows/video_ltx2_5_ia2v_api.json \
     && python /opt/serverless/src/workflow_api.py \
         --source /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json \
