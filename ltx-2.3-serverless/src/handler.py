@@ -48,18 +48,17 @@ DEFAULTS = {
     "audio_start_seconds": 0.0,
     "lora_strength": 0.7,
     "first_frame_strength": 1.0,
-    "guiding_strength": 0.8,
+    "guiding_strength": 0.5,
     "iclora_strength": 0.9,
     "cfg": 1.0,
     "image_strength": 1.0,
     "enable_prompt_enhance": None,
 }
 DEFAULT_PROMPT = (
-    "The person remains in the exact composition of the initial frame. "
-    "He speaks following the supplied audio with precise lip sync. "
-    "He looks directly at the camera. Only subtle natural facial movement, "
-    "blinking, breathing and minimal head movement. "
-    "The camera remains completely stationary."
+    "The person remains in the exact composition and framing of the initial frame. "
+    "He speaks expressively and clearly, with precise lip sync following the supplied audio. "
+    "He looks directly at the camera, with natural blinking, breathing and small head movements. "
+    "The camera remains completely stationary and the background stays unchanged."
 )
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))

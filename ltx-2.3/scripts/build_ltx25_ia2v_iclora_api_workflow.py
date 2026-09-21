@@ -38,11 +38,10 @@ BASE_SIGMAS = "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 
 REFINE_SIGMAS = "0.85, 0.7250, 0.4219, 0.0"
 
 DEFAULT_PROMPT = (
-    "The person remains in the exact composition of the initial frame. "
-    "He speaks following the supplied audio with precise lip sync. "
-    "He looks directly at the camera. Only subtle natural facial movement, "
-    "blinking, breathing and minimal head movement. "
-    "The camera remains completely stationary."
+    "The person remains in the exact composition and framing of the initial frame. "
+    "He speaks expressively and clearly, with precise lip sync following the supplied audio. "
+    "He looks directly at the camera, with natural blinking, breathing and small head movements. "
+    "The camera remains completely stationary and the background stays unchanged."
 )
 
 REQUIRED_MODEL_NAMES = {
@@ -82,7 +81,7 @@ def build_template() -> dict:
     prompt["108"] = _node("108", "PrimitiveFloat", "[INPUT] Audio start (s)", {"value": 0.0})
     prompt["109"] = _node("109", "PrimitiveInt", "[INPUT] Seed", {"value": 0})
     prompt["110"] = _node("110", "PrimitiveFloat", "[INPUT] first_frame_strength", {"value": 1.0})
-    prompt["111"] = _node("111", "PrimitiveFloat", "[INPUT] guiding_strength", {"value": 0.8})
+    prompt["111"] = _node("111", "PrimitiveFloat", "[INPUT] guiding_strength (0 desliga)", {"value": 0.5})
     prompt["115"] = _node("115", "LoadImage", "[INPUT] Referencia adicional (opcional)", {"image": "reference.png"})
     prompt["118"] = _node("118", "PrimitiveInt", "[INPUT] reference_frame_idx", {"value": -1})
     prompt["119"] = _node("119", "PrimitiveFloat", "[INPUT] reference_guiding_strength", {"value": 0.8})

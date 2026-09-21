@@ -13,8 +13,12 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
   (`first_frame_strength`, default `1.0`) na passada base e no refine.
 - **Persistent guide** — `LTXAddVideoICLoRAGuide` repete a imagem de entrada
   como guia in-context durante o vídeo inteiro (`guiding_strength`, default
-  `0.8`), com `LTXICLoRALoaderModelOnly` (IC-LoRA Ingredients). Os tokens do
+  `0.5`), com `LTXICLoRALoaderModelOnly` (IC-LoRA Ingredients). Os tokens do
   guia são removidos entre as passadas por `LTXVCropGuides`.
+  **`guiding_strength: 0` desliga o guia por completo** (bypass real dos nós).
+  Valores altos (≥ 0.8) estabilizam muito a cena mas tendem a suprimir a
+  articulação da fala e "puxar" os frames de volta ao primeiro frame
+  (efeito elástico) — para talking head, comece em 0.3–0.5.
   Opcionalmente, `reference_image_url` adiciona um **segundo guia** (keyframe)
   em `reference_frame_idx` (negativo conta do fim; `-1` = última frame) com
   força `reference_guiding_strength` — útil para ancorar o fim do vídeo na

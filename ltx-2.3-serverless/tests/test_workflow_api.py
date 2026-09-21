@@ -143,9 +143,10 @@ class Ltx25IcloraWorkflowTests(unittest.TestCase):
     def test_prompt_falls_back_to_template_preset(self) -> None:
         workflow = build_job_workflow(self.template, self._values(prompt=""), "a")
         self.assertIn(
-            "composition of the initial frame",
+            "composition and framing of the initial frame",
             workflow["102"]["inputs"]["value"],
         )
+        self.assertIn("precise lip sync", workflow["102"]["inputs"]["value"])
         self.assertEqual(
             workflow["102"]["inputs"]["value"],
             self.template["prompt"]["102"]["inputs"]["value"],
@@ -200,6 +201,36 @@ class Ltx25IcloraWorkflowTests(unittest.TestCase):
             "a",
         )
         self.assertEqual(workflow["119"]["inputs"]["value"], 0.5)
+
+    def test_guiding_disabled_bypasses_persistent_guide(self) -> None:
+        workflow = build_job_workflow(self.template, self._values(guiding_strength=0.0), "a")
+        for node_id in ("111", "151", "154", "156", "115"):
+            self.assertNotIn(node_id, workflow)
+        self.assertEqual(workflow["163"]["inputs"]["positive"], ["150", 0])
+        self.assertEqual(workflow["163"]["inputs"]["negative"], ["150", 1])
+        self.assertEqual(workflow["164"]["inputs"]["video_latent"], ["153", 0])
+        self.assertEqual(workflow["167"]["inputs"]["positive"], ["150", 0])
+        self.assertEqual(workflow["170"]["inputs"]["samples"], ["167", 2])
+
+    def test_guiding_disabled_keeps_reference_keyframe(self) -> None:
+        workflow = build_job_workflow(
+            self.template,
+            self._values(
+                guiding_strength=0.0,
+                reference_image_filename="jobs/a/reference.png",
+                reference_frame_idx=-1,
+                reference_guiding_strength=0.7,
+            ),
+            "a",
+        )
+        for node_id in ("111", "151", "154"):
+            self.assertNotIn(node_id, workflow)
+        self.assertIn("156", workflow)
+        self.assertEqual(workflow["156"]["inputs"]["positive"], ["150", 0])
+        self.assertEqual(workflow["156"]["inputs"]["negative"], ["150", 1])
+        self.assertEqual(workflow["156"]["inputs"]["latent"], ["153", 0])
+        self.assertEqual(workflow["119"]["inputs"]["value"], 0.7)
+        self.assertEqual(workflow["163"]["inputs"]["positive"], ["156", 0])
 
 
 if __name__ == "__main__":
