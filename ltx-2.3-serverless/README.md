@@ -15,8 +15,10 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
   (`lora_strength`, default `0.7`; envie `0` para desligar).
 - **Áudio / lipsync** — o áudio dirigente é codificado e congelado
   (noise mask zero); o LTX 2.5 gera lipsync nativo a partir dele.
-- **Geração** — duas passadas destiladas (8 + 3 passos, CFG 1), base em W/2×H/2
-  e refine com upscaler latente x2.
+- **Geração** — duas passadas destiladas (8 + 9 passos, CFG 1), base em W/2×H/2
+  e refine com upscaler latente x2. O refine estendido (oficial usava 3)
+  reduz ghosting/tremidas; reverta com
+  `refine_sigmas: "0.85, 0.7250, 0.4219, 0.0"` se quiser comparar.
 - **Prompt enhancer** — desligado por padrão (`enable_prompt_enhance`);
   quando ligado usa o Gemma 4 E2B.
 - **Decode** — `VAEDecodeTiled` com `decode_tile_size` configurável

@@ -33,7 +33,7 @@ UPSCALER_NAME = "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
 PERSONAL_LORA_NAME = "glauberavatar.safetensors"
 
 BASE_SIGMAS = "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
-REFINE_SIGMAS = "0.85, 0.7250, 0.4219, 0.0"
+REFINE_SIGMAS = "0.925, 0.85, 0.75, 0.646, 0.525, 0.403, 0.281, 0.156, 0.0"
 
 DEFAULT_PROMPT = (
     "The person remains in the exact composition and framing of the initial frame. "
@@ -194,7 +194,7 @@ def build_template() -> dict:
         {"vae": ["133", 0], "image": ["114", 0], "latent": ["170", 0], "strength": 1.0, "bypass": False},
     )
     prompt["172"] = _node("172", "LTXVConcatAVLatent", "[GEN2] Concat video+audio", {"video_latent": ["171", 0], "audio_latent": ["124", 0]})
-    prompt["173"] = _node("173", "ManualSigmas", "[GEN2] Sigmas refine (3 passos)", {"sigmas": REFINE_SIGMAS})
+    prompt["173"] = _node("173", "ManualSigmas", "[GEN2] Sigmas refine (9 passos)", {"sigmas": REFINE_SIGMAS})
     prompt["174"] = _node("174", "KSamplerSelect", "[GEN2] Sampler", {"sampler_name": "euler_ancestral"})
     prompt["175"] = _node("175", "RandomNoise", "[GEN2] Noise fixo", {"noise_seed": 42, "control_after_generate": "fixed"})
     prompt["176"] = _node("176", "CFGGuider", "[GEN2] CFG", {"model": ["132", 0], "positive": ["150", 0], "negative": ["150", 1], "cfg": 1.0})
