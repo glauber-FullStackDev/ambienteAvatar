@@ -1,4 +1,4 @@
-name: Build and publish LTX 2.3 Serverless image
+name: Build and publish LTX 2.5 Serverless image
 
 on:
   push:
@@ -55,13 +55,13 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=v2
+            type=raw,value=v2.5
             type=raw,value=latest
             type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
             type=sha,format=long
           labels: |
-            org.opencontainers.image.title=LTX 2.3 IA2V Personal LoRA Serverless
-            org.opencontainers.image.description=Runpod Queue worker for LTX 2.3 IA2V Personal LoRA with MinIO output
+            org.opencontainers.image.title=LTX 2.5 IA2V IC-LoRA Serverless
+            org.opencontainers.image.description=Runpod Queue worker for LTX 2.5 IA2V with IC-LoRA persistent guide and MinIO output
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 

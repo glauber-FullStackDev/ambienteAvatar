@@ -26,7 +26,18 @@ logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
 COMFYUI_HOME = Path(os.environ.get("COMFYUI_HOME", "/opt/ComfyUI"))
 COMFYUI_URL = f"http://127.0.0.1:{os.environ.get('COMFYUI_PORT', '8188')}"
-WORKFLOW_PATH = Path("/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json")
+WORKFLOW_PATH = Path(
+    os.environ.get(
+        "WORKFLOW_PATH",
+        "/opt/defaults/workflows/video_ltx2_5_ia2v_iclora_api.json",
+    )
+)
+LEGACY_WORKFLOW_PATH = Path(
+    os.environ.get(
+        "LEGACY_WORKFLOW_PATH",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json",
+    )
+)
 PERSONAL_LORA_SOURCE = Path("/opt/ltx23-assets/glauberavatar.safetensors")
 PERSONAL_LORA_TARGET = COMFYUI_HOME / "models/loras/glauberavatar.safetensors"
 DEFAULTS = {
@@ -36,9 +47,20 @@ DEFAULTS = {
     "fps": 24,
     "audio_start_seconds": 0.0,
     "lora_strength": 0.7,
+    "first_frame_strength": 1.0,
+    "guiding_strength": 0.8,
+    "iclora_strength": 0.9,
+    "cfg": 1.0,
     "image_strength": 1.0,
-    "enable_prompt_enhance": True,
+    "enable_prompt_enhance": None,
 }
+DEFAULT_PROMPT = (
+    "The person remains in the exact composition of the initial frame. "
+    "He speaks following the supplied audio with precise lip sync. "
+    "He looks directly at the camera. Only subtle natural facial movement, "
+    "blinking, breathing and minimal head movement. "
+    "The camera remains completely stationary."
+)
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
 POLL_SECONDS = float(os.environ.get("COMFY_POLL_SECONDS", "2"))
@@ -154,16 +176,48 @@ def _boolean(value: Any, name: str) -> bool:
     raise InputError(f"{name} precisa ser booleano")
 
 
+def _sigmas(value: Any, name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise InputError(f"{name} precisa ser uma string de sigmas não vazia")
+    value = value.strip()
+    if len(value) > 500:
+        raise InputError(f"{name} excede 500 caracteres")
+    return value
+
+
 def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise InputError("input precisa ser um objeto JSON")
     image_url = raw.get("image_url")
     audio_url = raw.get("audio_url")
     prompt = raw.get("prompt")
-    if not all(isinstance(value, str) and value.strip() for value in (image_url, audio_url, prompt)):
-        raise InputError("image_url, audio_url e prompt são obrigatórios")
+    if not all(isinstance(value, str) and value.strip() for value in (image_url, audio_url)):
+        raise InputError("image_url e audio_url são obrigatórios")
+    if prompt is not None and not isinstance(prompt, str):
+        raise InputError("prompt precisa ser texto")
+    prompt = prompt.strip() if isinstance(prompt, str) else ""
     if len(prompt) > 12_000:
         raise InputError("prompt excede 12000 caracteres")
+    if not prompt:
+        prompt = DEFAULT_PROMPT
+    negative_prompt = raw.get("negative_prompt")
+    if negative_prompt is not None and not isinstance(negative_prompt, str):
+        raise InputError("negative_prompt precisa ser texto")
+    negative_prompt = (negative_prompt or "").strip()
+    if len(negative_prompt) > 12_000:
+        raise InputError("negative_prompt excede 12000 caracteres")
+    reference_image_url = raw.get("reference_image_url")
+    if reference_image_url is not None:
+        if not isinstance(reference_image_url, str) or not reference_image_url.strip():
+            raise InputError("reference_image_url precisa ser uma URL válida")
+        reference_image_url = reference_image_url.strip()
+    reference_frame_idx = raw.get("reference_frame_idx")
+    if reference_frame_idx is None:
+        reference_frame_idx = -1
+    else:
+        reference_frame_idx = _number(reference_frame_idx, "reference_frame_idx", minimum=-4096, maximum=4096, integer=True)
     width = _number(raw.get("width", DEFAULTS["width"]), "width", minimum=256, maximum=1920, integer=True)
     height = _number(raw.get("height", DEFAULTS["height"]), "height", minimum=256, maximum=1920, integer=True)
     if width % 32 or height % 32:
@@ -176,7 +230,11 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         "image_url": image_url,
         "audio_url": audio_url,
+        "reference_image_url": reference_image_url,
+        "reference_frame_idx": reference_frame_idx,
+        "reference_guiding_strength": _number(raw.get("reference_guiding_strength", DEFAULTS["guiding_strength"]), "reference_guiding_strength", minimum=0, maximum=1),
         "prompt": prompt.strip(),
+        "negative_prompt": negative_prompt,
         "width": width,
         "height": height,
         "duration_seconds": _number(raw.get("duration_seconds", DEFAULTS["duration_seconds"]), "duration_seconds", minimum=1, maximum=30),
@@ -184,8 +242,14 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
         "audio_start_seconds": _number(raw.get("audio_start_seconds", DEFAULTS["audio_start_seconds"]), "audio_start_seconds", minimum=0, maximum=3600),
         "seed": seed,
         "lora_strength": _number(raw.get("lora_strength", DEFAULTS["lora_strength"]), "lora_strength", minimum=0, maximum=1),
+        "first_frame_strength": _number(raw.get("first_frame_strength", DEFAULTS["first_frame_strength"]), "first_frame_strength", minimum=0, maximum=1),
+        "guiding_strength": _number(raw.get("guiding_strength", DEFAULTS["guiding_strength"]), "guiding_strength", minimum=0, maximum=1),
+        "iclora_strength": _number(raw.get("iclora_strength", DEFAULTS["iclora_strength"]), "iclora_strength", minimum=0, maximum=1.5),
+        "cfg": _number(raw.get("cfg", DEFAULTS["cfg"]), "cfg", minimum=0, maximum=8),
         "image_strength": _number(raw.get("image_strength", DEFAULTS["image_strength"]), "image_strength", minimum=0, maximum=1),
-        "enable_prompt_enhance": _boolean(raw.get("enable_prompt_enhance", DEFAULTS["enable_prompt_enhance"]), "enable_prompt_enhance"),
+        "enable_prompt_enhance": None if raw.get("enable_prompt_enhance") is None else _boolean(raw.get("enable_prompt_enhance"), "enable_prompt_enhance"),
+        "base_sigmas": _sigmas(raw.get("base_sigmas"), "base_sigmas"),
+        "refine_sigmas": _sigmas(raw.get("refine_sigmas"), "refine_sigmas"),
     }
 
 
@@ -374,12 +438,25 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     values = validate_input(job.get("input", {}))
     image_name = f"jobs/{job_id}/input{_file_extension(values['image_url'], '.png')}"
     audio_name = f"jobs/{job_id}/audio{_file_extension(values['audio_url'], '.wav')}"
-    values.update({"image_filename": image_name, "audio_filename": audio_name})
+    reference_name = (
+        f"jobs/{job_id}/reference{_file_extension(values['reference_image_url'], '.png')}"
+        if values.get("reference_image_url")
+        else None
+    )
+    values.update(
+        {
+            "image_filename": image_name,
+            "audio_filename": audio_name,
+            "reference_image_filename": reference_name,
+        }
+    )
     input_root = COMFYUI_HOME / "input"
     try:
         _ensure_comfyui()
         _download(values["image_url"], input_root / image_name)
         _download(values["audio_url"], input_root / audio_name)
+        if reference_name:
+            _download(values["reference_image_url"], input_root / reference_name)
         template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
         workflow = build_job_workflow(template, values, job_id)
         response = requests.post(f"{COMFYUI_URL}/prompt", json={"prompt": workflow, "client_id": job_id}, timeout=60)
@@ -403,7 +480,26 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
             "comfy_prompt_id": prompt_id,
             "video_url": video_url,
             "last_frame_url": last_frame_url,
-            "parameters": {key: values[key] for key in DEFAULTS | {"width": None, "height": None, "seed": None}},
+            "parameters": {
+                key: values[key]
+                for key in (
+                    "prompt",
+                    "negative_prompt",
+                    "duration_seconds",
+                    "fps",
+                    "audio_start_seconds",
+                    "lora_strength",
+                    "first_frame_strength",
+                    "guiding_strength",
+                    "reference_frame_idx",
+                    "reference_guiding_strength",
+                    "iclora_strength",
+                    "cfg",
+                    "enable_prompt_enhance",
+                    "base_sigmas",
+                    "refine_sigmas",
+                )
+            },
             "execution_seconds": round(time.monotonic() - started_at, 3),
         }
     finally:

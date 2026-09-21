@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download only the LTX 2.3 files used by the Personal LoRA IA2V workflow."""
+"""Download only the LTX 2.5 files used by the IC-LoRA IA2V workflow."""
 from __future__ import annotations
 
 import sys
@@ -11,11 +11,13 @@ import download_models  # noqa: E402
 
 
 REQUIRED_PATHS = {
-    "checkpoints/ltx-2.3-22b-dev-fp8.safetensors",
-    "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors",
-    "loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
-    "loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors",
-    "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+    "diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+    "text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+    "text_encoders/gemma4_e2b_it_int8_convrot.safetensors",
+    "vae/ltx-2.5-video-vae-bf16.safetensors",
+    "vae/ltx-2.5-audio-vae-bf16.safetensors",
+    "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+    "loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
 }
 
 
@@ -25,7 +27,7 @@ def main() -> None:
     )
     missing = REQUIRED_PATHS - {model.relative_path for model in download_models.MODEL_FILES}
     if missing:
-        raise SystemExit(f"Modelos LTX 2.3 ausentes na lista: {sorted(missing)}")
+        raise SystemExit(f"Modelos LTX 2.5 ausentes na lista: {sorted(missing)}")
     download_models.main()
 
 

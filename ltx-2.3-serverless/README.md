@@ -1,11 +1,37 @@
-# LTX 2.3 IA2V Personal LoRA — Runpod Serverless
+# LTX 2.5 IA2V IC-LoRA — Runpod Serverless
 
-Este diretório gera uma imagem independente para o workflow **LTX 2.3 IA2V +
-LoRA pessoal**. Ele não altera `../ltx-2.3/` nem substitui a imagem usada no
-Vast.ai.
+Este diretório gera uma imagem independente para o workflow **LTX 2.5 IA2V +
+IC-LoRA Ingredients (guia visual persistente) + LoRA pessoal (opcional)**.
+Ele não altera `../ltx-2.3/` nem substitui a imagem usada no Vast.ai.
 
 O worker recebe URLs pré-assinadas de imagem e áudio no MinIO, executa o
 workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
+
+### Arquitetura do pipeline (v2.5)
+
+- **First frame anchor** — `LTXVImgToVideoInplace` fixa o frame 0
+  (`first_frame_strength`, default `1.0`) na passada base e no refine.
+- **Persistent guide** — `LTXAddVideoICLoRAGuide` repete a imagem de entrada
+  como guia in-context durante o vídeo inteiro (`guiding_strength`, default
+  `0.8`), com `LTXICLoRALoaderModelOnly` (IC-LoRA Ingredients). Os tokens do
+  guia são removidos entre as passadas por `LTXVCropGuides`.
+  Opcionalmente, `reference_image_url` adiciona um **segundo guia** (keyframe)
+  em `reference_frame_idx` (negativo conta do fim; `-1` = última frame) com
+  força `reference_guiding_strength` — útil para ancorar o fim do vídeo na
+  mesma identidade e reduzir deriva. Sem `reference_image_url`, o guia
+  adicional é removido do workflow do job.
+- **LoRA de identidade** — `glauberavatar.safetensors` encadeado depois do
+  IC-LoRA (`lora_strength`, default `0.7`; envie `0` para desligar).
+- **Áudio / lipsync** — o áudio dirigente é codificado e congelado
+  (noise mask zero); o LTX 2.5 gera lipsync nativo a partir dele.
+- **Geração** — duas passadas destiladas (8 + 3 passos, CFG 1), base em W/2×H/2
+  e refine com upscaler latente x2.
+- **Prompt enhancer** — desligado por padrão (`enable_prompt_enhance`);
+  quando ligado usa o Gemma 4 E2B.
+
+O prompt padrão (usado quando o job não envia `prompt`) comanda apenas
+movimento e performance — composição, cenário e enquadramento ficam sob
+responsabilidade do first frame e do guia persistente.
 
 ## Pré-requisitos
 
@@ -15,9 +41,11 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
 - Bucket privado, por exemplo `ltx-serverless`.
 - URLs pré-assinadas de entrada que possam ser lidas pelo worker.
 - Docker com suporte a build Linux/amd64.
+- `HF_TOKEN` no endpoint com termos de `Lightricks/LTX-2.5` aceitos.
 
-O modelo LTX 2.3 não é incorporado na imagem. No primeiro worker ele baixa
-somente os pesos necessários ao IA2V Personal LoRA (LTX 2.5 é excluído).
+Os modelos LTX 2.5 não são incorporados na imagem. No primeiro worker ele
+baixa somente o set 2.5 (transformer destilado int8, Gemma 4 12B + E2B,
+VAEs de vídeo e áudio, upscaler x2 e o IC-LoRA Ingredients).
 Para não baixar os modelos novamente após escala para zero, anexe um Network
 Volume de pelo menos 60 GB (100 GB recomendado). A imagem detecta o volume
 montado pelo Runpod em `/runpod-volume` e persiste automaticamente os modelos
@@ -31,7 +59,7 @@ Execute na raiz do repositório:
 ```bash
 docker buildx build --platform linux/amd64 \
   -f ltx-2.3-serverless/Dockerfile \
-  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2 \
+  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5 \
   --push .
 ```
 
@@ -145,4 +173,4 @@ URLs e os logs do job no Runpod.
   `GetObject` do bucket.
 - **Job expira:** aumente `execution timeout` no endpoint, não `min workers`.
 - **ComfyUI recusa o workflow:** a resposta inclui o detalhe da validação no
-  status do job; confira também se a imagem publicada é a `:v2` ou posterior.
+  status do job; confira também se a imagem publicada é a `:v2.5` ou posterior.

@@ -175,6 +175,65 @@ def compile_workflow(source: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_job_workflow(template: dict[str, Any], values: dict[str, Any], job_id: str) -> dict[str, Any]:
+    if template.get("_meta", {}).get("template") == "ltx25_iclora":
+        return build_job_workflow_ltx25(template, values, job_id)
+    return build_job_workflow_ltx23(template, values, job_id)
+
+
+def build_job_workflow_ltx25(template: dict[str, Any], values: dict[str, Any], job_id: str) -> dict[str, Any]:
+    workflow = deepcopy(template)
+    prompt = workflow["prompt"]
+    updates = {
+        ("100", "image"): values["image_filename"],
+        ("101", "audio"): values["audio_filename"],
+        ("104", "value"): values["width"],
+        ("105", "value"): values["height"],
+        ("106", "value"): values["duration_seconds"],
+        ("107", "value"): values["fps"],
+        ("108", "value"): values["audio_start_seconds"],
+        ("109", "value"): values["seed"],
+        ("110", "value"): values["first_frame_strength"],
+        ("111", "value"): values["guiding_strength"],
+        ("131", "strength_model"): values["iclora_strength"],
+        ("132", "strength_model"): values["lora_strength"],
+        ("163", "cfg"): values["cfg"],
+        ("176", "cfg"): values["cfg"],
+    }
+    if values.get("prompt"):
+        updates[("102", "value")] = values["prompt"]
+    if values.get("negative_prompt"):
+        updates[("103", "value")] = values["negative_prompt"]
+    if values.get("enable_prompt_enhance") is not None:
+        updates[("144", "value")] = bool(values["enable_prompt_enhance"])
+    if values.get("base_sigmas"):
+        updates[("160", "sigmas")] = values["base_sigmas"]
+    if values.get("refine_sigmas"):
+        updates[("173", "sigmas")] = values["refine_sigmas"]
+    for (node_id, name), value in updates.items():
+        prompt[node_id]["inputs"][name] = value
+
+    reference_filename = values.get("reference_image_filename")
+    if reference_filename:
+        prompt["115"]["inputs"]["image"] = reference_filename
+        prompt["118"]["inputs"]["value"] = values.get("reference_frame_idx", -1)
+        prompt["119"]["inputs"]["value"] = values.get("reference_guiding_strength", values.get("guiding_strength", 0.8))
+    else:
+        # Bypass the optional reference guide entirely: rewire consumers back
+        # to the persistent guide and drop the unused nodes.
+        prompt["163"]["inputs"]["positive"] = ["154", 0]
+        prompt["163"]["inputs"]["negative"] = ["154", 1]
+        prompt["164"]["inputs"]["video_latent"] = ["154", 2]
+        prompt["167"]["inputs"]["positive"] = ["154", 0]
+        prompt["167"]["inputs"]["negative"] = ["154", 1]
+        for node_id in ("115", "116", "117", "118", "119", "156"):
+            del prompt[node_id]
+
+    prompt["183"]["inputs"]["filename_prefix"] = f"video/jobs/{job_id}/LTX_2.5_ia2v_iclora"
+    prompt["185"]["inputs"]["filename_prefix"] = f"images/last_frame/jobs/{job_id}/LTX_2.5_ia2v_iclora"
+    return prompt
+
+
+def build_job_workflow_ltx23(template: dict[str, Any], values: dict[str, Any], job_id: str) -> dict[str, Any]:
     workflow = deepcopy(template)
     updates = {
         (LOAD_IMAGE_ID, "image"): values["image_filename"],
