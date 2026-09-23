@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Download only the LTX 2.5 files used by the IA2V workflow.
+"""Download only the LTX 2.5 BF16 files used by the IA2V workflow.
 
-This image is pinned to the INT8 ConvRoT DiT checkpoint: the bootstrap
-downloads the INT8 transformer and never touches the BF16 variant (the
-BF16 experiment lives in ../ltx-2.3-serverless-bf16/ with its own image).
-The override env LTX25_UNET_CHECKPOINT is kept for operational
-introspection only.
+This image is pinned to the BF16 DiT checkpoint: the bootstrap downloads
+the BF16 transformer and never touches the INT8 ConvRoT variant.  The
+override env LTX25_UNET_CHECKPOINT is baked to "bf16" in the Dockerfile
+and is kept only for operational introspection.
 """
 from __future__ import annotations
 
@@ -16,10 +15,10 @@ SCRIPTS_HOME = Path("/opt/ltx23-scripts")
 sys.path.insert(0, str(SCRIPTS_HOME))
 import download_models  # noqa: E402
 
-INT8_UNET = "diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
+BF16_UNET = "diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors"
 
 REQUIRED_PATHS = {
-    INT8_UNET,
+    BF16_UNET,
     "text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
     "text_encoders/gemma4_e2b_it_int8_convrot.safetensors",
     "vae/ltx-2.5-video-vae-bf16.safetensors",

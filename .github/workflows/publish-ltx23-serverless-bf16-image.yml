@@ -1,14 +1,12 @@
-name: Build and publish LTX 2.5 Serverless INT8 image
+name: Build and publish LTX 2.5 Serverless BF16 image
 
 on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/publish-ltx23-serverless-image.yml
-      - ltx-2.3/**
-      - ltx-2.3-serverless/**
-      - '!ltx-2.3-serverless-bf16/**'
-      - '!.github/workflows/publish-ltx23-serverless-bf16-image.yml'
+      - .github/workflows/publish-ltx23-serverless-bf16-image.yml
+      - ltx-2.3-serverless-bf16/**
+      - ltx-2.3/assets/glauberavatar.safetensors
   workflow_dispatch:
     inputs:
       image_tag:
@@ -18,7 +16,7 @@ on:
         type: string
 
 concurrency:
-  group: publish-ltx23-serverless-image
+  group: publish-ltx23-serverless-bf16-image
   cancel-in-progress: false
 
 env:
@@ -57,12 +55,12 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=v2.5
+            type=raw,value=v2.5-bf16
             type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
             type=sha,format=long
           labels: |
-            org.opencontainers.image.title=LTX 2.5 IA2V Serverless (INT8)
-            org.opencontainers.image.description=Runpod Queue worker for LTX 2.5 IA2V with the INT8 ConvRoT distilled DiT and MinIO output
+            org.opencontainers.image.title=LTX 2.5 IA2V BF16 Serverless
+            org.opencontainers.image.description=Runpod Queue worker for LTX 2.5 IA2V with the BF16 distilled DiT (isolated build) and MinIO output
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
@@ -70,12 +68,12 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./ltx-2.3-serverless/Dockerfile
+          file: ./ltx-2.3-serverless-bf16/Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             LTX_IMAGE_SHA=${{ github.sha }}
-          cache-from: type=gha,scope=ltx23-serverless
-          cache-to: type=gha,mode=max,scope=ltx23-serverless
+          cache-from: type=gha,scope=ltx23-serverless-bf16
+          cache-to: type=gha,mode=max,scope=ltx23-serverless-bf16

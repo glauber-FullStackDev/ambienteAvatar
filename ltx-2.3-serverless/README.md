@@ -49,27 +49,13 @@ O prompt padrão (usado quando o job não envia `prompt`) comanda apenas
 movimento e performance — composição, cenário e enquadramento ficam sob
 responsabilidade do first frame.
 
-### DiT BF16 (experimento pausado)
+### DiT BF16 — imagem irmã isolada
 
-A imagem publica dois templates do mesmo workflow: o padrão usa o transformer
-destilado **INT8 ConvRot** e o alternativo usa o checkpoint **BF16**
-(`ltx-2.5-22b-distilled-transformer-bf16.safetensors`, 39,1 GiB em VRAM).
-O bootstrap detecta o checkpoint pelo nome do template em `WORKFLOW_PATH`
-(e baixa apenas ele): com o template padrão o worker baixa só o INT8
-(~20 GiB); com `WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json`
-baixa só o BF16 (39,1 GiB). Para forçar a escolha, defina
-`LTX25_UNET_CHECKPOINT=int8|bf16`.
-
-> **Não defina `WORKFLOW_PATH` para o template bf16 em endpoints de
-> produção.** O endpoint de exemplo (`runpod/endpoint-config.example.json`)
-> usa o baseline int8 sem sobrescrita de `WORKFLOW_PATH`. O experimento BF16
-> está pausado até o baseline int8 voltar a validar.
-
-Orçamento de VRAM estimado em 48 GB: o pico ocorre na passada de refine
-(704×1280) — DiT 39,1 GiB + LoRA + ativações ≈ 44–48 GiB, na fronteira do
-utilável em A6000/A40. Se o ComfyUI partir para offload parcial de pesos, o
-job conclui mais lentamente; o INT8 permanece como padrão de produção até a
-comparação ser validada.
+O experimento com o transformer destilado **BF16** mora em
+[`../ltx-2.3-serverless-bf16/`](../ltx-2.3-serverless-bf16/README.md), com
+Dockerfile, código, workflow CI e download de modelos totalmente independentes
+(desta imagem). Esta pasta/int8 é o baseline de produção e não referencia bf16
+em nenhum ponto; a imagem bf16 publica a tag `:v2.5-bf16` pelo próprio pipeline.
 
 A instrumentação de VRAM é opt-in: defina `LOG_VRAM_PEAK=1` no endpoint para
 que o worker amostra `/system_stats` durante o job e reporte no retorno do
@@ -81,9 +67,8 @@ job:
 ## Pré-requisitos
 
 - Conta Runpod, um endpoint Queue e uma GPU de 48 GB (A6000 ou A40).
-- O bootstrap baixa apenas o checkpoint DiT usado pelo `WORKFLOW_PATH`
-  (int8 ~20 GiB ou bf16 39,1 GiB) — Network Volume de 60 GB atende o modo
-  int8; para alternar entre int8 e bf16 no mesmo volume, use 110 GB.
+- O bootstrap baixa apenas o set INT8 (~20 GiB de DiT + encoders/VAEs) —
+  Network Volume de 60 GB atende este modo.
 - Acesso a `ghcr.io/glauber-fullstackdev` para publicar a imagem.
 - MinIO acessível publicamente pelos workers Runpod, via HTTPS recomendado.
 - Bucket privado, por exemplo `ltx-serverless`.

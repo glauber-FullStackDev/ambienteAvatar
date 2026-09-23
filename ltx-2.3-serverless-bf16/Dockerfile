@@ -13,8 +13,8 @@ ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_PORT=8188 \
     LTX_IMAGE_SHA=${LTX_IMAGE_SHA} \
     DOWNLOAD_LTX25_MODELS_ON_START=1 \
-    WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_api.json \
-    LEGACY_WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json \
+    LTX25_UNET_CHECKPOINT=bf16 \
+    WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json \
     HF_HOME=/opt/ComfyUI/models/.cache/huggingface \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
@@ -40,22 +40,21 @@ RUN git clone https://github.com/alisson-anjos/ComfyUI-BFSNodes.git \
         checkout --detach "${LTXVIDEO_COMMIT}" \
     && pip install -r "${COMFYUI_HOME}/custom_nodes/ComfyUI-LTXVideo/requirements.txt"
 
-COPY ltx-2.3/scripts/ /opt/ltx23-scripts/
-COPY ltx-2.3/custom_nodes/ComfyUI-LastFrameExport/ "${COMFYUI_HOME}/custom_nodes/ComfyUI-LastFrameExport/"
+# The personal LoRA is an immutable LFS binary shared with the int8 image by
+# design (see README); every other file comes from this directory.
 COPY ltx-2.3/assets/glauberavatar.safetensors /opt/ltx23-assets/glauberavatar.safetensors
-COPY ltx-2.3/assets/video_ltx2_3_ia2v_personal_source.json /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json
-COPY ltx-2.3-serverless/requirements.txt /opt/serverless/requirements.txt
-COPY ltx-2.3-serverless/src/ /opt/serverless/src/
+COPY ltx-2.3-serverless-bf16/scripts/ /opt/ltx23-scripts/
+COPY ltx-2.3-serverless-bf16/custom_nodes/ComfyUI-LastFrameExport/ "${COMFYUI_HOME}/custom_nodes/ComfyUI-LastFrameExport/"
+COPY ltx-2.3-serverless-bf16/requirements.txt /opt/serverless/requirements.txt
+COPY ltx-2.3-serverless-bf16/src/ /opt/serverless/src/
 
 RUN pip install "huggingface_hub[hf_xet]>=0.34,<2" -r /opt/serverless/requirements.txt \
     && mkdir -p "${COMFYUI_HOME}/input" "${COMFYUI_HOME}/output" "${COMFYUI_HOME}/models/loras" /opt/defaults/workflows /var/log/portal \
     && echo "${PERSONAL_LORA_SHA256}  /opt/ltx23-assets/glauberavatar.safetensors" | sha256sum -c - \
     && python /opt/ltx23-scripts/patch_ltxvideo_kornia.py \
     && python /opt/ltx23-scripts/build_ltx25_ia2v_api_workflow.py \
-        --output /opt/defaults/workflows/video_ltx2_5_ia2v_api.json \
-    && python /opt/serverless/src/workflow_api.py \
-        --source /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json \
-        --output /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json \
+        --unet-name ltx-2.5-22b-distilled-transformer-bf16.safetensors \
+        --output /opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json \
     && python -m compileall -q /opt/serverless/src
 
 WORKDIR /opt/serverless
