@@ -37,11 +37,10 @@ BASE_SIGMAS = "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 
 REFINE_SIGMAS = "0.85, 0.7250, 0.4219, 0.0"
 
 DEFAULT_PROMPT = (
-    "The person remains in the exact composition and framing of the initial frame. "
-    "He speaks in a calm, relaxed and steady pace, and his lips move precisely in sync "
-    "with the supplied audio, articulating every word clearly. "
-    "His facial expressions stay subtle and composed, without exaggerated gestures. "
-    "He looks directly at the camera, with natural blinking, breathing and small head movements. "
+    "glauberavatar remains in the exact composition and framing of the initial frame. "
+    "He speaks naturally at a steady pace, with precise lip sync following the supplied audio. "
+    "He looks directly at the camera with natural blinking and small head movements. "
+    "His hands remain still and away from all objects; he never touches, holds or bites anything. "
     "The camera remains completely stationary and the background stays unchanged."
 )
 

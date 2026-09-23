@@ -146,13 +146,10 @@ class Ltx25Ia2vWorkflowTests(unittest.TestCase):
 
     def test_prompt_falls_back_to_template_preset(self) -> None:
         workflow = build_job_workflow(self.template, self._values(prompt=""), "a")
-        self.assertIn(
-            "composition and framing of the initial frame",
-            workflow["102"]["inputs"]["value"],
-        )
-        self.assertIn("calm, relaxed and steady pace", workflow["102"]["inputs"]["value"])
-        self.assertIn("articulating every word clearly", workflow["102"]["inputs"]["value"])
-        self.assertNotIn("speaks expressively and clearly", workflow["102"]["inputs"]["value"])
+        self.assertIn("glauberavatar remains in the exact composition", workflow["102"]["inputs"]["value"])
+        self.assertIn("speaks naturally at a steady pace", workflow["102"]["inputs"]["value"])
+        self.assertIn("never touches, holds or bites anything", workflow["102"]["inputs"]["value"])
+        self.assertNotIn("articulating every word clearly", workflow["102"]["inputs"]["value"])
         self.assertEqual(
             workflow["102"]["inputs"]["value"],
             self.template["prompt"]["102"]["inputs"]["value"],

@@ -26,10 +26,12 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
   e refine com upscaler latente x2, conforme o padrão oficial A2V
   (`refine_sigmas` oficial `"0.85, 0.7250, 0.4219, 0.0"`).
 
-> **Prompt padrão (sensível a wording).** O default pede fala "calm, relaxed
-> and steady pace" **e exige articulação explícita** ("lips move precisely in
-> sync... articulating every word clearly") — o modelo tende a suprimir a
-> articulação quando o prompt pede calma sem esse contrapeso, e isso parece
+> **Prompt padrão (sensível a wording).** O default usa o token de identidade
+> `glauberavatar` no lugar de "the person", pede fala natural em ritmo
+> constante com lipsync preciso e inclui trava explícita de objetos
+> ("never touches, holds or bites anything") — sem ela o modelo tende a
+> inventar interações com objetos do cenário. Prompts que pedem calma sem
+> contrapeso de articulação suprimem o movimento da boca e parecem
 > dessincronia. O experimento de refine de 9 passos
 > (`"0.925, 0.85, 0.75, 0.646, 0.525, 0.403, 0.281, 0.156, 0.0"`) também
 > degradou o lipsync e foi revertido; só tente via `refine_sigmas` por job,

@@ -58,11 +58,10 @@ DEFAULTS = {
     "enable_prompt_enhance": None,
 }
 DEFAULT_PROMPT = (
-    "The person remains in the exact composition and framing of the initial frame. "
-    "He speaks in a calm, relaxed and steady pace, and his lips move precisely in sync "
-    "with the supplied audio, articulating every word clearly. "
-    "His facial expressions stay subtle and composed, without exaggerated gestures. "
-    "He looks directly at the camera, with natural blinking, breathing and small head movements. "
+    "glauberavatar remains in the exact composition and framing of the initial frame. "
+    "He speaks naturally at a steady pace, with precise lip sync following the supplied audio. "
+    "He looks directly at the camera with natural blinking and small head movements. "
+    "His hands remain still and away from all objects; he never touches, holds or bites anything. "
     "The camera remains completely stationary and the background stays unchanged."
 )
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
