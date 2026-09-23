@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import sys
 import unittest
+import unittest.mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +44,30 @@ class ServerlessBuildContractTests(unittest.TestCase):
         self.assertNotIn("ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors", bootstrap)
         self.assertNotIn("ltx-2.3-22b-dev-fp8.safetensors", bootstrap)
         self.assertNotIn("gemma-3-12b-it-abliterated", bootstrap)
+
+    def test_bootstrap_selects_unet_checkpoint_from_workflow_path(self) -> None:
+        sys.path.insert(0, str(SERVERLESS / "src"))
+        sys.path.insert(0, str(ROOT / "ltx-2.3" / "scripts"))
+        try:
+            import huggingface_hub  # noqa: F401
+        except ImportError:
+            self.skipTest("huggingface_hub nao instalado no ambiente local")
+        import bootstrap_models
+
+        cases = {
+            "/opt/defaults/workflows/video_ltx2_5_ia2v_api.json": bootstrap_models.INT8_UNET,
+            "/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json": bootstrap_models.BF16_UNET,
+        }
+        for workflow_path, expected in cases.items():
+            with unittest.mock.patch.dict(os.environ, {"WORKFLOW_PATH": workflow_path}):
+                self.assertEqual(bootstrap_models.resolve_unet_checkpoint(), expected)
+        with unittest.mock.patch.dict(os.environ, {"LTX25_UNET_CHECKPOINT": "bf16"}):
+            self.assertEqual(bootstrap_models.resolve_unet_checkpoint(), bootstrap_models.BF16_UNET)
+        with unittest.mock.patch.dict(os.environ, {"LTX25_UNET_CHECKPOINT": "int8"}):
+            self.assertEqual(bootstrap_models.resolve_unet_checkpoint(), bootstrap_models.INT8_UNET)
+        with unittest.mock.patch.dict(os.environ, {"LTX25_UNET_CHECKPOINT": "invalido"}):
+            with self.assertRaises(SystemExit):
+                bootstrap_models.resolve_unet_checkpoint()
 
     def test_documented_image_and_example_endpoint_use_v2_5_bf16(self) -> None:
         readme = (SERVERLESS / "README.md").read_text(encoding="utf-8")

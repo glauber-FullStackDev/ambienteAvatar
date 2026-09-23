@@ -40,11 +40,11 @@ responsabilidade do first frame.
 A imagem publica dois templates do mesmo workflow: o padrão usa o transformer
 destilado **INT8 ConvRot** e o alternativo usa o checkpoint **BF16**
 (`ltx-2.5-22b-distilled-transformer-bf16.safetensors`, 39,1 GiB em VRAM).
-Para rodar com BF16, defina no endpoint:
-
-```
-WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json
-```
+O bootstrap detecta o checkpoint pelo nome do template em `WORKFLOW_PATH`
+(e baixa apenas ele): com o template padrão o worker baixa só o INT8
+(~20 GiB); com `WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json`
+baixa só o BF16 (39,1 GiB). Para forçar a escolha, defina
+`LTX25_UNET_CHECKPOINT=int8|bf16`.
 
 Orçamento de VRAM estimado em 48 GB: o pico ocorre na passada de refine
 (704×1280) — DiT 39,1 GiB + LoRA + ativações ≈ 44–48 GiB, na fronteira do
@@ -61,9 +61,9 @@ VRAM usado. Para desligar, defina `LOG_VRAM_PEAK=0`. O retorno do job inclui:
 ## Pré-requisitos
 
 - Conta Runpod, um endpoint Queue e uma GPU de 48 GB (A6000 ou A40).
-- Para o experimento BF16, Network Volume de pelo menos 110 GB: o set INT8
-  (~45 GB) e o checkpoint BF16 do DiT (39,1 GiB) coexistem no volume para
-  permitir rollback trocando apenas `WORKFLOW_PATH`.
+- O bootstrap baixa apenas o checkpoint DiT usado pelo `WORKFLOW_PATH`
+  (int8 ~20 GiB ou bf16 39,1 GiB) — Network Volume de 60 GB atende o modo
+  int8; para alternar entre int8 e bf16 no mesmo volume, use 110 GB.
 - Acesso a `ghcr.io/glauber-fullstackdev` para publicar a imagem.
 - MinIO acessível publicamente pelos workers Runpod, via HTTPS recomendado.
 - Bucket privado, por exemplo `ltx-serverless`.
