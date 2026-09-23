@@ -207,3 +207,7 @@ URLs e os logs do job no Runpod.
 - **Job expira:** aumente `execution timeout` no endpoint, não `min workers`.
 - **ComfyUI recusa o workflow:** a resposta inclui o detalhe da validação no
   status do job; confira também se a imagem publicada é a `:v2.5-bf16` ou posterior.
+
+## Isolamento
+
+Este pipeline não é acionado por mudanças em `ltx-2.3-serverless-bf16/**`.
