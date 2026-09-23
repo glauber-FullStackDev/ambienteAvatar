@@ -26,11 +26,11 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
   e refine com upscaler latente x2, conforme o padrão oficial A2V
   (`refine_sigmas` oficial `"0.85, 0.7250, 0.4219, 0.0"`).
 
-> **Restauração (estado funcional).** O comportamento validado é o do commit
-> `f9b67c2`: int8 + 8+3 passos + prompt "speaks expressively and clearly".
-> Alterações de prompt que peçam fala contida ("calm", "sem expressões
-> exageradas") suprimem a articulação e parecem dessincronia — o wording do
-> prompt é sensível neste modelo. O experimento de refine de 9 passos
+> **Prompt padrão (sensível a wording).** O default pede fala "calm, relaxed
+> and steady pace" **e exige articulação explícita** ("lips move precisely in
+> sync... articulating every word clearly") — o modelo tende a suprimir a
+> articulação quando o prompt pede calma sem esse contrapeso, e isso parece
+> dessincronia. O experimento de refine de 9 passos
 > (`"0.925, 0.85, 0.75, 0.646, 0.525, 0.403, 0.281, 0.156, 0.0"`) também
 > degradou o lipsync e foi revertido; só tente via `refine_sigmas` por job,
 > nunca como default.

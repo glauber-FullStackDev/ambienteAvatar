@@ -38,7 +38,9 @@ REFINE_SIGMAS = "0.85, 0.7250, 0.4219, 0.0"
 
 DEFAULT_PROMPT = (
     "The person remains in the exact composition and framing of the initial frame. "
-    "He speaks expressively and clearly, with precise lip sync following the supplied audio. "
+    "He speaks in a calm, relaxed and steady pace, and his lips move precisely in sync "
+    "with the supplied audio, articulating every word clearly. "
+    "His facial expressions stay subtle and composed, without exaggerated gestures. "
     "He looks directly at the camera, with natural blinking, breathing and small head movements. "
     "The camera remains completely stationary and the background stays unchanged."
 )

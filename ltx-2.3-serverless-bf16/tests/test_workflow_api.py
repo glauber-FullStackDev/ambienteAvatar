@@ -151,9 +151,9 @@ class Ltx25Ia2vWorkflowTests(unittest.TestCase):
             "composition and framing of the initial frame",
             workflow["102"]["inputs"]["value"],
         )
-        self.assertIn("speaks expressively and clearly", workflow["102"]["inputs"]["value"])
-        self.assertIn("precise lip sync", workflow["102"]["inputs"]["value"])
-        self.assertNotIn("calm, controlled", workflow["102"]["inputs"]["value"])
+        self.assertIn("calm, relaxed and steady pace", workflow["102"]["inputs"]["value"])
+        self.assertIn("articulating every word clearly", workflow["102"]["inputs"]["value"])
+        self.assertNotIn("speaks expressively and clearly", workflow["102"]["inputs"]["value"])
         self.assertEqual(
             workflow["102"]["inputs"]["value"],
             self.template["prompt"]["102"]["inputs"]["value"],
