@@ -27,6 +27,12 @@ class ServerlessBuildContractTests(unittest.TestCase):
         self.assertIn("--unet-name ltx-2.5-22b-distilled-transformer-bf16.safetensors", dockerfile)
         self.assertIn("video_ltx2_5_ia2v_bf16_api.json", dockerfile)
 
+    def test_template_uses_official_refine_schedule(self) -> None:
+        builder = (ROOT / "ltx-2.3" / "scripts" / "build_ltx25_ia2v_api_workflow.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('REFINE_SIGMAS = "0.85, 0.7250, 0.4219, 0.0"', builder)
+
     def test_bootstrap_downloads_only_the_ltx25_set(self) -> None:
         bootstrap = (SERVERLESS / "src" / "bootstrap_models.py").read_text(encoding="utf-8")
         self.assertIn("ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors", bootstrap)

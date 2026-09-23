@@ -56,7 +56,8 @@ DEFAULTS = {
 }
 DEFAULT_PROMPT = (
     "The person remains in the exact composition and framing of the initial frame. "
-    "He speaks expressively and clearly, with precise lip sync following the supplied audio. "
+    "He speaks in a calm, controlled and steady pace, with precise lip sync following the supplied audio, "
+    "keeping the mouth and facial movements natural and free of exaggerated expressions. "
     "He looks directly at the camera, with natural blinking, breathing and small head movements. "
     "The camera remains completely stationary and the background stays unchanged."
 )
