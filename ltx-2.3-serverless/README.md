@@ -34,9 +34,35 @@ O prompt padrão (usado quando o job não envia `prompt`) comanda apenas
 movimento e performance — composição, cenário e enquadramento ficam sob
 responsabilidade do first frame.
 
+### DiT BF16 (experimento de qualidade)
+
+A imagem publica dois templates do mesmo workflow: o padrão usa o transformer
+destilado **INT8 ConvRot** e o alternativo usa o checkpoint **BF16**
+(`ltx-2.5-22b-distilled-transformer-bf16.safetensors`, 39,1 GiB em VRAM).
+Para rodar com BF16, defina no endpoint:
+
+```
+WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json
+```
+
+Orçamento de VRAM estimado em 48 GB: o pico ocorre na passada de refine
+(704×1280) — DiT 39,1 GiB + LoRA + ativações ≈ 44–48 GiB, na fronteira do
+utilável em A6000/A40. Se o ComfyUI partir para offload parcial de pesos, o
+job conclui mais lentamente; o INT8 permanece como padrão de produção até a
+comparação ser validada.
+
+Por padrão o worker amostra `/system_stats` durante o job e reporta o pico de
+VRAM usado. Para desligar, defina `LOG_VRAM_PEAK=0`. O retorno do job inclui:
+
+- `peak_vram_used_gb` — pico de VRAM ocupada durante o job (GiB);
+- `vram_device` — nome da GPU reportada pelo ComfyUI.
+
 ## Pré-requisitos
 
 - Conta Runpod, um endpoint Queue e uma GPU de 48 GB (A6000 ou A40).
+- Para o experimento BF16, Network Volume de pelo menos 110 GB: o set INT8
+  (~45 GB) e o checkpoint BF16 do DiT (39,1 GiB) coexistem no volume para
+  permitir rollback trocando apenas `WORKFLOW_PATH`.
 - Acesso a `ghcr.io/glauber-fullstackdev` para publicar a imagem.
 - MinIO acessível publicamente pelos workers Runpod, via HTTPS recomendado.
 - Bucket privado, por exemplo `ltx-serverless`.
@@ -60,7 +86,7 @@ Execute na raiz do repositório:
 ```bash
 docker buildx build --platform linux/amd64 \
   -f ltx-2.3-serverless/Dockerfile \
-  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5 \
+  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5-bf16 \
   --push .
 ```
 
@@ -174,4 +200,4 @@ URLs e os logs do job no Runpod.
   `GetObject` do bucket.
 - **Job expira:** aumente `execution timeout` no endpoint, não `min workers`.
 - **ComfyUI recusa o workflow:** a resposta inclui o detalhe da validação no
-  status do job; confira também se a imagem publicada é a `:v2.5` ou posterior.
+  status do job; confira também se a imagem publicada é a `:v2.5-bf16` ou posterior.

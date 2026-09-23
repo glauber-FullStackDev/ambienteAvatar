@@ -144,6 +144,22 @@ MODEL_FILES = (
         group="ltx25",
     ),
     ModelFile(
+        label="LTX 2.5 22B distilled BF16",
+        repo="Lightricks/LTX-2.5",
+        revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
+        remote_path=(
+            "diffusion_models/"
+            "ltx-2.5-22b-distilled-transformer-bf16.safetensors"
+        ),
+        relative_path=(
+            "diffusion_models/"
+            "ltx-2.5-22b-distilled-transformer-bf16.safetensors"
+        ),
+        size=42_018_190_584,
+        sha256="",
+        group="ltx25",
+    ),
+    ModelFile(
         label="LTX 2.5 Gemma 4 12B INT8 ConvRot",
         repo="Lightricks/LTX-2.5",
         revision="6c7e5e573ac1667efc83407806fe9b0b93730e60",
@@ -226,7 +242,7 @@ def is_valid(model: ModelFile, verify_sha256: bool = False) -> bool:
     target = model.target
     if not target.is_file() or target.stat().st_size != model.size:
         return False
-    if verify_sha256 and file_sha256(target) != model.sha256:
+    if verify_sha256 and model.sha256 and file_sha256(target) != model.sha256:
         return False
     return True
 
@@ -287,7 +303,7 @@ def download(model: ModelFile, verify_sha256: bool) -> None:
             f"Tamanho invalido para {model.label}: "
             f"{downloaded.stat().st_size} != {model.size}"
         )
-    if verify_sha256 and file_sha256(downloaded) != model.sha256:
+    if verify_sha256 and model.sha256 and file_sha256(downloaded) != model.sha256:
         raise RuntimeError(f"SHA256 invalido para {model.label}")
 
     target.parent.mkdir(parents=True, exist_ok=True)

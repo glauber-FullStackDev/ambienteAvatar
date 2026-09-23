@@ -18,6 +18,7 @@ import boto3
 from botocore.config import Config
 import requests
 import runpod
+import threading
 
 from workflow_api import build_job_workflow
 
@@ -62,6 +63,8 @@ DEFAULT_PROMPT = (
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
 POLL_SECONDS = float(os.environ.get("COMFY_POLL_SECONDS", "2"))
+VRAM_POLL_SECONDS = float(os.environ.get("COMFY_VRAM_POLL_SECONDS", "5"))
+LOG_VRAM_PEAK = os.environ.get("LOG_VRAM_PEAK", "1") == "1"
 S3_CONNECT_TIMEOUT_SECONDS = int(os.environ.get("S3_CONNECT_TIMEOUT_SECONDS", "20"))
 S3_READ_TIMEOUT_SECONDS = int(os.environ.get("S3_READ_TIMEOUT_SECONDS", "600"))
 S3_UPLOAD_ATTEMPTS = int(os.environ.get("S3_UPLOAD_ATTEMPTS", "3"))
@@ -356,6 +359,29 @@ def start_comfyui() -> None:
     _launch_comfyui()
 
 
+def _watch_vram(stop_event: threading.Event, result: dict[str, Any]) -> None:
+    """Sample ComfyUI /system_stats until stop_event; record peak VRAM footprint."""
+    peak_used = 0
+    device_name = ""
+    try:
+        while not stop_event.is_set():
+            try:
+                response = requests.get(f"{COMFYUI_URL}/system_stats", timeout=10)
+                for device in response.json().get("devices", []):
+                    total = device.get("vram_total")
+                    free = device.get("vram_free")
+                    if isinstance(total, int) and isinstance(free, int) and total > free:
+                        if total - free > peak_used:
+                            peak_used = total - free
+                            device_name = str(device.get("name") or device_name)
+            except (requests.RequestException, ValueError):
+                pass
+            stop_event.wait(VRAM_POLL_SECONDS)
+    finally:
+        result["peak_used_bytes"] = peak_used
+        result["device"] = device_name
+
+
 def _wait_for_history(prompt_id: str) -> dict[str, Any]:
     deadline = time.monotonic() + COMFY_TIMEOUT_SECONDS
     consecutive_failures = 0
@@ -429,8 +455,18 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     audio_name = f"jobs/{job_id}/audio{_file_extension(values['audio_url'], '.wav')}"
     values.update({"image_filename": image_name, "audio_filename": audio_name})
     input_root = COMFYUI_HOME / "input"
+    vram_result: dict[str, Any] | None = None
+    vram_stop = threading.Event()
+    vram_holder: dict[str, Any] = {}
+    vram_thread = (
+        threading.Thread(target=_watch_vram, args=(vram_stop, vram_holder), daemon=True)
+        if LOG_VRAM_PEAK
+        else None
+    )
     try:
         _ensure_comfyui()
+        if vram_thread:
+            vram_thread.start()
         _download(values["image_url"], input_root / image_name)
         _download(values["audio_url"], input_root / audio_name)
         template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
@@ -451,7 +487,11 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
         client = _s3_client()
         video_url = _upload_result(client, video, f"{prefix}/{job_id}/video.mp4")
         last_frame_url = _upload_result(client, last_frame, f"{prefix}/{job_id}/last_frame.png")
-        return {
+        if vram_thread is not None:
+            vram_stop.set()
+            vram_thread.join(timeout=VRAM_POLL_SECONDS + 15)
+            vram_result = dict(vram_holder)
+        output = {
             "job_id": job_id,
             "comfy_prompt_id": prompt_id,
             "video_url": video_url,
@@ -475,7 +515,14 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
             },
             "execution_seconds": round(time.monotonic() - started_at, 3),
         }
+        if vram_result:
+            output["peak_vram_used_gb"] = round(vram_result["peak_used_bytes"] / 1024**3, 2)
+            output["vram_device"] = vram_result["device"]
+        return output
     finally:
+        vram_stop.set()
+        if vram_thread is not None:
+            vram_thread.join(timeout=VRAM_POLL_SECONDS + 15)
         _cleanup(job_id)
 
 

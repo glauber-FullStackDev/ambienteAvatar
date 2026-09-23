@@ -16,6 +16,8 @@ from workflow_api import (  # noqa: E402
     compile_workflow,
 )
 from build_ltx25_ia2v_api_workflow import (  # noqa: E402
+    UNET_NAME,
+    UNET_NAME_BF16,
     build_template,
     validate_template,
 )
@@ -168,6 +170,21 @@ class Ltx25Ia2vWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(workflow["160"]["inputs"]["sigmas"], "1.0, 0.5, 0.0")
         self.assertEqual(workflow["173"]["inputs"]["sigmas"], "0.4, 0.0")
+
+    def test_default_template_uses_int8_unet(self) -> None:
+        self.assertEqual(
+            self.template["prompt"]["130"]["inputs"]["unet_name"], UNET_NAME
+        )
+
+    def test_bf16_template_points_unet_loader_to_bf16_checkpoint(self) -> None:
+        template = build_template(UNET_NAME_BF16)
+        validate_template(template, unet_name=UNET_NAME_BF16)
+        self.assertEqual(template["prompt"]["130"]["inputs"]["unet_name"], UNET_NAME_BF16)
+        # Everything else stays identical to the int8 template.
+        self.assertEqual(template["prompt"]["134"]["inputs"]["clip_name"], "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors")
+        workflow = build_job_workflow(template, self._values(), "a")
+        self.assertEqual(workflow["130"]["inputs"]["unet_name"], UNET_NAME_BF16)
+        self.assertEqual(workflow["183"]["inputs"]["filename_prefix"], "video/jobs/a/LTX_2.5_ia2v")
 
 
 if __name__ == "__main__":

@@ -86,6 +86,7 @@ evitar publicar uma imagem com pacotes desalinhados.
 | `loras/` | `gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors` | 0,6 GiB |
 | `latent_upscale_models/` | `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | 0,9 GiB |
 | `diffusion_models/` | `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | 20,0 GiB |
+| `diffusion_models/` | `ltx-2.5-22b-distilled-transformer-bf16.safetensors` | 39,1 GiB |
 | `text_encoders/` | `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | 14,3 GiB |
 | `text_encoders/` | `gemma4_e2b_it_int8_convrot.safetensors` | 4,8 GiB |
 | `vae/` | `ltx-2.5-video-vae-bf16.safetensors` | 1,4 GiB |

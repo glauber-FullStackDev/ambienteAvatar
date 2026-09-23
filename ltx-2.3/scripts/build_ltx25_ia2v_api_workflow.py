@@ -25,6 +25,7 @@ TEMPLATE_MARKER = "ltx25_ia2v"
 TEMPLATE_SCHEMA = 1
 
 UNET_NAME = "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
+UNET_NAME_BF16 = "ltx-2.5-22b-distilled-transformer-bf16.safetensors"
 TEXT_ENCODER_NAME = "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"
 ENHANCER_NAME = "gemma4_e2b_it_int8_convrot.safetensors"
 VIDEO_VAE_NAME = "ltx-2.5-video-vae-bf16.safetensors"
@@ -63,7 +64,7 @@ def _node(node_id: str, class_type: str, title: str, inputs: dict) -> dict:
     }
 
 
-def build_template() -> dict:
+def build_template(unet_name: str = UNET_NAME) -> dict:
     prompt: dict[str, dict] = {}
 
     # --- [INPUT] Entrada ---------------------------------------------------
@@ -119,7 +120,7 @@ def build_template() -> dict:
     prompt["124"] = _node("124", "SetLatentNoiseMask", "[AUDIO] Audio congelado", {"samples": ["122", 0], "mask": ["123", 0]})
 
     # --- [MODELS] -------------------------------------------------------------
-    prompt["130"] = _node("130", "UNETLoader", "[MODELS] LTX 2.5 22B destilado", {"unet_name": UNET_NAME, "weight_dtype": "default"})
+    prompt["130"] = _node("130", "UNETLoader", "[MODELS] LTX 2.5 22B destilado", {"unet_name": unet_name, "weight_dtype": "default"})
     prompt["132"] = _node(
         "132",
         "LoraLoaderModelOnly",
@@ -235,7 +236,7 @@ def build_template() -> dict:
     }
 
 
-def validate_template(template: dict) -> None:
+def validate_template(template: dict, unet_name: str = UNET_NAME) -> None:
     prompt = template["prompt"]
     if template["_meta"]["template"] != TEMPLATE_MARKER:
         raise ValueError("marcador de template ausente")
@@ -246,7 +247,10 @@ def validate_template(template: dict) -> None:
         for key, value in node["inputs"].items()
         if key in {"unet_name", "vae_name", "clip_name", "model_name", "lora_name"} and isinstance(value, str)
     }
-    missing = REQUIRED_MODEL_NAMES - referenced_models
+    required_models = set(REQUIRED_MODEL_NAMES)
+    required_models.discard(UNET_NAME)
+    required_models.add(unet_name)
+    missing = required_models - referenced_models
     if missing:
         raise ValueError(f"modelos obrigatorios ausentes no template: {sorted(missing)}")
 
@@ -280,10 +284,16 @@ def validate_template(template: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Gera o workflow API LTX-2.5 IA2V")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--unet-name",
+        default=UNET_NAME,
+        choices=(UNET_NAME, UNET_NAME_BF16),
+        help="checkpoint do DiT destilado usado no UNETLoader",
+    )
     args = parser.parse_args()
 
-    template = build_template()
-    validate_template(template)
+    template = build_template(unet_name=args.unet_name)
+    validate_template(template, unet_name=args.unet_name)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix(args.output.suffix + ".tmp")
     temporary.write_text(json.dumps(template, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

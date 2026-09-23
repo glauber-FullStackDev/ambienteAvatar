@@ -1,6 +1,6 @@
 {
   "name": "ltx23-ia2v-personal-lora",
-  "imageName": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5",
+  "imageName": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5-bf16",
   "endpointType": "QUEUE",
   "workersMin": 0,
   "workersMax": 1,
@@ -19,6 +19,8 @@
     "MINIO_OUTPUT_PREFIX": "ltx-ia2v/results",
     "MINIO_PRESIGN_EXPIRES_SECONDS": "86400",
     "MINIO_ALLOWED_HOST": "minio.example.com",
+    "WORKFLOW_PATH": "/opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json",
+    "LOG_VRAM_PEAK": "1",
     "HF_TOKEN": "CONFIGURE_AS_SECRET"
   }
 }

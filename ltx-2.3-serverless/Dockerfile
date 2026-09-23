@@ -51,6 +51,9 @@ RUN pip install "huggingface_hub[hf_xet]>=0.34,<2" -r /opt/serverless/requiremen
     && python /opt/ltx23-scripts/patch_ltxvideo_kornia.py \
     && python /opt/ltx23-scripts/build_ltx25_ia2v_api_workflow.py \
         --output /opt/defaults/workflows/video_ltx2_5_ia2v_api.json \
+    && python /opt/ltx23-scripts/build_ltx25_ia2v_api_workflow.py \
+        --unet-name ltx-2.5-22b-distilled-transformer-bf16.safetensors \
+        --output /opt/defaults/workflows/video_ltx2_5_ia2v_bf16_api.json \
     && python /opt/serverless/src/workflow_api.py \
         --source /opt/ltx23-assets/video_ltx2_3_ia2v_personal_source.json \
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json \
