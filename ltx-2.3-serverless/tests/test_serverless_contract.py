@@ -30,6 +30,11 @@ class ServerlessBuildContractTests(unittest.TestCase):
         self.assertIn("--unet-name ltx-2.5-22b-distilled-transformer-bf16.safetensors", dockerfile)
         self.assertIn("video_ltx2_5_ia2v_bf16_api.json", dockerfile)
 
+    def test_handler_enforces_minimum_audio_duration(self) -> None:
+        handler = (SERVERLESS / "src" / "handler.py").read_text(encoding="utf-8")
+        self.assertIn("MIN_DURATION_SECONDS = 5.0", handler)
+        self.assertIn("minimum=MIN_DURATION_SECONDS", handler)
+
     def test_template_uses_official_refine_schedule(self) -> None:
         builder = (ROOT / "ltx-2.3" / "scripts" / "build_ltx25_ia2v_api_workflow.py").read_text(
             encoding="utf-8"

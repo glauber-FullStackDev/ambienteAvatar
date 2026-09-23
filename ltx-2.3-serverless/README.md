@@ -15,6 +15,13 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
   (`lora_strength`, default `0.7`; envie `0` para desligar).
 - **Áudio / lipsync** — o áudio dirigente é codificado e congelado
   (noise mask zero); o LTX 2.5 gera lipsync nativo a partir dele.
+  **Duração mínima de 5 s** (`MIN_DURATION_SECONDS` no handler): o alinhamento
+  do latente AV (`LTXVConcatAVLatent.fit_audio` no ComfyUI) trim/pad até ~1
+  frame latente (~0,33 s) de áudio — irrelevante em clipes longos, mas até
+  ~10% de um clipe de 3 s, com a cauda sem conditioning (boca fora de fase).
+  A Lightricks recomenda ~5 s como piso para conditioning de áudio; clipes
+  curtos demais produzem fala dessincronizada (observado em testes: clipes
+  de ~3,4 s falham, clipes longos funcionam).
 - **Geração** — duas passadas destiladas (8 + 3 passos, CFG 1), base em W/2×H/2
   e refine com upscaler latente x2, conforme o padrão oficial A2V
   (`refine_sigmas` oficial `"0.85, 0.7250, 0.4219, 0.0"`).

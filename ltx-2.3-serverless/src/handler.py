@@ -61,6 +61,11 @@ DEFAULT_PROMPT = (
     "The camera remains completely stationary and the background stays unchanged."
 )
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
+# Short audio clips degrade LTX 2.5 native lipsync: the AV latent alignment
+# (ComfyUI LTXVConcatAVLatent.fit_audio) can trim or zero-pad up to ~1 latent
+# frame (~0.33s) of audio, and Lightricks recommends ~5s as the floor for
+# audio conditioning.  Enforce it instead of producing desynced video.
+MIN_DURATION_SECONDS = 5.0
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
 POLL_SECONDS = float(os.environ.get("COMFY_POLL_SECONDS", "2"))
 VRAM_POLL_SECONDS = float(os.environ.get("COMFY_VRAM_POLL_SECONDS", "5"))
@@ -225,7 +230,7 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
         "negative_prompt": negative_prompt,
         "width": width,
         "height": height,
-        "duration_seconds": _number(raw.get("duration_seconds", DEFAULTS["duration_seconds"]), "duration_seconds", minimum=1, maximum=30),
+        "duration_seconds": _number(raw.get("duration_seconds", DEFAULTS["duration_seconds"]), "duration_seconds", minimum=MIN_DURATION_SECONDS, maximum=30),
         "fps": _number(raw.get("fps", DEFAULTS["fps"]), "fps", minimum=8, maximum=30, integer=True),
         "audio_start_seconds": _number(raw.get("audio_start_seconds", DEFAULTS["audio_start_seconds"]), "audio_start_seconds", minimum=0, maximum=3600),
         "seed": seed,
