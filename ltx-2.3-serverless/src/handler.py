@@ -56,8 +56,7 @@ DEFAULTS = {
 }
 DEFAULT_PROMPT = (
     "The person remains in the exact composition and framing of the initial frame. "
-    "He speaks in a calm, controlled and steady pace, with precise lip sync following the supplied audio, "
-    "keeping the mouth and facial movements natural and free of exaggerated expressions. "
+    "He speaks expressively and clearly, with precise lip sync following the supplied audio. "
     "He looks directly at the camera, with natural blinking, breathing and small head movements. "
     "The camera remains completely stationary and the background stays unchanged."
 )
@@ -65,7 +64,7 @@ MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
 COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "21600"))
 POLL_SECONDS = float(os.environ.get("COMFY_POLL_SECONDS", "2"))
 VRAM_POLL_SECONDS = float(os.environ.get("COMFY_VRAM_POLL_SECONDS", "5"))
-LOG_VRAM_PEAK = os.environ.get("LOG_VRAM_PEAK", "1") == "1"
+LOG_VRAM_PEAK = os.environ.get("LOG_VRAM_PEAK", "0") == "1"
 S3_CONNECT_TIMEOUT_SECONDS = int(os.environ.get("S3_CONNECT_TIMEOUT_SECONDS", "20"))
 S3_READ_TIMEOUT_SECONDS = int(os.environ.get("S3_READ_TIMEOUT_SECONDS", "600"))
 S3_UPLOAD_ATTEMPTS = int(os.environ.get("S3_UPLOAD_ATTEMPTS", "3"))

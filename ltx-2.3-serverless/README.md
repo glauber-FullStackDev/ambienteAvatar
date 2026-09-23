@@ -16,10 +16,17 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
 - **Áudio / lipsync** — o áudio dirigente é codificado e congelado
   (noise mask zero); o LTX 2.5 gera lipsync nativo a partir dele.
 - **Geração** — duas passadas destiladas (8 + 3 passos, CFG 1), base em W/2×H/2
-  e refine com upscaler latente x2, conforme o padrão oficial A2V. O experimento
-  com refine de 9 passos foi revertido (causava fala dessincronizada do áudio);
-  para tentar novamente envie
-  `refine_sigmas: "0.925, 0.85, 0.75, 0.646, 0.525, 0.403, 0.281, 0.156, 0.0"`.
+  e refine com upscaler latente x2, conforme o padrão oficial A2V
+  (`refine_sigmas` oficial `"0.85, 0.7250, 0.4219, 0.0"`).
+
+> **Restauração (estado funcional).** O comportamento validado é o do commit
+> `f9b67c2`: int8 + 8+3 passos + prompt "speaks expressively and clearly".
+> Alterações de prompt que peçam fala contida ("calm", "sem expressões
+> exageradas") suprimem a articulação e parecem dessincronia — o wording do
+> prompt é sensível neste modelo. O experimento de refine de 9 passos
+> (`"0.925, 0.85, 0.75, 0.646, 0.525, 0.403, 0.281, 0.156, 0.0"`) também
+> degradou o lipsync e foi revertido; só tente via `refine_sigmas` por job,
+> nunca como default.
 - **Prompt enhancer** — desligado por padrão (`enable_prompt_enhance`);
   quando ligado usa o Gemma 4 E2B.
 - **Decode** — `VAEDecodeTiled` com `decode_tile_size` configurável
@@ -35,7 +42,7 @@ O prompt padrão (usado quando o job não envia `prompt`) comanda apenas
 movimento e performance — composição, cenário e enquadramento ficam sob
 responsabilidade do first frame.
 
-### DiT BF16 (experimento de qualidade)
+### DiT BF16 (experimento pausado)
 
 A imagem publica dois templates do mesmo workflow: o padrão usa o transformer
 destilado **INT8 ConvRot** e o alternativo usa o checkpoint **BF16**
@@ -46,14 +53,20 @@ O bootstrap detecta o checkpoint pelo nome do template em `WORKFLOW_PATH`
 baixa só o BF16 (39,1 GiB). Para forçar a escolha, defina
 `LTX25_UNET_CHECKPOINT=int8|bf16`.
 
+> **Não defina `WORKFLOW_PATH` para o template bf16 em endpoints de
+> produção.** O endpoint de exemplo (`runpod/endpoint-config.example.json`)
+> usa o baseline int8 sem sobrescrita de `WORKFLOW_PATH`. O experimento BF16
+> está pausado até o baseline int8 voltar a validar.
+
 Orçamento de VRAM estimado em 48 GB: o pico ocorre na passada de refine
 (704×1280) — DiT 39,1 GiB + LoRA + ativações ≈ 44–48 GiB, na fronteira do
 utilável em A6000/A40. Se o ComfyUI partir para offload parcial de pesos, o
 job conclui mais lentamente; o INT8 permanece como padrão de produção até a
 comparação ser validada.
 
-Por padrão o worker amostra `/system_stats` durante o job e reporta o pico de
-VRAM usado. Para desligar, defina `LOG_VRAM_PEAK=0`. O retorno do job inclui:
+A instrumentação de VRAM é opt-in: defina `LOG_VRAM_PEAK=1` no endpoint para
+que o worker amostra `/system_stats` durante o job e reporte no retorno do
+job:
 
 - `peak_vram_used_gb` — pico de VRAM ocupada durante o job (GiB);
 - `vram_device` — nome da GPU reportada pelo ComfyUI.

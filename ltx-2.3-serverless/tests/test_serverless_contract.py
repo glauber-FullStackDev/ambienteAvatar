@@ -69,16 +69,13 @@ class ServerlessBuildContractTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 bootstrap_models.resolve_unet_checkpoint()
 
-    def test_documented_image_and_example_endpoint_use_v2_5_bf16(self) -> None:
-        readme = (SERVERLESS / "README.md").read_text(encoding="utf-8")
+    def test_example_endpoint_is_int8_baseline_without_bf16_workflow(self) -> None:
         endpoint_config = (SERVERLESS / "runpod/endpoint-config.example.json").read_text(
             encoding="utf-8"
         )
-        self.assertIn("ambienteavatar-ltx23-serverless:v2.5-bf16", readme)
-        self.assertIn("ambienteavatar-ltx23-serverless:v2.5-bf16", endpoint_config)
-        self.assertNotIn("ambienteavatar-ltx23-serverless:v2.5\"", readme)
-        self.assertNotIn("ambienteavatar-ltx23-serverless:v2.5\"", endpoint_config)
-        self.assertIn("video_ltx2_5_ia2v_bf16_api.json", endpoint_config)
+        self.assertIn("ambienteavatar-ltx23-serverless:v2.5", endpoint_config)
+        self.assertNotIn("video_ltx2_5_ia2v_bf16_api.json", endpoint_config)
+        self.assertNotIn("WORKFLOW_PATH", endpoint_config)
 
 
 if __name__ == "__main__":
