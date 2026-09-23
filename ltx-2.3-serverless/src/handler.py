@@ -496,6 +496,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
             "comfy_prompt_id": prompt_id,
             "video_url": video_url,
             "last_frame_url": last_frame_url,
+            "image_sha": os.environ.get("LTX_IMAGE_SHA", "unknown")[:12],
             "parameters": {
                 key: values[key]
                 for key in (
