@@ -62,3 +62,7 @@ python3 ltx-2.3-serverless-bf16/tests/test_serverless_contract.py
 A API do worker é idêntica à da imagem int8 (mesmos parâmetros, mesmos
 retornos, piso de 5 s de áudio) — consulte o
 [README int8](../ltx-2.3-serverless/README.md) para a referência completa.
+
+## Isolamento
+
+Este pipeline é acionado apenas por mudanças em `ltx-2.3-serverless-bf16/**`.
