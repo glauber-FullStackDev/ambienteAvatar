@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Download only the LTX 2.5 files used by the IA2V workflow.
+"""Download only the LTX 2.3 files used by the Personal LoRA IA2V workflow.
 
-This image is pinned to the INT8 ConvRoT DiT checkpoint: the bootstrap
-downloads the INT8 transformer and never touches the BF16 variant (the
-BF16 experiment lives in ../ltx-2.3-serverless-bf16/ with its own image).
-The override env LTX25_UNET_CHECKPOINT is kept for operational
-introspection only.
+This image is pinned to the LTX 2.3 dev FP8 checkpoint: the bootstrap
+downloads the 2.3 model set (checkpoint, Gemma 3 12B FP4 text encoder,
+distilled dynamic LoRA, prompt-enhancement LoRA and spatial upscaler) and
+never touches the LTX 2.5 variants.  The 2.5 experiment lives in
+../ltx-2.3-serverless-bf16/ with its own image; rolling back to the 2.5
+workflow requires the previous :v2.5 image tags still published in GHCR.
 """
 from __future__ import annotations
 
@@ -16,15 +17,13 @@ SCRIPTS_HOME = Path("/opt/ltx23-scripts")
 sys.path.insert(0, str(SCRIPTS_HOME))
 import download_models  # noqa: E402
 
-INT8_UNET = "diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
 
 REQUIRED_PATHS = {
-    INT8_UNET,
-    "text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-    "text_encoders/gemma4_e2b_it_int8_convrot.safetensors",
-    "vae/ltx-2.5-video-vae-bf16.safetensors",
-    "vae/ltx-2.5-audio-vae-bf16.safetensors",
-    "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+    "checkpoints/ltx-2.3-22b-dev-fp8.safetensors",
+    "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors",
+    "loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+    "loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors",
+    "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
 }
 
 
@@ -34,7 +33,7 @@ def main() -> None:
     )
     missing = REQUIRED_PATHS - {model.relative_path for model in download_models.MODEL_FILES}
     if missing:
-        raise SystemExit(f"Modelos LTX 2.5 ausentes na lista: {sorted(missing)}")
+        raise SystemExit(f"Modelos LTX 2.3 ausentes na lista: {sorted(missing)}")
     download_models.main()
 
 

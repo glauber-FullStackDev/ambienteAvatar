@@ -1,20 +1,22 @@
-# LTX 2.5 IA2V — Runpod Serverless
+# LTX 2.3 IA2V — Runpod Serverless
 
-Este diretório gera uma imagem independente para o workflow **LTX 2.5 IA2V
-(padrão oficial A2V two-stage destilado) + LoRA pessoal (opcional)**.
-Ele não altera `../ltx-2.3/` nem substitui a imagem usada no Vast.ai.
+Este diretório gera uma imagem independente para o workflow **LTX 2.3 IA2V
+Personal LoRA** (checkpoint dev FP8 + LoRA destilado dinâmico + LoRA
+pessoal) e publica a tag `:v2.3`. Ele não altera `../ltx-2.3/` nem substitui
+a imagem usada no Vast.ai.
 
 O worker recebe URLs pré-assinadas de imagem e áudio no MinIO, executa o
 workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
 
-### Arquitetura do pipeline (v2.5)
+### Arquitetura do pipeline (LTX 2.3)
 
 - **First frame anchor** — `LTXVImgToVideoInplace` fixa o frame 0
-  (`first_frame_strength`, default `1.0`) na passada base e no refine.
-- **LoRA de identidade** — `glauberavatar.safetensors` único LoRA da cadeia
-  (`lora_strength`, default `0.7`; envie `0` para desligar).
+  (`image_strength`, default `1.0`) na passada base e no refine.
+- **LoRA de identidade** — `glauberavatar.safetensors` único LoRA ajustável
+  (`lora_strength`, default `0.7`; envie `0` para desligar). O LoRA destilado
+  dinâmico (0.5) é técnico e fica fixo.
 - **Áudio / lipsync** — o áudio dirigente é codificado e congelado
-  (noise mask zero); o LTX 2.5 gera lipsync nativo a partir dele.
+  (noise mask zero); o LTX gera lipsync nativo a partir dele.
   **Duração mínima de 5 s** (`MIN_DURATION_SECONDS` no handler): o alinhamento
   do latente AV (`LTXVConcatAVLatent.fit_audio` no ComfyUI) trim/pad até ~1
   frame latente (~0,33 s) de áudio — irrelevante em clipes longos, mas até
@@ -22,9 +24,12 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
   A Lightricks recomenda ~5 s como piso para conditioning de áudio; clipes
   curtos demais produzem fala dessincronizada (observado em testes: clipes
   de ~3,4 s falham, clipes longos funcionam).
-- **Geração** — duas passadas destiladas (8 + 3 passos, CFG 1), base em W/2×H/2
-  e refine com upscaler latente x2, conforme o padrão oficial A2V
+- **Geração** — duas passadas (8 passos base + 3 de refine, euler, CFG 1),
+  base em W/2×H/2 e refine com upscaler latente x2
   (`refine_sigmas` oficial `"0.85, 0.7250, 0.4219, 0.0"`).
+- **Modelos fixos** — `ltx-2.3-22b-dev-fp8`, Gemma 3 12B FP4, LoRA destilado
+  dinâmico e upscaler latente x2 1.1; negative prompt fixo no template
+  ("pc game, console game, video game, cartoon, childish, ugly").
 
 > **Prompt padrão (sensível a wording).** O default usa o token de identidade
 > `glauberavatar` no lugar de "the person", pede fala natural em ritmo
@@ -32,15 +37,21 @@ workflow e devolve URLs pré-assinadas para o MP4 e o último frame PNG.
 > ("never touches, holds or bites anything") — sem ela o modelo tende a
 > inventar interações com objetos do cenário. Prompts que pedem calma sem
 > contrapeso de articulação suprimem o movimento da boca e parecem
-> dessincronia. O experimento de refine de 9 passos
-> (`"0.925, 0.85, 0.75, 0.646, 0.525, 0.403, 0.281, 0.156, 0.0"`) também
-> degradou o lipsync e foi revertido; só tente via `refine_sigmas` por job,
-> nunca como default.
-- **Prompt enhancer** — desligado por padrão (`enable_prompt_enhance`);
-  quando ligado usa o Gemma 4 E2B.
-- **Decode** — `VAEDecodeTiled` com `decode_tile_size` configurável
-  (default `512`; `1024` reduz emendas de tile em faces — testar se aparecerem
-  manchas/regiões sujas no rosto).
+> dessincronia.
+
+- **Prompt enhancer** — ligado por padrão no template LTX 2.3 (Gemma 3 12B +
+  LoRA de enhancement); o job pode forçar com `enable_prompt_enhance`. Quando
+  o job não envia o campo, o default do template é preservado.
+- **Decode** — `VAEDecodeTiled` (o workflow 2.3 não expõe `decode_tile_size`;
+  esse parâmetro só afeta o workflow 2.5 legado).
+
+> **Deriva da imagem-base.** O anchor fixa apenas o frame 0; a identidade e a
+> cena podem derivar ao longo de clipes longos — é o comportamento esperado do
+> padrão IA2V. Ajustes finos: `image_strength` (default `1.0`), `lora_strength`
+> e prompt. Se a deriva persistir, o caminho estrutural é o guia persistente
+> IC-LoRA Ingredients (peso `ltx-2.3-22b-ic-lora-ingredients-0.9` já listado em
+> `../ltx-2.3/scripts/download_models.py`; padrão auditado em
+> `../ltx-2.3/WORKFLOW_AUDIT_INGREDIENTS.md`).
 
 > Nota: a versão anterior com IC-LoRA Ingredients (guia visual persistente e
 > keyframe de referência) foi revertida — sem tokens de guia o IC-LoRA
@@ -51,50 +62,56 @@ O prompt padrão (usado quando o job não envia `prompt`) comanda apenas
 movimento e performance — composição, cenário e enquadramento ficam sob
 responsabilidade do first frame.
 
-### DiT BF16 — imagem irmã isolada
+### LTX 2.5 — rollback e imagem irmã
 
 O experimento com o transformer destilado **BF16** mora em
 [`../ltx-2.3-serverless-bf16/`](../ltx-2.3-serverless-bf16/README.md), com
 Dockerfile, código, workflow CI e download de modelos totalmente independentes
-(desta imagem). Esta pasta/int8 é o baseline de produção e não referencia bf16
-em nenhum ponto; a imagem bf16 publica a tag `:v2.5-bf16` pelo próprio pipeline.
+(desta imagem); a imagem bf16 publica a tag `:v2.5-bf16`.
 
-A instrumentação de VRAM é opt-in: defina `LOG_VRAM_PEAK=1` no endpoint para
-que o worker amostra `/system_stats` durante o job e reporte no retorno do
-job:
-
-- `peak_vram_used_gb` — pico de VRAM ocupada durante o job (GiB);
-- `vram_device` — nome da GPU reportada pelo ComfyUI.
+O workflow LTX 2.5 int8 continua baked nesta imagem como rollback:
+`LEGACY_WORKFLOW_PATH` aponta para `video_ltx2_5_ia2v_api.json`, mas o
+bootstrap **não baixa mais os pesos 2.5** — usar o workflow 2.5 em produção
+requer a imagem `:v2.5` histórica do GHCR (ou um rebuild com o bootstrap da
+época).
 
 ## Pré-requisitos
 
 - Conta Runpod, um endpoint Queue e uma GPU de 48 GB (A6000 ou A40).
-- O bootstrap baixa apenas o set INT8 (~20 GiB de DiT + encoders/VAEs) —
-  Network Volume de 60 GB atende este modo.
+- O bootstrap baixa apenas o set LTX 2.3 (~44 GiB: checkpoint dev FP8 +
+  Gemma 3 12B FP4 + LoRAs + upscaler) — Network Volume de 60 GB atende este
+  modo em volume limpo; 100 GB se o volume ainda carregar o set 2.5 antigo.
 - Acesso a `ghcr.io/glauber-fullstackdev` para publicar a imagem.
 - MinIO acessível publicamente pelos workers Runpod, via HTTPS recomendado.
 - Bucket privado, por exemplo `ltx-serverless`.
 - URLs pré-assinadas de entrada que possam ser lidas pelo worker.
 - Docker com suporte a build Linux/amd64.
-- `HF_TOKEN` no endpoint com termos de `Lightricks/LTX-2.5` aceitos.
+- `HF_TOKEN` no endpoint se os repos do Hugging Face exigirem autenticação
+  (`Lightricks/LTX-2.3-fp8`, `Comfy-Org/ltx-2.3`).
 
-Os modelos LTX 2.5 não são incorporados na imagem. No primeiro worker ele
-baixa somente o set 2.5 (transformer destilado int8, Gemma 4 12B + E2B,
-VAEs de vídeo e áudio, upscaler x2 e o IC-LoRA Ingredients).
-Para não baixar os modelos novamente após escala para zero, anexe um Network
-Volume de pelo menos 60 GB (100 GB recomendado). A imagem detecta o volume
-montado pelo Runpod em `/runpod-volume` e persiste automaticamente os modelos
-em `/runpod-volume/models`. FlashBoot reduz a retomada de um worker pausado,
+Os modelos LTX 2.3 não são incorporados na imagem. No primeiro worker ele
+baixa somente o set 2.3 (checkpoint dev FP8, Gemma 3 12B FP4, LoRA destilado
+dinâmico, LoRA de prompt enhancement e upscaler x2; o LoRA pessoal é baked).
+Arquivos já presentes no volume são pulados. Para não baixar os modelos
+novamente após escala para zero, anexe um Network Volume de pelo menos 60 GB
+(100 GB recomendado). A imagem detecta o volume montado pelo Runpod em
+`/runpod-volume` e persiste automaticamente os modelos em
+`/runpod-volume/models`. FlashBoot reduz a retomada de um worker pausado,
 mas não substitui o volume persistente.
+
+A instrumentação de VRAM é opt-in: defina `LOG_VRAM_PEAK=1` no endpoint para
+que o worker amostra `/system_stats` durante o job e reporte no retorno do
+job (`peak_vram_used_gb`, `vram_device`).
 
 ## Build e publicação
 
-Execute na raiz do repositório:
+O pipeline CI publica automaticamente no push (paths desta árvore ou de
+`ltx-2.3/**`). Manual:
 
 ```bash
 docker buildx build --platform linux/amd64 \
   -f ltx-2.3-serverless/Dockerfile \
-  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5-bf16 \
+  -t ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.3 \
   --push .
 ```
 
@@ -208,8 +225,12 @@ URLs e os logs do job no Runpod.
   `GetObject` do bucket.
 - **Job expira:** aumente `execution timeout` no endpoint, não `min workers`.
 - **ComfyUI recusa o workflow:** a resposta inclui o detalhe da validação no
-  status do job; confira também se a imagem publicada é a `:v2.5-bf16` ou posterior.
+  status do job; confira também se a imagem publicada é a `:v2.3` ou posterior.
+- **Rastreabilidade:** cada job retorna `image_sha` (primeiros 12 caracteres
+  do SHA do build que gerou a imagem).
 
 ## Isolamento
 
-Este pipeline não é acionado por mudanças em `ltx-2.3-serverless-bf16/**`.
+Este pipeline é acionado apenas por mudanças em `ltx-2.3/**` e
+`ltx-2.3-serverless/**`; mudanças em `ltx-2.3-serverless-bf16/**` publicam
+somente `:v2.5-bf16`.

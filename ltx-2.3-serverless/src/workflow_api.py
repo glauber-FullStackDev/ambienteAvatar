@@ -228,9 +228,13 @@ def build_job_workflow_ltx23(template: dict[str, Any], values: dict[str, Any], j
         (AUDIO_START_ID, "start_index"): values["audio_start_seconds"],
         (SEED_ID, "noise_seed"): values["seed"],
         (PERSONAL_LORA_ID, "strength_model"): values["lora_strength"],
-        (PROMPT_ENHANCE_ID, "value"): values["enable_prompt_enhance"],
         (IMAGE_STRENGTH_ID, "strength"): values["image_strength"],
     }
+    # Only override the prompt-enhance switch when the job actually asks for
+    # it; writing None into the boolean input would derail the template
+    # default (enhance ON for the LTX 2.3 personal workflow).
+    if values.get("enable_prompt_enhance") is not None:
+        updates[(PROMPT_ENHANCE_ID, "value")] = values["enable_prompt_enhance"]
     for (node_id, name), value in updates.items():
         workflow[node_id]["inputs"][name] = value
     workflow[VIDEO_SAVE_ID]["inputs"]["filename_prefix"] = f"video/jobs/{job_id}/LTX_2.3_ia2v_personal_lora"

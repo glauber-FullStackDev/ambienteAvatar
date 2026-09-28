@@ -1,4 +1,4 @@
-name: Build and publish LTX 2.5 Serverless INT8 image
+name: Build and publish LTX 2.3 Serverless INT8 image
 
 on:
   push:
@@ -57,12 +57,12 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=v2.5
+            type=raw,value=v2.3
             type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
             type=sha,format=long
           labels: |
-            org.opencontainers.image.title=LTX 2.5 IA2V Serverless (INT8)
-            org.opencontainers.image.description=Runpod Queue worker for LTX 2.5 IA2V with the INT8 ConvRoT distilled DiT and MinIO output
+            org.opencontainers.image.title=LTX 2.3 IA2V Serverless (INT8)
+            org.opencontainers.image.description=Runpod Queue worker for LTX 2.3 IA2V Personal LoRA with the dev FP8 checkpoint and MinIO output
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 

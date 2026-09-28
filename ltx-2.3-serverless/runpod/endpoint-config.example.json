@@ -1,6 +1,6 @@
 {
   "name": "ltx23-ia2v-personal-lora",
-  "imageName": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.5",
+  "imageName": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-serverless:v2.3",
   "endpointType": "QUEUE",
   "workersMin": 0,
   "workersMax": 1,

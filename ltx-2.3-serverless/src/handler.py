@@ -30,13 +30,13 @@ COMFYUI_URL = f"http://127.0.0.1:{os.environ.get('COMFYUI_PORT', '8188')}"
 WORKFLOW_PATH = Path(
     os.environ.get(
         "WORKFLOW_PATH",
-        "/opt/defaults/workflows/video_ltx2_5_ia2v_api.json",
+        "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json",
     )
 )
 LEGACY_WORKFLOW_PATH = Path(
     os.environ.get(
         "LEGACY_WORKFLOW_PATH",
-        "/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_api.json",
+        "/opt/defaults/workflows/video_ltx2_5_ia2v_api.json",
     )
 )
 PERSONAL_LORA_SOURCE = Path("/opt/ltx23-assets/glauberavatar.safetensors")
@@ -62,7 +62,7 @@ DEFAULT_PROMPT = (
     "The camera remains completely stationary and the background stays unchanged."
 )
 MAX_INPUT_BYTES = int(os.environ.get("MAX_INPUT_BYTES", str(100 * 1024 * 1024)))
-# Short audio clips degrade LTX 2.5 native lipsync: the AV latent alignment
+# Short audio clips degrade LTX native lipsync: the AV latent alignment
 # (ComfyUI LTXVConcatAVLatent.fit_audio) can trim or zero-pad up to ~1 latent
 # frame (~0.33s) of audio, and Lightricks recommends ~5s as the floor for
 # audio conditioning.  Enforce it instead of producing desynced video.
