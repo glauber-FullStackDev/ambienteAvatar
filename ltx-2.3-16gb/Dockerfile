@@ -40,7 +40,7 @@ RUN git clone https://github.com/Comfy-Org/ComfyUI.git "${COMFYUI_HOME}" \
 RUN git clone https://github.com/city96/ComfyUI-GGUF.git \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-GGUF" \
     && git -C "${COMFYUI_HOME}/custom_nodes/ComfyUI-GGUF" \
-        checkout --detach "${GGUFNODE_COMMIT}" \
+        checkout --detach "${GGUF_NODE_COMMIT}" \
     && pip install -r \
         "${COMFYUI_HOME}/custom_nodes/ComfyUI-GGUF/requirements.txt"
 
