@@ -61,6 +61,12 @@ def main() -> None:
             last_node_id=None,
             client_id=None,
             send_sync=lambda *_args, **_kwargs: None,
+            # Custom nodes (ex.: KJNodes) tocam app.router.frozen/add_routes
+            # durante o import; no smoke test nao existe servidor aiohttp.
+            app=SimpleNamespace(
+                router=SimpleNamespace(frozen=True),
+                add_routes=lambda *_args, **_kwargs: None,
+            ),
         )
     import nodes
 
