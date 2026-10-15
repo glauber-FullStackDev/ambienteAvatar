@@ -1,0 +1,34 @@
+{
+  "name": "Ambiente Avatar - LTX 2.3 GGUF 16GB",
+  "image": "ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-16gb",
+  "tag": "vast",
+  "desc": "ComfyUI CUDA com LTX 2.3 22B distilled GGUF Q4_K_M + LoRA pessoal GlauberAvatar para GPUs de 16 GB (RTX 5060 Ti) e exportacao automatica do ultimo frame em PNG.",
+  "readme": "Abra a porta HTTP 8188 para acessar o ComfyUI. Anexe um volume persistente de ~60 GB em /opt/ComfyUI/models e escolha instancias com 64 GB de RAM (o DiT GGUF e o Gemma sao streamados entre VRAM e RAM). A imagem baixa e valida ~26 GiB de pesos (GGUF Q4_K_M, Gemma QAT GGUF, connectors, VAEs, upscaler) e instala dois workflows com LoRA pessoal (IA2V e A2V), ambos gravando o ultimo frame em PNG em output/images/last_frame. Nao requer HF_TOKEN (todos os repos sao publicos). Para tentar mais qualidade troque LTX23_GGUF_QUANT para Q5_K_M ou Q6_K (e ajuste o widget do node UnetLoaderGGUF no workflow).",
+  "env": "-p 8188:8188 -e COMFYUI_HOME=/opt/ComfyUI -e COMFYUI_MODELS=/opt/ComfyUI/models -e COMFYUI_PORT=8188 -e COMFYUI_ARGS=\"--preview-method auto --reserve-vram 1.5\" -e DOWNLOAD_MODELS_ON_START=1 -e LTX23_GGUF_QUANT=Q4_K_M -e HF_HOME=/opt/ComfyUI/models/.cache/huggingface",
+  "runtype": "args",
+  "args_str": "serve",
+  "recommended_disk_space": 60,
+  "extra_filters": {
+    "cuda_max_good": {
+      "gte": 12.8
+    },
+    "gpu_ram": {
+      "gte": 15
+    },
+    "gpu_lonestep": {
+      "lte": 0.75
+    },
+    "num_gpus": {
+      "gte": 1
+    },
+    "disk_space": {
+      "gte": 60
+    },
+    "ram": {
+      "gte": 50
+    }
+  },
+  "private": true,
+  "href": "https://github.com/glauber-fullstackdev/ambienteAvatar/tree/main/ltx-2.3-16gb",
+  "repo": "glauber-fullstackdev/ambienteAvatar"
+}
