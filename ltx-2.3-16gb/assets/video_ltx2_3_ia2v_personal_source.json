@@ -1871,16 +1871,16 @@
               "ver": "0.14.1"
             },
             "widgets_values": [
-              384,
+              512,
               64,
-              32,
-              8
+              48,
+              16
             ],
             "widgets_values_named": {
-              "tile_size": 384,
+              "tile_size": 512,
               "overlap": 64,
-              "temporal_size": 32,
-              "temporal_overlap": 8
+              "temporal_size": 48,
+              "temporal_overlap": 16
             }
           },
           {
