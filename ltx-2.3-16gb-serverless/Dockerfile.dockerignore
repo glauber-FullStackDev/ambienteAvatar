@@ -1,0 +1,6 @@
+.git
+__pycache__
+*.pyc
+tests
+*.mp4
+.DS_Store
