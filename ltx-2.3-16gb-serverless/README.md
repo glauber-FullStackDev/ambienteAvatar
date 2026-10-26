@@ -77,6 +77,42 @@ Erros: `422` validação, `409` worker ocupado, `401` token inválido.
 
 ### `POST /status` (`{"job_id": "..."}`) e `GET /health`
 
+## Camada de compatibilidade RunPod (backend `runpod-render.service`)
+
+O backend de produção foi construído contra o proxy do RunPod serverless. As
+rotas abaixo falam **esse protocolo** em paralelo ao contrato vast — nenhuma
+das duas é afetada pela outra. Qualquer valor no segmento `{endpointId}` é
+aceito (o worker não valida o id do endpoint).
+
+| Backend RunPod | Rota aqui | Observação |
+|---|---|---|
+| `POST /{endpointId}/run` body `{"input": {...}, "webhook": "https://..."}` | idem | responde `200 {"id": "<jobId>", "status": "IN_QUEUE"}` |
+| `POST /{endpointId}/runsync` | idem | espera até `RUNSYNC_WAIT_SECONDS` (default 85s) e responde o status; depois disso `IN_PROGRESS` |
+| `GET /{endpointId}/status/{jobId}` | idem | `{"id", "status": IN_QUEUE\|IN_PROGRESS\|COMPLETED\|FAILED, "output": ..., "error": ...}`; 404 se desconhecido |
+| `GET /{endpointId}/health` | idem | `{"jobs": {completed, failed, in_progress, queued}, "workers": {...}}` |
+
+Detalhes de tradução:
+
+- `webhook` chega como **string** no topo do corpo (protocolo RunPod) e é
+  movido para `input.webhook.url` internamente.
+- O backend RunPod não envia `project_id`; o worker usa o default
+  `RUNPOD_DEFAULT_PROJECT_ID` (default `"default"`).
+- O `output` (no status e no webhook) **replica o dict do worker
+  `ltx-2.3-serverless`**: `{job_id, comfy_prompt_id, video_url, last_frame_url,
+  image_sha, parameters{prompt, negative_prompt, duration_seconds, fps,
+  audio_start_seconds, lora_strength, first_frame_strength, cfg,
+  decode_tile_size, enable_prompt_enhance, base_sigmas, refine_sigmas},
+  execution_seconds}` — zero mudança no backend.
+- O webhook de conclusão é entregue no **formato RunPod**:
+  `{"id": "<jobId>", "status": "COMPLETED"|"FAILED", "output": {...}, "error": null}`.
+- Como o RunPod, jobs por essas rotas **não** recebem `job.started`.
+- `API_TOKEN` continua valendo: configure o backend para enviar
+  `Authorization: Bearer <API_TOKEN>` (o RunPod proxy também usa Bearer).
+- Sem fila do RunPod: se o worker já está processando, `POST /run` responde
+  **409** — o backend deve tratar/reintentar (o proxy RunPod enfileiraria).
+- `project_id` do job (usado no caminho MinIO de saída) sai de
+  `RUNPOD_DEFAULT_PROJECT_ID` quando o backend não envia.
+
 ## Webhook
 
 Eventos `job.started` (se `WEBHOOK_STARTED=1`), `job.completed`, `job.failed`:
@@ -133,6 +169,8 @@ MinIO (fallback caso o webhook falhe).
 | `WEBHOOK_RETRIES` / `WEBHOOK_TIMEOUT` | não | `5` / `10` | entrega do webhook |
 | `PERSIST_JOB_STATUS` | não | `0` | espelha `status.json` no MinIO |
 | `API_TOKEN` | não | — | Bearer token da API (sem env = API aberta) |
+| `RUNPOD_DEFAULT_PROJECT_ID` | não | `default` | `project_id` para jobs do backend Runpod (que não envia) |
+| `RUNSYNC_WAIT_SECONDS` | não | `85` | quanto `/{endpointId}/runsync` espera bloqueado |
 | `MODELS_ROOT` | não | `/data` | volume persistente dos modelos |
 | `LTX23_GGUF_QUANT` | não | `Q4_K_M` | quant do DiT (`Q5_K_M`, `Q6_K`) |
 | `HF_TOKEN` | não | — | token HF (repos públicos não exigem) |
@@ -151,4 +189,5 @@ aceitam override por job com mínimos seguros.
 ```bash
 python3 ltx-2.3-16gb-serverless/tests/test_workflow_api.py
 python3 ltx-2.3-16gb-serverless/tests/test_serverless_contract.py
+python3 ltx-2.3-16gb-serverless/tests/test_runpod_compat.py
 ```
