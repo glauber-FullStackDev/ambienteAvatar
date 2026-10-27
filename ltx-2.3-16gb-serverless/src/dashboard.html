@@ -86,6 +86,16 @@
       <div id="current" class="empty">Nenhum job em execução.</div>
     </div>
 
+    <div class="card" id="queue-card" hidden>
+      <h2>Na fila</h2>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Job</th><th>Projeto</th><th>Prompt</th><th>Enviado</th></tr>
+        </thead>
+        <tbody id="queue"></tbody>
+      </table>
+    </div>
+
     <div class="card">
       <h2>Gerados</h2>
       <table>
@@ -139,6 +149,7 @@ async function load() {
   } catch { return; }
   renderWorker(data.worker);
   renderCurrent(data.current);
+  renderQueue(data.queue || []);
   renderHistory(data.history || []);
 }
 
@@ -146,8 +157,13 @@ function renderWorker(w) {
   setBadge("badge-worker", w.startup_done, "worker");
   setBadge("badge-comfyui", w.comfyui, "comfyui");
   const busy = document.getElementById("badge-busy");
-  busy.textContent = w.busy ? "processando" : "livre";
-  busy.className = "badge " + (w.busy ? "st-running" : "ok");
+  if (w.busy) {
+    busy.textContent = w.queue_size ? `processando (+${w.queue_size} na fila)` : "processando";
+    busy.className = "badge st-running";
+  } else {
+    busy.textContent = "livre";
+    busy.className = "badge ok";
+  }
 }
 function setBadge(id, ok, label) {
   const el = document.getElementById(id);
@@ -178,6 +194,21 @@ function renderCurrent(job) {
       <span>decorrido ${esc(fmtDuration(started))}${esc(eta)}</span>
     </div>
     <div class="prompt" title="${esc(job.prompt)}">${esc(job.prompt || "")}</div>`;
+}
+
+function renderQueue(rows) {
+  const card = document.getElementById("queue-card");
+  const tbody = document.getElementById("queue");
+  if (!rows.length) { card.hidden = true; return; }
+  card.hidden = false;
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>
+      <td>${esc(r.project_id)}</td>
+      <td class="prompt" style="max-width:220px" title="${esc(r.prompt)}">${esc((r.prompt || "").slice(0, 60))}</td>
+      <td>${esc(fmtTime(r.created_at))}</td>
+    </tr>`).join("");
 }
 
 function renderHistory(rows) {

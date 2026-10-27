@@ -8,8 +8,9 @@ Routes (contrato herdado do worker Vast, ../ltx-2.3-serverless-vast/src/api.py):
 
 Camada de compatibilidade com o protocolo do proxy RunPod (backend
 runpod-render.service): POST /{endpointId}/run, POST /{endpointId}/runsync,
-GET /{endpointId}/status/{jobId}, GET /{endpointId}/health — ver
-runpod_compat.py.
+GET /{endpointId}/status/{jobId}, GET /{endpointId}/health,
+POST /{endpointId}/cancel/{jobId} — ver runpod_compat.py e job_queue.py
+(fila FIFO: vários vídeos seguidos, um por vez, como o proxy RunPod).
 
 Diferencas vs worker Vast:
 - auth opcional por Bearer token (env API_TOKEN); sem token, API aberta na
@@ -39,7 +40,8 @@ from handler import (
     STARTUP_DONE,
 )
 from job_progress import tracker
-from jobs import JobBusyError, JobManager, JobNotFoundError
+from job_queue import JobQueueManager
+from jobs import JobBusyError, JobNotFoundError
 from runpod_compat import (
     RUNSYNC_WAIT_SECONDS,
     deliver_runpod,
@@ -52,7 +54,11 @@ from webhook import deliver
 LOG = logging.getLogger("ltx23-16gb.api")
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
-manager = JobManager()
+manager = JobQueueManager()
+
+# Limite da fila das rotas compatíveis com o RunPod (jobs aguardando a GPU).
+# 0 desativa o limite (fila ilimitada).
+MAX_QUEUE_SIZE = int(os.environ.get("MAX_QUEUE_SIZE", "10") or "10")
 
 # project_id default para jobs do backend Runpod (que não envia project_id).
 RUNPOD_DEFAULT_PROJECT_ID = (os.environ.get("RUNPOD_DEFAULT_PROJECT_ID") or "default").strip()
@@ -67,7 +73,8 @@ def _gate() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Bootstrap dos modelos + ComfyUI roda em paralelo; /health reflete o estado."""
+    """Bootstrap dos modelos + ComfyUI em paralelo; dispatcher consome a fila."""
+    _ensure_dispatcher()
     start_comfyui_async()
     yield
 
@@ -77,6 +84,46 @@ app = FastAPI(title="LTX 2.3 IA2V Personal LoRA — GGUF 16 GB worker", version=
 from dashboard import router as dashboard_router  # noqa: E402 - precisa vir após `app`
 
 app.include_router(dashboard_router)
+
+
+# ---------------------------------------------------------------------------
+# Dispatcher da fila (rotas compatíveis com o RunPod)
+#
+# Uma única thread consome a fila FIFO e executa um job por vez, em ordem de
+# chegada — o equivalente ao enqueue do proxy RunPod.  Jobs do contrato vast
+# (/submit) não passam pela fila: continuam com thread dedicada e 409 quando
+# ocupado, exatamente como antes.
+# ---------------------------------------------------------------------------
+
+_DISPATCHER_STARTED = False
+_DISPATCHER_LOCK = threading.Lock()
+
+
+def _ensure_dispatcher() -> None:
+    global _DISPATCHER_STARTED
+    with _DISPATCHER_LOCK:
+        if _DISPATCHER_STARTED:
+            return
+        _DISPATCHER_STARTED = True
+        threading.Thread(target=_dispatcher, name="job-dispatcher", daemon=True).start()
+
+
+def _dispatcher() -> None:
+    """Consome a fila FIFO: um job por vez, em ordem de chegada."""
+    while True:
+        mgr = manager  # captura o manager da iteração (troca em testes)
+        try:
+            job_id = mgr.next_queued(timeout=1.0)
+        except Exception:  # noqa: BLE001 - o dispatcher nunca pode morrer
+            LOG.exception("Dispatcher: erro esperando a fila")
+            time.sleep(1.0)
+            continue
+        if job_id is None:
+            continue  # timeout: reavalia o manager global
+        try:
+            _execute(job_id, mgr)
+        except Exception:  # noqa: BLE001 - o dispatcher nunca pode morrer
+            LOG.exception("Dispatcher: falha inesperada no job %s", job_id)
 
 
 def _progress_snapshot(job_id: str) -> dict[str, Any]:
@@ -115,20 +162,22 @@ def health() -> dict[str, Any]:
     }
 
 
-def _execute(job_id: str) -> None:
+def _execute(job_id: str, mgr: JobQueueManager | None = None) -> None:
+    """Executa o job e entrega o webhook no protocolo correto (vast ou RunPod)."""
+    mgr = mgr or manager
     error: str | None = None
     record = None
     try:
-        record = manager.mark_running(job_id)
+        record = mgr.mark_running(job_id)
         record.status_url = persist_job_status(record)
         result = run_job(record.params, job_id)
-        record = manager.complete(job_id, result)
+        record = mgr.complete(job_id, result)
         LOG.info("Job %s concluído em %ss", job_id, result.get("execution_seconds"))
     except Exception as exc:  # noqa: BLE001 - webhook must still fire on failure
         error = str(exc)
         LOG.exception("Job %s falhou", job_id)
         try:
-            record = manager.fail(job_id, error)
+            record = mgr.fail(job_id, error)
         except JobNotFoundError:
             return
     status_url = persist_job_status(record)
@@ -218,7 +267,12 @@ def _runpod_status_payload(record) -> dict[str, Any]:
 
 
 def _runpod_submit(payload: dict[str, Any], request: Request, endpoint_id: str):
-    """Fluxo comum de submissão das rotas /run e /runsync; retorna o record."""
+    """Fluxo comum de submissão das rotas /run e /runsync; retorna o record.
+
+    Igual ao proxy RunPod: com a GPU ocupada o job ENTRA NA FILA (responde
+    IN_QUEUE) — o dispatcher executa em ordem de chegada.  Só responde 409
+    quando a fila atinge MAX_QUEUE_SIZE.
+    """
     _require_auth(request)
     _gate()
     try:
@@ -227,18 +281,20 @@ def _runpod_submit(payload: dict[str, Any], request: Request, endpoint_id: str):
     except InputError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    if manager.busy():
-        raise HTTPException(status_code=409, detail="worker ocupado com outro job")
+    if MAX_QUEUE_SIZE > 0 and manager.queue_size() >= MAX_QUEUE_SIZE:
+        raise HTTPException(
+            status_code=409,
+            detail=f"fila cheia (MAX_QUEUE_SIZE={MAX_QUEUE_SIZE}); aguarde os jobs pendentes",
+        )
 
     values["_protocol"] = "runpod"
-    try:
-        record = manager.submit(values)
-    except JobBusyError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
+    record = manager.enqueue(values)
     record.status_url = persist_job_status(record)
-    threading.Thread(target=_execute, args=(record.job_id,), daemon=True).start()
-    LOG.info("Job %s submetido via protocolo RunPod (endpoint %s)", record.job_id, endpoint_id)
+    _ensure_dispatcher()
+    LOG.info(
+        "Job %s submetido via protocolo RunPod (endpoint %s, fila: %d)",
+        record.job_id, endpoint_id, manager.queue_size(),
+    )
     return record
 
 
@@ -268,6 +324,31 @@ def runpod_status(endpoint_id: str, job_id: str, request: Request) -> dict[str, 
     except JobNotFoundError as exc:
         raise HTTPException(status_code=404, detail="job not found") from exc
     return _runpod_status_payload(record)
+
+
+@app.post("/{endpoint_id}/cancel/{job_id}")
+def runpod_cancel(endpoint_id: str, job_id: str, request: Request) -> dict[str, Any]:
+    """Cancela um job ainda na fila (comportamento do RunPod).
+
+    Job na fila: sai da fila e fica `completed` com output nulo — responde
+    `{"id", "status": "COMPLETED"}` e o webhook de conclusão é entregue no
+    formato RunPod.  Job em execução ou desconhecido não é cancelável
+    (400/404), como no proxy RunPod.
+    """
+    _require_auth(request)
+    try:
+        record, cancelled = manager.cancel(job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="job not found") from exc
+    if not cancelled:
+        if record.status == "running":
+            raise HTTPException(status_code=400, detail="job em execução não pode ser cancelado")
+        LOG.info("Job %s já finalizado; cancelamento ignorado (status %s)", job_id, record.status)
+        return {"id": record.job_id, "status": to_runpod_status(record.status)}
+    record.status_url = record.status_url or persist_job_status(record)
+    LOG.info("Job %s cancelado enquanto estava na fila (endpoint %s)", job_id, endpoint_id)
+    deliver_runpod(record)  # {"id", "status": "COMPLETED", "output": null, "error": null}
+    return {"id": record.job_id, "status": to_runpod_status(record.status)}
 
 
 @app.get("/{endpoint_id}/health")

@@ -13,6 +13,7 @@ sys.path.insert(0, str(SERVERLESS / "src"))
 import api  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from job_progress import percent_for_phase, tracker  # noqa: E402
+from job_queue import JobQueueManager  # noqa: E402
 from jobs import JobRecord  # noqa: E402
 
 RUNPOD_INPUT = {
@@ -116,7 +117,7 @@ class TrackerTests(unittest.TestCase):
 
 class DashboardRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
-        api.manager = api.JobManager()
+        api.manager = JobQueueManager()
         self.client = TestClient(api.app)
         api.STARTUP_DONE.set()
         tracker.drop("job-1")

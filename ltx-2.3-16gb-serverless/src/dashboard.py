@@ -60,21 +60,27 @@ def dashboard_summary(request: Request) -> JSONResponse:
     _require_auth(request, allow_query=True)
 
     with manager._lock:  # noqa: SLF001 - leitura apenas para o painel
-        records = sorted(manager._jobs.values(), key=lambda r: r.created_at, reverse=True)
+        records = list(manager._jobs.values())
+
+    ordered = sorted(records, key=lambda r: r.created_at)  # ordem da fila FIFO
+    running = [r for r in ordered if r.status == "running"]
+    queued = [r for r in ordered if r.status == "queued"]
+    finished = [r for r in ordered if r.status in ("completed", "failed")]
+
+    # Job atual: o em execução; sem nenhum, o próximo da fila (mostra o
+    # progresso "Na fila" enquanto aguarda).  Os demais vão para `queue`.
+    current_record = running[0] if running else (queued[0] if queued else None)
+    pending = queued if running else queued[1:]
 
     current: dict[str, Any] | None = None
-    history: list[dict[str, Any]] = []
-    for record in records:
-        if record.status in ("queued", "running") and current is None:
-            progress = tracker.snapshot(record.job_id) or {
-                "phase": "queued",
-                "percent": 0.0,
-                "step": None,
-                "total_steps": None,
-            }
-            current = _entry(record, progress)
-        elif record.status in ("completed", "failed"):
-            history.append(_entry(record))
+    if current_record is not None:
+        progress = tracker.snapshot(current_record.job_id) or {
+            "phase": "queued",
+            "percent": 0.0,
+            "step": None,
+            "total_steps": None,
+        }
+        current = _entry(current_record, progress)
 
     return JSONResponse(
         {
@@ -83,8 +89,10 @@ def dashboard_summary(request: Request) -> JSONResponse:
                 "comfyui": comfyui_ready(),
                 "startup_error": startup_error(),
                 "busy": manager.busy(),
+                "queue_size": len(pending),
             },
             "current": current,
-            "history": history[:20],
+            "queue": [_entry(record) for record in pending],
+            "history": [_entry(record) for record in reversed(finished)][:20],
         }
     )

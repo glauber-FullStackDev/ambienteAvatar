@@ -13,6 +13,7 @@ sys.path.insert(0, str(SERVERLESS / "src"))
 import api  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from handler import InputError  # noqa: E402
+from job_queue import JobQueueManager  # noqa: E402
 from jobs import JobRecord  # noqa: E402
 from runpod_compat import (  # noqa: E402
     build_runpod_webhook,
@@ -147,7 +148,7 @@ class TranslationTests(unittest.TestCase):
 
 class RunpodRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
-        api.manager = api.JobManager()
+        api.manager = JobQueueManager()
         self.client = TestClient(api.app)
         STARTUP = api.STARTUP_DONE
         STARTUP.set()
@@ -227,23 +228,59 @@ class RunpodRoutesTests(unittest.TestCase):
         response = self.client.post("/ep/run", json={"input": {"project_id": "x"}})
         self.assertEqual(response.status_code, 422)
 
-    def test_run_quando_ocupado_responde_409(self) -> None:
+    def test_run_enfileira_segundo_job_e_executa_em_ordem(self) -> None:
+        """Igual ao proxy RunPod: com a GPU ocupada o job entra na fila (IN_QUEUE)."""
         import threading
 
         release = threading.Event()
+        order: list[str] = []
 
-        def slow_job(values, job_id):
+        def slow_first(values, job_id):
+            order.append(job_id)
             release.wait(timeout=10)
             return dict(FAKE_RESULT)
 
-        with mock.patch.object(api, "run_job", side_effect=slow_job), mock.patch.object(
+        def fast(values, job_id):
+            order.append(job_id)
+            return dict(FAKE_RESULT)
+
+        with mock.patch.object(api, "run_job", side_effect=slow_first), mock.patch.object(
             api, "deliver_runpod", return_value=None
         ):
             first = self.client.post("/ep/run", json={"input": dict(RUNPOD_INPUT)})
             self.assertEqual(first.status_code, 200)
+            self.assertEqual(first.json()["status"], "IN_QUEUE")
+            first_id = first.json()["id"]
+
+            # Aguarda o 1º assumir a GPU antes de enfileirar o resto.
+            deadline = time.time() + 10
+            while time.time() < deadline and not api.manager.busy():
+                time.sleep(0.02)
+
             second = self.client.post("/ep/run", json={"input": dict(RUNPOD_INPUT)})
-            self.assertEqual(second.status_code, 409)
-            release.set()
+            third = self.client.post("/ep/run", json={"input": dict(RUNPOD_INPUT)})
+            self.assertEqual(second.status_code, 200)
+            self.assertEqual(third.status_code, 200)
+            self.assertEqual(second.json()["status"], "IN_QUEUE")
+            self.assertEqual(third.json()["status"], "IN_QUEUE")
+
+            # 1º rodando; 2º e 3º na fila.
+            self.assertEqual(api.manager.get(first_id).status, "running")
+            self.assertEqual(api.manager.get(second.json()["id"]).status, "queued")
+            health = self.client.get("/ep/health").json()["jobs"]
+            self.assertEqual(health["in_progress"], 1)
+            self.assertEqual(health["queued"], 2)
+
+            release.set()  # libera o 1º; o dispatcher roda 2º e 3º em FIFO
+            deadline = time.time() + 10
+            while time.time() < deadline and len(order) < 3:
+                time.sleep(0.02)
+
+        self.assertEqual(len(order), 3)
+        self.assertEqual(order[0], first_id)
+        self.assertEqual(order[1], second.json()["id"])
+        self.assertEqual(order[2], third.json()["id"])
+        self.assertEqual(self.client.get("/ep/health").json()["jobs"]["queued"], 0)
 
     def test_status_desconhecido_responde_404(self) -> None:
         response = self.client.get("/ep/status/nao-existe")

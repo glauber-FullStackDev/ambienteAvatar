@@ -1,6 +1,8 @@
 .env
 __pycache__/
 *.py[cod]
+.DS_Store
+*.mp4
 data/cache/
 data/input/
 data/models/

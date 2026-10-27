@@ -80,23 +80,26 @@ Erros: `422` validação, `409` worker ocupado, `401` token inválido.
 Ambas incluem, para jobs em fila/execução, o campo **aditivo** `"progress"`:
 
 ```json
-{ "phase": "sampling", "percent": 43.2, "step": 10, "total_steps": 20 }
+{ "phase": "queueing", "percent": 3.0, "step": null, "total_steps": null }
 ```
 
 Fases: `downloading` (0–3%) → `queueing` (3–5%) → `sampling` (5–80%) →
 `decoding` (VAEDecodeTiled, 80–97%) → `uploading` (97–99%) → `done` (100%).
 O percentual vem dos eventos de progresso do ComfyUI via WebSocket; se o
 WebSocket falhar, o painel cai para o percentual por fase (checkpoints).
+Jobs aguardando na fila (rotas RunPod) aparecem com fase `queued` (0%).
 
 ## Painel (`GET /dashboard`)
 
 Página servida pelo próprio worker para acompanhar a fila:
 
 - **Job atual**: fase em PT-BR, barra de % grande, passo do sampler, tempo
-  decorrido e estimativa de término (ETA extrapolada do % atual)
+  decorrido e estimativa de término (ETA extrapolada do % atual). Sem job na
+  GPU, mostra o próximo da fila como "Na fila" (0%)
+- **Na fila**: os vídeos pendentes, numerados na ordem de execução
 - **Gerados**: histórico dos jobs desta sessão com status, **tempo de
   geração**, prompt, horário e link direto para o `.mp4`
-- **Worker**: badges de bootstrap/ComfyUI/ocupado
+- **Worker**: badges de bootstrap/ComfyUI/ocupado + tamanho da fila
 
 Polling a cada 1,5s (compatível com túnel Cloudflare). Com `API_TOKEN`
 definido, `/dashboard/api/summary` exige o token via `?token=` (o painel pede
@@ -112,10 +115,11 @@ aceito (o worker não valida o id do endpoint).
 
 | Backend RunPod | Rota aqui | Observação |
 |---|---|---|
-| `POST /{endpointId}/run` body `{"input": {...}, "webhook": "https://..."}` | idem | responde `200 {"id": "<jobId>", "status": "IN_QUEUE"}` |
-| `POST /{endpointId}/runsync` | idem | espera até `RUNSYNC_WAIT_SECONDS` (default 85s) e responde o status; depois disso `IN_PROGRESS` |
+| `POST /{endpointId}/run` body `{"input": {...}, "webhook": "https://..."}` | idem | responde `200 {"id": "<jobId>", "status": "IN_QUEUE"}`; com a GPU ocupada o job **entra na fila** (FIFO) |
+| `POST /{endpointId}/runsync` | idem | espera até `RUNSYNC_WAIT_SECONDS` (default 85s) e responde o status; depois disso `IN_PROGRESS`/`IN_QUEUE` |
 | `GET /{endpointId}/status/{jobId}` | idem | `{"id", "status": IN_QUEUE\|IN_PROGRESS\|COMPLETED\|FAILED, "output": ..., "error": ...}`; 404 se desconhecido |
 | `GET /{endpointId}/health` | idem | `{"jobs": {completed, failed, in_progress, queued}, "workers": {...}}` |
+| `POST /{endpointId}/cancel/{jobId}` | idem | tira um job **da fila** antes de rodar; responde `{"id", "status": "COMPLETED"}` (job em execução → 400; desconhecido → 404) |
 
 Detalhes de tradução:
 
@@ -134,8 +138,15 @@ Detalhes de tradução:
 - Como o RunPod, jobs por essas rotas **não** recebem `job.started`.
 - `API_TOKEN` continua valendo: configure o backend para enviar
   `Authorization: Bearer <API_TOKEN>` (o RunPod proxy também usa Bearer).
-- Sem fila do RunPod: se o worker já está processando, `POST /run` responde
-  **409** — o backend deve tratar/reintentar (o proxy RunPod enfileiraria).
+- **Fila FIFO (como o proxy RunPod)**: pode enviar vários vídeos seguidos —
+  enquanto um job está na GPU, os próximos entram na fila e recebem
+  `{"id", "status": "IN_QUEUE"}`; um dispatcher único executa um por vez, na
+  ordem de chegada. A fila vive em memória (reinício do worker descarta os
+  pendentes — acompanhe por `GET /{endpointId}/health` e `/status/{jobId}`).
+  Limite via `MAX_QUEUE_SIZE`; estourou, responde **409** (`"fila cheia"`).
+  Cancelamento de job pendente via `POST /{endpointId}/cancel/{jobId}` (o job
+  cancelado fica `COMPLETED` com output nulo, como no RunPod, e dispara o
+  webhook de conclusão).
 - `project_id` do job (usado no caminho MinIO de saída) sai de
   `RUNPOD_DEFAULT_PROJECT_ID` quando o backend não envia.
 
@@ -195,6 +206,7 @@ MinIO (fallback caso o webhook falhe).
 | `WEBHOOK_RETRIES` / `WEBHOOK_TIMEOUT` | não | `5` / `10` | entrega do webhook |
 | `PERSIST_JOB_STATUS` | não | `0` | espelha `status.json` no MinIO |
 | `API_TOKEN` | não | — | Bearer token da API (sem env = API aberta) |
+| `MAX_QUEUE_SIZE` | não | `10` | limite da fila das rotas RunPod (`0` = ilimitada); estourou → 409 |
 | `RUNPOD_DEFAULT_PROJECT_ID` | não | `default` | `project_id` para jobs do backend Runpod (que não envia) |
 | `RUNSYNC_WAIT_SECONDS` | não | `85` | quanto `/{endpointId}/runsync` espera bloqueado |
 | `COMFYUI_PORT` | não | `8188` | porta do ComfyUI (WebSocket de progresso) |
@@ -217,5 +229,6 @@ aceitam override por job com mínimos seguros.
 python3 ltx-2.3-16gb-serverless/tests/test_workflow_api.py
 python3 ltx-2.3-16gb-serverless/tests/test_serverless_contract.py
 python3 ltx-2.3-16gb-serverless/tests/test_runpod_compat.py
+python3 ltx-2.3-16gb-serverless/tests/test_queue.py
 python3 ltx-2.3-16gb-serverless/tests/test_dashboard_progress.py
 ```
