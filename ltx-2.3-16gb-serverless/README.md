@@ -87,24 +87,29 @@ Fases: `downloading` (0–3%) → `queueing` (3–5%) → `sampling` (5–80%) �
 `decoding` (VAEDecodeTiled, 80–97%) → `uploading` (97–99%) → `done` (100%).
 O percentual vem dos eventos de progresso do ComfyUI via WebSocket; se o
 WebSocket falhar, o painel cai para o percentual por fase (checkpoints).
-Jobs aguardando na fila (rotas RunPod) aparecem com fase `queued` (0%).
+Jobs aguardando na fila (rotas RunPod) aparecem com fase `queued` (0%) e
+ganham também o campo **aditivo** `"queue_position"` (1-based) em
+`GET /{endpointId}/status/{jobId}`.
 
 ## Painel (`GET /dashboard`)
 
 Página servida pelo próprio worker para acompanhar a fila:
 
 - **Job atual**: fase em PT-BR, barra de % grande, passo do sampler, tempo
-  decorrido e estimativa de término (ETA extrapolada do % atual). Sem job na
-  GPU, mostra o próximo da fila como "Na fila" (0%)
-- **Na fila**: os vídeos pendentes, numerados na ordem de execução
-- **Gerados**: histórico dos jobs desta sessão com status, **tempo de
-  geração**, prompt, horário e link direto para o `.mp4`
-- **Worker**: badges de bootstrap/ComfyUI/ocupado + tamanho da fila
+  decorrido e estimativa de término (ETA extrapolada do % atual)
+- **Lista única de jobs** (do mais recente para o mais antigo) com badge por
+  item: **▶ em progresso** (% ao vivo + fase), **⏳ enfileirado** (posição na
+  fila + botão cancelar), **✓ gerado** (tempo de geração + link do vídeo),
+  **🚫 cancelado**, **✗ falhou** (com o erro)
+- **Contadores**: `X na fila · Y em progresso · Z gerados · N cancelados ·
+  M falharam`
+- **Worker**: badges de bootstrap/ComfyUI/ocupado
 
 Polling a cada 1,5s (compatível com túnel Cloudflare). Com `API_TOKEN`
 definido, `/dashboard/api/summary` exige o token via `?token=` (o painel pede
 uma vez e guarda no navegador) ou `Authorization: Bearer`. A página em si é
-estática e não expõe dados.
+estática e não expõe dados. O botão **cancelar** nos itens enfileirados chama
+a rota RunPod `POST /{endpointId}/cancel/{jobId}` com o mesmo token.
 
 ## Camada de compatibilidade RunPod (backend `runpod-render.service`)
 

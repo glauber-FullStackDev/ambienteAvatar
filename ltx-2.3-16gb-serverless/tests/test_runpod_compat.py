@@ -162,11 +162,15 @@ class RunpodRoutesTests(unittest.TestCase):
                 "/meu-endpoint/run",
                 json={"input": dict(RUNPOD_INPUT), "webhook": "https://cb.example/hook"},
             )
-        self.assertEqual(response.status_code, 200)
-        body = response.json()
-        self.assertEqual(body["status"], "IN_QUEUE")
-        self.assertIn("id", body)
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["status"], "IN_QUEUE")
+            self.assertIn("id", body)
 
+            # o dispatcher entrega o webhook de forma assíncrona
+            deadline = time.time() + 10
+            while "record" not in captured and time.time() < deadline:
+                time.sleep(0.02)
         record = captured["record"]
         self.assertEqual(record.webhook_url, "https://cb.example/hook")
         self.assertEqual(record.params.get("_protocol"), "runpod")

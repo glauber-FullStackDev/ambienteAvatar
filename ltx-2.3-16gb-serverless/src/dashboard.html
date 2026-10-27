@@ -8,7 +8,7 @@
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
     --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149;
-    --yellow: #d29922;
+    --yellow: #d29922; --gray: #6e7681;
   }
   * { box-sizing: border-box; }
   body {
@@ -25,6 +25,7 @@
   }
   .badge.ok { color: var(--green); border-color: var(--green); }
   .badge.err { color: var(--red); border-color: var(--red); }
+  .badge.warn { color: var(--yellow); border-color: var(--yellow); }
   .card {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 10px; padding: 20px; margin-bottom: 20px;
@@ -38,6 +39,7 @@
     height: 100%; width: 0%; border-radius: 6px; transition: width .8s ease;
     background: linear-gradient(90deg, #1f6feb, #58a6ff);
   }
+  .bar.mini { height: 8px; margin: 6px 0 0; max-width: 220px; }
   .meta { display: flex; gap: 18px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
   .prompt { color: var(--muted); font-size: 12px; margin-top: 10px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -49,8 +51,14 @@
   .st-completed { color: var(--green); }
   .st-failed { color: var(--red); }
   .st-running, .st-queued { color: var(--yellow); }
+  .st-cancelled { color: var(--gray); }
   a { color: var(--accent); text-decoration: none; }
   .muted { color: var(--muted); }
+  button.cancel {
+    border: 1px solid var(--border); background: transparent; color: var(--red);
+    border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+  }
+  button.cancel:hover { border-color: var(--red); }
   #gate { max-width: 360px; margin: 80px auto; text-align: center; }
   #gate input {
     width: 100%; padding: 10px; margin-top: 12px; border-radius: 8px;
@@ -60,8 +68,6 @@
     margin-top: 10px; padding: 10px 18px; border: none; border-radius: 8px;
     background: #1f6feb; color: white; cursor: pointer;
   }
-  .spin { display: inline-block; animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -71,6 +77,7 @@
     <span class="badge" id="badge-worker">worker: —</span>
     <span class="badge" id="badge-comfyui">comfyui: —</span>
     <span class="badge" id="badge-busy">—</span>
+    <span class="badge" id="badge-counts"></span>
   </div>
 
   <div id="gate" class="card" hidden>
@@ -86,23 +93,13 @@
       <div id="current" class="empty">Nenhum job em execução.</div>
     </div>
 
-    <div class="card" id="queue-card" hidden>
-      <h2>Na fila</h2>
-      <table>
-        <thead>
-          <tr><th>#</th><th>Job</th><th>Projeto</th><th>Prompt</th><th>Enviado</th></tr>
-        </thead>
-        <tbody id="queue"></tbody>
-      </table>
-    </div>
-
     <div class="card">
-      <h2>Gerados</h2>
+      <h2>Fila e gerados</h2>
       <table>
         <thead>
-          <tr><th>Job</th><th>Projeto</th><th>Status</th><th>Geração</th><th>Prompt</th><th>Concluído</th><th></th></tr>
+          <tr><th>Job</th><th>Projeto</th><th>Status</th><th>Progresso</th><th>Geração</th><th>Prompt</th><th>Quando</th><th></th></tr>
         </thead>
-        <tbody id="history"><tr><td colspan="7" class="empty">Nada gerado ainda nesta sessão.</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="8" class="empty">Nenhum job nesta sessão.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -122,7 +119,7 @@ const PHASES = {
 const token = () => localStorage.getItem(TOKEN_KEY) || "";
 
 function saveToken() {
-  localStorage.setItem(TOKEN_KEY, document.getElementById("gate").querySelector("input").value.trim());
+  localStorage.setItem(TOKEN_KEY, document.getElementById("token-input").value.trim());
   load();
 }
 
@@ -149,21 +146,16 @@ async function load() {
   } catch { return; }
   renderWorker(data.worker);
   renderCurrent(data.current);
-  renderQueue(data.queue || []);
-  renderHistory(data.history || []);
+  renderList(data);
+  renderCounts(data.counts || {});
 }
 
 function renderWorker(w) {
   setBadge("badge-worker", w.startup_done, "worker");
   setBadge("badge-comfyui", w.comfyui, "comfyui");
   const busy = document.getElementById("badge-busy");
-  if (w.busy) {
-    busy.textContent = w.queue_size ? `processando (+${w.queue_size} na fila)` : "processando";
-    busy.className = "badge st-running";
-  } else {
-    busy.textContent = "livre";
-    busy.className = "badge ok";
-  }
+  busy.textContent = w.busy ? "processando" : "livre";
+  busy.className = "badge " + (w.busy ? "warn" : "ok");
 }
 function setBadge(id, ok, label) {
   const el = document.getElementById(id);
@@ -196,37 +188,92 @@ function renderCurrent(job) {
     <div class="prompt" title="${esc(job.prompt)}">${esc(job.prompt || "")}</div>`;
 }
 
-function renderQueue(rows) {
-  const card = document.getElementById("queue-card");
-  const tbody = document.getElementById("queue");
-  if (!rows.length) { card.hidden = true; return; }
-  card.hidden = false;
-  tbody.innerHTML = rows.map((r, i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>
-      <td>${esc(r.project_id)}</td>
-      <td class="prompt" style="max-width:220px" title="${esc(r.prompt)}">${esc((r.prompt || "").slice(0, 60))}</td>
-      <td>${esc(fmtTime(r.created_at))}</td>
-    </tr>`).join("");
-}
-
-function renderHistory(rows) {
-  const tbody = document.getElementById("history");
-  if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">Nada gerado ainda nesta sessão.</td></tr>';
+// Lista única: job em execução + enfileirados + gerados/falhados, do mais
+// recente para o mais antigo, com badge de status por item.
+function renderList(data) {
+  const current = data.current ? [data.current] : [];
+  const all = [...current, ...(data.queue || []), ...(data.history || [])]
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const tbody = document.getElementById("rows");
+  if (!all.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum job nesta sessão.</td></tr>';
     return;
   }
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>
-      <td>${esc(r.project_id)}</td>
-      <td class="st-${esc(r.status)}">${r.status === "completed" ? "✓ gerado" : "✗ falhou"}</td>
+  tbody.innerHTML = all.map(rowHtml).join("");
+}
+
+function promptCell(r) {
+  return `<td class="prompt" style="max-width:220px" title="${esc(r.prompt)}">${esc((r.prompt || "").slice(0, 60))}</td>`;
+}
+
+function rowHtml(r) {
+  const id = `<code>${esc(r.job_id.slice(0, 8))}</code>`;
+  const proj = `<td>${esc(r.project_id)}</td>`;
+  const at = `<td>${esc(fmtTime(r.finished_at || r.created_at))}</td>`;
+
+  if (r.status === "running") {
+    const p = r.progress || {};
+    const percent = Math.round(p.percent ?? 0);
+    const steps = (p.step != null && p.total_steps) ? ` (${p.step}/${p.total_steps})` : "";
+    const elapsed = r.started_at ? Date.now() / 1000 - r.started_at : null;
+    return `<tr>
+      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>${proj}
+      <td class="st-running">▶ em progresso</td>
+      <td>
+        <div class="bar mini"><div style="width:${percent}%"></div></div>
+        <span class="muted">${percent}% · ${esc((PHASES[p.phase] || p.phase || "").toLowerCase())}${esc(steps)}</span>
+      </td>
+      <td>${esc(fmtDuration(elapsed))}</td>
+      ${promptCell(r)}${at}
+      <td></td>
+    </tr>`;
+  }
+  if (r.status === "queued") {
+    return `<tr>
+      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>${proj}
+      <td class="st-cancelled">⏳ enfileirado</td>
+      <td class="muted">${r.queue_position ?? "—"}º da fila</td>
+      <td>—</td>${promptCell(r)}${at}
+      <td><button class="cancel" onclick="cancelJob('${esc(r.job_id)}')">cancelar</button></td>
+    </tr>`;
+  }
+  if (r.status === "completed" && r.cancelled) {
+    return `<tr>
+      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>${proj}
+      <td class="st-cancelled">🚫 cancelado</td>
+      <td class="muted">—</td><td>—</td>${promptCell(r)}${at}<td></td>
+    </tr>`;
+  }
+  if (r.status === "completed") {
+    return `<tr>
+      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>${proj}
+      <td class="st-completed">✓ gerado</td>
+      <td>100%</td>
       <td>${esc(fmtDuration(r.duration_seconds))}</td>
-      <td class="prompt" style="max-width:220px" title="${esc(r.prompt)}">${esc((r.prompt || "").slice(0, 60))}</td>
-      <td>${esc(fmtTime(r.finished_at))}</td>
+      ${promptCell(r)}${at}
       <td>${r.video_url ? `<a href="${esc(r.video_url)}" target="_blank">vídeo ▸</a>` : ""}</td>
-    </tr>`).join("");
+    </tr>`;
+  }
+  const err = (r.error || "").slice(0, 80);
+  return `<tr>
+    <td><code>${esc(r.job_id.slice(0, 8))}</code></td>${proj}
+    <td class="st-failed" title="${esc(r.error || "")}">✗ falhou${err ? ` — ${esc(err)}` : ""}</td>
+    <td class="muted">—</td>
+    <td>${esc(fmtDuration(r.duration_seconds))}</td>
+    ${promptCell(r)}${at}<td></td>
+  </tr>`;
+}
+
+function renderCounts(c) {
+  const el = document.getElementById("badge-counts") || document.getElementById("counts");
+  const parts = [];
+  if (c.queued) parts.push(`${c.queued} na fila`);
+  if (c.running) parts.push(`${c.running} em progresso`);
+  if (c.completed) parts.push(`${c.completed} gerados`);
+  if (c.cancelled) parts.push(`${c.cancelled} cancelados`);
+  if (c.failed) parts.push(`${c.failed} falharam`);
+  el.textContent = parts.length ? parts.join(" · ") : "sem jobs";
+  el.className = "badge";
 }
 
 function showGate() {
@@ -237,7 +284,18 @@ function hideGate() {
   document.getElementById("gate").hidden = true;
   document.getElementById("content").style.visibility = "visible";
 }
+async function cancelJob(jobId) {
+  if (!confirm(`Cancelar o job ${jobId.slice(0, 8)} da fila?`)) return;
+  try {
+    await fetch(`/local/cancel/${encodeURIComponent(jobId)}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token()}` },
+    });
+  } catch { /* recarrega de qualquer forma */ }
+  load();
+}
 window.saveToken = saveToken;
+window.cancelJob = cancelJob;
 
 setInterval(load, 1500);
 load();

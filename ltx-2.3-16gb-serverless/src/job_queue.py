@@ -57,6 +57,14 @@ class JobQueueManager(JobManager):
         with self._cond:
             return len(self._queue)
 
+    def queue_position(self, job_id: str) -> int | None:
+        """Posição 1-based do job na fila; None se não estiver enfileirado."""
+        with self._cond:
+            try:
+                return self._queue.index(job_id) + 1
+            except ValueError:
+                return None
+
     def next_queued(self, timeout: float | None = None) -> str | None:
         """Dispatcher: espera o worker liberar e devolve o próximo job (FIFO).
 

@@ -28,12 +28,15 @@ def dashboard_page() -> HTMLResponse:
     return HTMLResponse(HTML_PATH.read_text(encoding="utf-8"))
 
 
-def _entry(record: Any, progress: dict[str, Any] | None = None) -> dict[str, Any]:
+def _entry(record: Any, progress: dict[str, Any] | None = None, queue_position: int | None = None) -> dict[str, Any]:
     result = record.result or {}
+    # Cancelamento (job_queue.cancel): status "completed" com output nulo.
+    cancelled = record.status == "completed" and record.result is None and record.error is None
     entry: dict[str, Any] = {
         "job_id": record.job_id,
         "project_id": record.project_id,
         "status": record.status,
+        "cancelled": cancelled,
         "prompt": (record.params or {}).get("prompt"),
         "created_at": record.created_at,
         "started_at": record.started_at,
@@ -49,6 +52,8 @@ def _entry(record: Any, progress: dict[str, Any] | None = None) -> dict[str, Any
     }
     if progress is not None:
         entry["progress"] = progress
+    if queue_position is not None:
+        entry["queue_position"] = queue_position
     return entry
 
 
@@ -61,16 +66,18 @@ def dashboard_summary(request: Request) -> JSONResponse:
 
     with manager._lock:  # noqa: SLF001 - leitura apenas para o painel
         records = list(manager._jobs.values())
+        queue_order = list(getattr(manager, "_queue", []))  # ordem FIFO real
 
-    ordered = sorted(records, key=lambda r: r.created_at)  # ordem da fila FIFO
-    running = [r for r in ordered if r.status == "running"]
-    queued = [r for r in ordered if r.status == "queued"]
-    finished = [r for r in ordered if r.status in ("completed", "failed")]
+    positions = {job_id: index + 1 for index, job_id in enumerate(queue_order)}
 
-    # Job atual: o em execução; sem nenhum, o próximo da fila (mostra o
-    # progresso "Na fila" enquanto aguarda).  Os demais vão para `queue`.
-    current_record = running[0] if running else (queued[0] if queued else None)
-    pending = queued if running else queued[1:]
+    ordered = sorted(records, key=lambda r: r.created_at, reverse=True)  # último primeiro
+    current_records = [r for r in ordered if r.status == "running"]
+    current_record = current_records[0] if current_records else None
+    queued_records = sorted(
+        (r for r in ordered if r.status == "queued" and r.job_id in positions),
+        key=lambda r: positions[r.job_id],
+    )
+    finished_records = [r for r in ordered if r.status in ("completed", "failed")]
 
     current: dict[str, Any] | None = None
     if current_record is not None:
@@ -82,6 +89,18 @@ def dashboard_summary(request: Request) -> JSONResponse:
         }
         current = _entry(current_record, progress)
 
+    cancelled_count = sum(
+        1 for r in finished_records
+        if r.status == "completed" and r.result is None and r.error is None
+    )
+    counts = {
+        "queued": len(queued_records),
+        "running": len(current_records),
+        "completed": sum(1 for r in finished_records if r.status == "completed") - cancelled_count,
+        "cancelled": cancelled_count,
+        "failed": sum(1 for r in finished_records if r.status == "failed"),
+    }
+
     return JSONResponse(
         {
             "worker": {
@@ -89,10 +108,14 @@ def dashboard_summary(request: Request) -> JSONResponse:
                 "comfyui": comfyui_ready(),
                 "startup_error": startup_error(),
                 "busy": manager.busy(),
-                "queue_size": len(pending),
+                "queue_size": len(queued_records),
             },
             "current": current,
-            "queue": [_entry(record) for record in pending],
-            "history": [_entry(record) for record in reversed(finished)][:20],
+            "queue": [
+                _entry(record, queue_position=positions[record.job_id])
+                for record in queued_records
+            ],
+            "history": [_entry(record) for record in finished_records][:20],
+            "counts": counts,
         }
     )

@@ -139,7 +139,7 @@ class DashboardRoutesTests(unittest.TestCase):
             time.sleep(0.02)
         raise AssertionError(f"job {job_id} não terminou em {timeout}s")
 
-    def _record(self, status="completed", result=None, job_id="job-1"):
+    def _record(self, status="completed", result=None, job_id="job-1", error=None):
         return JobRecord(
             job_id=job_id,
             project_id="projeto-abc",
@@ -148,6 +148,7 @@ class DashboardRoutesTests(unittest.TestCase):
             started_at=100.0,
             finished_at=160.0 if result or status == "completed" else None,
             result=result,
+            error=error,
         )
 
     def test_pagina_dashboard_serve_html(self) -> None:
@@ -192,6 +193,81 @@ class DashboardRoutesTests(unittest.TestCase):
         self.assertEqual(body["history"][0]["job_id"], "job-1")
         self.assertEqual(body["history"][0]["duration_seconds"], 60.0)
         self.assertEqual(body["history"][0]["video_url"], "https://minio/v.mp4")
+
+    def _values(self, job_id: str) -> dict:
+        return {
+            "project_id": "projeto-abc",
+            "job_id": job_id,
+            "image_url": "https://minio/i.png",
+            "audio_url": "https://minio/a.wav",
+            "prompt": "glauberavatar oi",
+            "webhook_url": "",
+            "webhook_extra_params": {},
+        }
+
+    def test_summary_mostra_fila_com_posicoes(self) -> None:
+        # dispatcher pausado: os enfileirados precisam continuar na fila
+        with mock.patch.object(api.manager, "next_queued", return_value=None):
+            api.manager.enqueue(self._values("job-q1"))
+            api.manager.enqueue(self._values("job-q2"))
+            body = self.client.get("/dashboard/api/summary").json()
+
+        self.assertEqual(body["current"], None)
+        self.assertEqual([q["job_id"] for q in body["queue"]], ["job-q1", "job-q2"])
+        self.assertEqual(body["queue"][0]["queue_position"], 1)
+        self.assertEqual(body["queue"][1]["queue_position"], 2)
+        self.assertEqual(body["counts"]["queued"], 2)
+        self.assertEqual(body["counts"]["running"], 0)
+        self.assertEqual(body["worker"]["queue_size"], 2)
+
+    def test_summary_counts_completos(self) -> None:
+        completed = self._record(status="completed", result={"video_url": "https://minio/v.mp4"})
+        failed = self._record(status="failed", error="boom", job_id="job-f")
+        with api.manager._lock:
+            api.manager._jobs["job-1"] = completed
+            api.manager._jobs["job-f"] = failed
+
+        with mock.patch.object(api.manager, "next_queued", return_value=None):
+            api.manager.enqueue(self._values("job-q1"))
+            body = self.client.get("/dashboard/api/summary").json()
+
+        counts = body["counts"]
+        self.assertEqual(counts["completed"], 1)
+        self.assertEqual(counts["failed"], 1)
+        self.assertEqual(counts["queued"], 1)
+        self.assertEqual(counts["running"], 0)
+        self.assertEqual(len(body["history"]), 2)
+
+    def test_summary_marca_cancelados(self) -> None:
+        cancelled = self._record(status="completed", result=None, job_id="job-c")
+        with api.manager._lock:
+            api.manager._jobs["job-c"] = cancelled
+        body = self.client.get("/dashboard/api/summary").json()
+        self.assertTrue(body["history"][0]["cancelled"])
+        self.assertEqual(body["counts"]["cancelled"], 1)
+        self.assertEqual(body["counts"]["completed"], 0)
+
+    def test_runpod_status_queue_position_aditivo(self) -> None:
+        with mock.patch.object(api.manager, "next_queued", return_value=None):
+            api.manager.enqueue(self._values("job-q1"))
+            api.manager.enqueue(self._values("job-q2"))
+            first = self.client.get("/ep/status/job-q1")
+            second = self.client.get("/ep/status/job-q2")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.json()["status"], "IN_QUEUE")
+        self.assertEqual(first.json()["queue_position"], 1)
+        self.assertEqual(second.json()["queue_position"], 2)
+
+    def test_cancel_via_rota_runpod_aparece_no_painel(self) -> None:
+        with mock.patch.object(api.manager, "next_queued", return_value=None):
+            api.manager.enqueue(self._values("job-q3"))
+            response = self.client.post("/local/cancel/job-q3")
+            self.assertEqual(response.status_code, 200)
+            body = self.client.get("/dashboard/api/summary").json()
+        entry = next(e for e in body["history"] if e["job_id"] == "job-q3")
+        self.assertTrue(entry["cancelled"])
+        self.assertEqual(entry["video_url"], None)
+        self.assertEqual(body["counts"]["cancelled"], 1)
 
     def test_status_runpod_inclui_progresso_aditivo(self) -> None:
         import threading

@@ -258,6 +258,10 @@ def _runpod_status_payload(record) -> dict[str, Any]:
     content: dict[str, Any] = {"id": record.job_id, "status": to_runpod_status(record.status)}
     if record.status == "running":
         content["progress"] = _progress_snapshot(record.job_id)  # campo aditivo
+    elif record.status == "queued":
+        position = manager.queue_position(record.job_id)  # campo aditivo
+        if position is not None:
+            content["queue_position"] = position
     if record.status == "completed":
         content["output"] = runpod_output(record)
     elif record.status == "failed":

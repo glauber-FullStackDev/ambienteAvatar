@@ -125,7 +125,7 @@ class QueueTests(unittest.TestCase):
         with mock.patch.object(api, "run_job", side_effect=slow_job), mock.patch.object(
             api, "deliver_runpod", return_value=None
         ):
-            first = self.client.post("/ep/run", json={"input": dict(RUNPOD_INPUT)})
+            self.client.post("/ep/run", json={"input": dict(RUNPOD_INPUT)})
             second = self.client.post("/ep/run", json={"input": dict(RUNPOD_INPUT)})
             second_id = second.json()["id"]
 
