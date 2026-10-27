@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlauberAvatar — Fila de Geração</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
+    --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px; max-width: 960px; margin-inline: auto;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin-bottom: 20px; }
+  .badges { display: flex; gap: 8px; margin: 8px 0 20px; flex-wrap: wrap; }
+  .badge {
+    font-size: 12px; padding: 2px 10px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge.ok { color: var(--green); border-color: var(--green); }
+  .badge.err { color: var(--red); border-color: var(--red); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 20px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .empty { color: var(--muted); font-style: italic; }
+  .phase { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+  .big-pct { font-size: 34px; font-weight: 700; }
+  .bar { background: #21262d; border-radius: 6px; height: 14px; overflow: hidden; margin: 10px 0; }
+  .bar > div {
+    height: 100%; width: 0%; border-radius: 6px; transition: width .8s ease;
+    background: linear-gradient(90deg, #1f6feb, #58a6ff);
+  }
+  .meta { display: flex; gap: 18px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+  .prompt { color: var(--muted); font-size: 12px; margin-top: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td { vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .st-completed { color: var(--green); }
+  .st-failed { color: var(--red); }
+  .st-running, .st-queued { color: var(--yellow); }
+  a { color: var(--accent); text-decoration: none; }
+  .muted { color: var(--muted); }
+  #gate { max-width: 360px; margin: 80px auto; text-align: center; }
+  #gate input {
+    width: 100%; padding: 10px; margin-top: 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: #0d1117; color: var(--text);
+  }
+  #gate button {
+    margin-top: 10px; padding: 10px 18px; border: none; border-radius: 8px;
+    background: #1f6feb; color: white; cursor: pointer;
+  }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <h1>🎬 GlauberAvatar — Fila de Geração</h1>
+  <div class="subtitle">LTX 2.3 · Personal LoRA · worker local 16 GB</div>
+  <div class="badges">
+    <span class="badge" id="badge-worker">worker: —</span>
+    <span class="badge" id="badge-comfyui">comfyui: —</span>
+    <span class="badge" id="badge-busy">—</span>
+  </div>
+
+  <div id="gate" class="card" hidden>
+    <h2>Acesso</h2>
+    <div class="muted">Informe o API_TOKEN do worker para ver o painel.</div>
+    <input id="token-input" type="password" placeholder="API_TOKEN" autocomplete="off">
+    <button onclick="saveToken()">Entrar</button>
+  </div>
+
+  <div id="content">
+    <div class="card" id="current-card">
+      <h2>Job atual</h2>
+      <div id="current" class="empty">Nenhum job em execução.</div>
+    </div>
+
+    <div class="card">
+      <h2>Gerados</h2>
+      <table>
+        <thead>
+          <tr><th>Job</th><th>Projeto</th><th>Status</th><th>Geração</th><th>Prompt</th><th>Concluído</th><th></th></tr>
+        </thead>
+        <tbody id="history"><tr><td colspan="7" class="empty">Nada gerado ainda nesta sessão.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const TOKEN_KEY = "ltx_dashboard_token";
+const PHASES = {
+  downloading: "Baixando input (imagem + áudio)",
+  queueing: "Na fila do ComfyUI",
+  sampling: "Gerando vídeo",
+  decoding: "Decodificando frames",
+  uploading: "Enviando resultados",
+  done: "Concluído",
+  failed: "Falhou",
+  queued: "Na fila",
+};
+const token = () => localStorage.getItem(TOKEN_KEY) || "";
+
+function saveToken() {
+  localStorage.setItem(TOKEN_KEY, document.getElementById("gate").querySelector("input").value.trim());
+  load();
+}
+
+function fmtDuration(sec) {
+  if (sec == null) return "—";
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m ? `${m}m ${s}s` : `${s}s`;
+}
+function fmtTime(ts) {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleTimeString();
+}
+function esc(s) {
+  return (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+
+async function load() {
+  let data;
+  try {
+    const resp = await fetch(`/dashboard/api/summary?token=${encodeURIComponent(token())}`);
+    if (resp.status === 401) { showGate(); return; }
+    hideGate();
+    data = await resp.json();
+  } catch { return; }
+  renderWorker(data.worker);
+  renderCurrent(data.current);
+  renderHistory(data.history || []);
+}
+
+function renderWorker(w) {
+  setBadge("badge-worker", w.startup_done, "worker");
+  setBadge("badge-comfyui", w.comfyui, "comfyui");
+  const busy = document.getElementById("badge-busy");
+  busy.textContent = w.busy ? "processando" : "livre";
+  busy.className = "badge " + (w.busy ? "st-running" : "ok");
+}
+function setBadge(id, ok, label) {
+  const el = document.getElementById(id);
+  el.textContent = `${label}: ${ok ? "ok" : "off"}`;
+  el.className = "badge " + (ok ? "ok" : "err");
+}
+
+function renderCurrent(job) {
+  const el = document.getElementById("current");
+  if (!job) { el.innerHTML = '<span class="empty">Nenhum job em execução.</span>'; return; }
+  const p = job.progress || {};
+  const percent = Math.round(p.percent ?? 0);
+  const phase = PHASES[p.phase] || p.phase || "—";
+  const steps = (p.step != null && p.total_steps) ? ` — passo ${p.step}/${p.total_steps}` : "";
+  const started = job.started_at ? (Date.now() / 1000 - job.started_at) : 0;
+  let eta = "";
+  if (percent >= 5 && started > 0) {
+    const remaining = started / percent * (100 - percent);
+    eta = ` · faltam ~${fmtDuration(remaining)}`;
+  }
+  el.innerHTML = `
+    <div class="phase">${esc(phase)}${esc(steps)}</div>
+    <div class="big-pct">${percent}%</div>
+    <div class="bar"><div style="width:${percent}%"></div></div>
+    <div class="meta">
+      <span>job <code>${esc(job.job_id.slice(0, 8))}</code></span>
+      <span>projeto ${esc(job.project_id)}</span>
+      <span>decorrido ${esc(fmtDuration(started))}${esc(eta)}</span>
+    </div>
+    <div class="prompt" title="${esc(job.prompt)}">${esc(job.prompt || "")}</div>`;
+}
+
+function renderHistory(rows) {
+  const tbody = document.getElementById("history");
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Nada gerado ainda nesta sessão.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><code>${esc(r.job_id.slice(0, 8))}</code></td>
+      <td>${esc(r.project_id)}</td>
+      <td class="st-${esc(r.status)}">${r.status === "completed" ? "✓ gerado" : "✗ falhou"}</td>
+      <td>${esc(fmtDuration(r.duration_seconds))}</td>
+      <td class="prompt" style="max-width:220px" title="${esc(r.prompt)}">${esc((r.prompt || "").slice(0, 60))}</td>
+      <td>${esc(fmtTime(r.finished_at))}</td>
+      <td>${r.video_url ? `<a href="${esc(r.video_url)}" target="_blank">vídeo ▸</a>` : ""}</td>
+    </tr>`).join("");
+}
+
+function showGate() {
+  document.getElementById("gate").hidden = false;
+  document.getElementById("content").style.visibility = "hidden";
+}
+function hideGate() {
+  document.getElementById("gate").hidden = true;
+  document.getElementById("content").style.visibility = "visible";
+}
+window.saveToken = saveToken;
+
+setInterval(load, 1500);
+load();
+</script>
+</body>
+</html>

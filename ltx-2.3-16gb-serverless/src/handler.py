@@ -31,6 +31,7 @@ from botocore.config import Config
 import requests
 
 from workflow_api import build_job_workflow
+from job_progress import tracker
 
 LOG = logging.getLogger("ltx23-16gb-serverless")
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -565,6 +566,7 @@ def result_key(values: dict[str, Any], filename: str) -> str:
 def run_job(values: dict[str, Any], job_id: str) -> dict[str, Any]:
     """Executa um job já validado e devolve o payload de resultado."""
     started_at = time.monotonic()
+    tracker.start(job_id, project_id=values["project_id"], prompt=values.get("prompt", ""))
     image_name = f"jobs/{job_id}/input{_file_extension(values['image_url'], '.png')}"
     audio_name = f"jobs/{job_id}/audio{_file_extension(values['audio_url'], '.wav')}"
     values = {**values, "image_filename": image_name, "audio_filename": audio_name}
@@ -577,12 +579,15 @@ def run_job(values: dict[str, Any], job_id: str) -> dict[str, Any]:
         if LOG_VRAM_PEAK
         else None
     )
+    completed = False
     try:
         _ensure_comfyui()
         if vram_thread:
             vram_thread.start()
+        tracker.set_phase(job_id, "downloading")
         _download(values["image_url"], input_root / image_name)
         _download(values["audio_url"], input_root / audio_name)
+        tracker.set_phase(job_id, "queueing")
         template = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
         workflow = build_job_workflow(template, values, job_id)
         response = requests.post(f"{COMFYUI_URL}/prompt", json={"prompt": workflow, "client_id": job_id}, timeout=60)
@@ -594,7 +599,9 @@ def run_job(values: dict[str, Any], job_id: str) -> dict[str, Any]:
         prompt_id = response.json().get("prompt_id")
         if not prompt_id:
             raise RuntimeError(f"ComfyUI recusou o workflow: {response.text}")
+        tracker.attach_comfy(job_id)
         _wait_for_history(prompt_id)
+        tracker.set_phase(job_id, "uploading")
         video = _newest_file(COMFYUI_HOME / "output/video/jobs" / job_id, ".mp4")
         last_frame = _newest_file(COMFYUI_HOME / "output/images/last_frame/jobs" / job_id, ".png")
         prefix = os.environ.get("MINIO_OUTPUT_PREFIX", "ltx-ia2v/results").strip("/")
@@ -634,11 +641,13 @@ def run_job(values: dict[str, Any], job_id: str) -> dict[str, Any]:
         if vram_result:
             output["peak_vram_used_gb"] = round(vram_result["peak_used_bytes"] / 1024**3, 2)
             output["vram_device"] = vram_result["device"]
+        completed = True
         return output
     finally:
         vram_stop.set()
         if vram_thread is not None:
             vram_thread.join(timeout=VRAM_POLL_SECONDS + 15)
+        tracker.finish(job_id, ok=completed)
         _cleanup(job_id)
 
 

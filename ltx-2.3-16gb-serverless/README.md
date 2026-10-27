@@ -77,6 +77,32 @@ Erros: `422` validação, `409` worker ocupado, `401` token inválido.
 
 ### `POST /status` (`{"job_id": "..."}`) e `GET /health`
 
+Ambas incluem, para jobs em fila/execução, o campo **aditivo** `"progress"`:
+
+```json
+{ "phase": "sampling", "percent": 43.2, "step": 10, "total_steps": 20 }
+```
+
+Fases: `downloading` (0–3%) → `queueing` (3–5%) → `sampling` (5–80%) →
+`decoding` (VAEDecodeTiled, 80–97%) → `uploading` (97–99%) → `done` (100%).
+O percentual vem dos eventos de progresso do ComfyUI via WebSocket; se o
+WebSocket falhar, o painel cai para o percentual por fase (checkpoints).
+
+## Painel (`GET /dashboard`)
+
+Página servida pelo próprio worker para acompanhar a fila:
+
+- **Job atual**: fase em PT-BR, barra de % grande, passo do sampler, tempo
+  decorrido e estimativa de término (ETA extrapolada do % atual)
+- **Gerados**: histórico dos jobs desta sessão com status, **tempo de
+  geração**, prompt, horário e link direto para o `.mp4`
+- **Worker**: badges de bootstrap/ComfyUI/ocupado
+
+Polling a cada 1,5s (compatível com túnel Cloudflare). Com `API_TOKEN`
+definido, `/dashboard/api/summary` exige o token via `?token=` (o painel pede
+uma vez e guarda no navegador) ou `Authorization: Bearer`. A página em si é
+estática e não expõe dados.
+
 ## Camada de compatibilidade RunPod (backend `runpod-render.service`)
 
 O backend de produção foi construído contra o proxy do RunPod serverless. As
@@ -171,6 +197,7 @@ MinIO (fallback caso o webhook falhe).
 | `API_TOKEN` | não | — | Bearer token da API (sem env = API aberta) |
 | `RUNPOD_DEFAULT_PROJECT_ID` | não | `default` | `project_id` para jobs do backend Runpod (que não envia) |
 | `RUNSYNC_WAIT_SECONDS` | não | `85` | quanto `/{endpointId}/runsync` espera bloqueado |
+| `COMFYUI_PORT` | não | `8188` | porta do ComfyUI (WebSocket de progresso) |
 | `MODELS_ROOT` | não | `/data` | volume persistente dos modelos |
 | `LTX23_GGUF_QUANT` | não | `Q4_K_M` | quant do DiT (`Q5_K_M`, `Q6_K`) |
 | `HF_TOKEN` | não | — | token HF (repos públicos não exigem) |
@@ -190,4 +217,5 @@ aceitam override por job com mínimos seguros.
 python3 ltx-2.3-16gb-serverless/tests/test_workflow_api.py
 python3 ltx-2.3-16gb-serverless/tests/test_serverless_contract.py
 python3 ltx-2.3-16gb-serverless/tests/test_runpod_compat.py
+python3 ltx-2.3-16gb-serverless/tests/test_dashboard_progress.py
 ```

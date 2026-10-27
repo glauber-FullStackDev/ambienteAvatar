@@ -38,6 +38,7 @@ from handler import (
     validate_input,
     STARTUP_DONE,
 )
+from job_progress import tracker
 from jobs import JobBusyError, JobManager, JobNotFoundError
 from runpod_compat import (
     RUNSYNC_WAIT_SECONDS,
@@ -73,14 +74,35 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="LTX 2.3 IA2V Personal LoRA — GGUF 16 GB worker", version="1.0", lifespan=lifespan)
 
+from dashboard import router as dashboard_router  # noqa: E402 - precisa vir após `app`
 
-def _require_auth(request: Request) -> None:
+app.include_router(dashboard_router)
+
+
+def _progress_snapshot(job_id: str) -> dict[str, Any]:
+    """Progresso aditivo do job (fase + %); default quando ainda sem eventos."""
+    snapshot = tracker.snapshot(job_id)
+    if snapshot is not None:
+        return {
+            "phase": snapshot.get("phase"),
+            "percent": round(snapshot.get("percent") or 0.0, 1),
+            "step": snapshot.get("step"),
+            "total_steps": snapshot.get("total_steps"),
+        }
+    return {"phase": "queued", "percent": 0.0, "step": None, "total_steps": None}
+
+
+def _require_auth(request: Request, *, allow_query: bool = False) -> None:
     token = (os.environ.get("API_TOKEN") or "").strip()
     if not token:
         return
     header = (request.headers.get("authorization") or "").strip()
-    if header != f"Bearer {token}":
-        raise HTTPException(status_code=401, detail="token inválido")
+    if header == f"Bearer {token}":
+        return
+    # Para o fetch do navegador (painel /dashboard) atrás do túnel.
+    if allow_query and (request.query_params.get("token") or "").strip() == token:
+        return
+    raise HTTPException(status_code=401, detail="token inválido")
 
 
 @app.get("/health")
@@ -163,7 +185,10 @@ def status(payload: dict[str, Any], request: Request) -> dict[str, Any]:
         record = manager.get(job_id)
     except JobNotFoundError as exc:
         raise HTTPException(status_code=404, detail="job desconhecido") from exc
-    return record.to_dict()
+    payload = record.to_dict()
+    if record.status in ("queued", "running"):
+        payload["progress"] = _progress_snapshot(job_id)  # campo aditivo
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +207,8 @@ def status(payload: dict[str, Any], request: Request) -> dict[str, Any]:
 
 def _runpod_status_payload(record) -> dict[str, Any]:
     content: dict[str, Any] = {"id": record.job_id, "status": to_runpod_status(record.status)}
+    if record.status == "running":
+        content["progress"] = _progress_snapshot(record.job_id)  # campo aditivo
     if record.status == "completed":
         content["output"] = runpod_output(record)
     elif record.status == "failed":
