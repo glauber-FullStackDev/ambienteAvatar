@@ -20,7 +20,7 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-Acesse `http://localhost:8000/dashboard` e informe o token. `GET /health` retorna 503 enquanto o modelo carrega ou se houver erro de inicialização, e 200 quando estiver pronto. O painel atualiza a cada 1,5 segundo; o percentual representa os passos de amostragem, não o tempo total até o PNG pronto.
+Acesse `http://localhost:8001/dashboard` e informe o token. O container continua usando a porta interna `8000`, mapeada para a porta `8001` no servidor; configure o tunnel para `http://localhost:8001`. `GET /health` retorna 503 enquanto o modelo carrega ou se houver erro de inicialização, e 200 quando estiver pronto. O painel atualiza a cada 1,5 segundo; o percentual representa os passos de amostragem, não o tempo total até o PNG pronto.
 
 ## Publicação e execução pelo GHCR
 
@@ -30,7 +30,7 @@ Neste repositório, a imagem é publicada como `ghcr.io/glauber-fullstackdev/amb
 
 ```bash
 docker pull ghcr.io/glauber-fullstackdev/ambienteavatar-qwen-image-2-1:latest
-docker run -d --name qwen-image --gpus all -p 8000:8000 \
+docker run -d --name qwen-image --gpus all -p 8001:8000 \
   -v qwen-models:/data -e API_TOKEN="$API_TOKEN" \
   ghcr.io/glauber-fullstackdev/ambienteavatar-qwen-image-2-1:latest
 docker logs -f qwen-image
@@ -42,7 +42,7 @@ Também é possível executar a imagem diretamente:
 
 ```bash
 docker build -t qwen-image-2.1 .
-docker run --gpus all -p 8000:8000 -v qwen-models:/data \
+docker run --gpus all -p 8001:8000 -v qwen-models:/data \
   -e API_TOKEN="$API_TOKEN" qwen-image-2.1
 ```
 
@@ -53,7 +53,7 @@ docker run --gpus all -p 8000:8000 -v qwen-models:/data \
 O endpoint `POST /api/v1/images` é síncrono: retorna somente após geração ou falha. Solicitações simultâneas aguardam em FIFO; fila cheia responde HTTP 429. O retorno contém `created` e `data`, com `b64_json` e `media_type: image/png`. Erros retornam `error.message` e `error.code`; o serviço não inventa custos nem contagem de tokens.
 
 ```bash
-curl --max-time 3600 http://localhost:8000/api/v1/images \
+curl --max-time 3600 http://localhost:8001/api/v1/images \
   -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
   -d '{"model":"qwen/qwen-image-2.1","prompt":"Uma capivara lendo em uma biblioteca","resolution":"1K","aspect_ratio":"1:1","seed":42}'
 ```
@@ -61,7 +61,7 @@ curl --max-time 3600 http://localhost:8000/api/v1/images \
 Edição com imagem de referência (HTTPS público ou data URL base64):
 
 ```bash
-curl --max-time 3600 http://localhost:8000/api/v1/images \
+curl --max-time 3600 http://localhost:8001/api/v1/images \
   -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
   -d '{"model":"qwen/qwen-image-2.1","prompt":"Troque o fundo por uma praia ao pôr do sol","input_references":[{"type":"image_url","image_url":{"url":"https://example.com/foto.png"}}]}'
 ```
