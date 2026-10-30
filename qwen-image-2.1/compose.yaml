@@ -1,0 +1,23 @@
+services:
+  qwen-image:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      API_TOKEN: ${API_TOKEN:-}
+      MAX_QUEUE_SIZE: ${MAX_QUEUE_SIZE:-10}
+      CPU_OFFLOAD: ${CPU_OFFLOAD:-model}
+      HISTORY_SIZE: ${HISTORY_SIZE:-100}
+      INFERENCE_STEPS: ${INFERENCE_STEPS:-40}
+      HF_MODEL_ID: ${HF_MODEL_ID:-Qwen/Qwen-Image-2.1}
+      HF_MODEL_REVISION: ${HF_MODEL_REVISION:-main}
+      HF_TOKEN: ${HF_TOKEN:-}
+      MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-157286400}
+      MAX_REFERENCE_BYTES: ${MAX_REFERENCE_BYTES:-10485760}
+      MAX_REFERENCE_PIXELS: ${MAX_REFERENCE_PIXELS:-40000000}
+    volumes:
+      - qwen-models:/data
+    gpus: all
+    restart: unless-stopped
+volumes:
+  qwen-models:
