@@ -5,6 +5,9 @@ import sys
 import threading
 import time
 import unittest
+import hashlib
+import hmac
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +16,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import api
+import webhook
 from service import InputError, MODEL, QueueManager, fetch_url, load_reference, validate
 
 PAYLOAD = {'model': MODEL, 'prompt': 'uma paisagem'}
@@ -108,6 +112,53 @@ class QueueTests(unittest.TestCase):
         q.stop()
 
 class ApiTests(unittest.TestCase):
+    def test_async_job_and_webhook(self):
+        received = []
+        delivered = threading.Event()
+        def fake_deliver(url, payload):
+            received.append((url, payload))
+            delivered.set()
+            return True
+        q = QueueManager(FakePipeline)
+        env = {'API_TOKEN': 'secret', 'WEBHOOK_ALLOWED_HOSTS': 'backend.example.com'}
+        with patch.object(api, 'manager', q), patch('service.webhook.deliver', side_effect=fake_deliver), patch.dict(os.environ, env):
+            with TestClient(api.app) as client:
+                for _ in range(100):
+                    if q.ready: break
+                    time.sleep(.01)
+                headers = {'Authorization': 'Bearer secret'}
+                invalid = {**PAYLOAD, 'webhook': {'url': 'https://other.example.com/callback'}}
+                self.assertEqual(client.post('/api/v1/images/async', headers=headers, json=invalid).status_code, 400)
+                response = client.post('/api/v1/images/async', headers=headers, json={**PAYLOAD, 'webhook': {'url': 'https://backend.example.com/callback'}})
+                self.assertEqual(response.status_code, 202, response.text)
+                job_id = response.json()['job_id']
+                self.assertTrue(delivered.wait(2))
+                self.assertEqual(received[0][1]['event'], 'job.completed')
+                self.assertEqual(received[0][1]['job_id'], job_id)
+                self.assertEqual(received[0][1]['result']['data'][0]['media_type'], 'image/png')
+                state = client.get(f'/api/v1/images/jobs/{job_id}', headers=headers).json()
+                self.assertEqual(state['status'], 'completed')
+                self.assertEqual(state['result'], received[0][1]['result'])
+
+    def test_async_failure_sends_error(self):
+        received, delivered = [], threading.Event()
+        class Broken:
+            def generate(self, values, progress): raise RuntimeError('internal error')
+        def fake_deliver(url, payload):
+            received.append(payload); delivered.set(); return True
+        q = QueueManager(Broken)
+        with patch.object(api, 'manager', q), patch('service.webhook.deliver', side_effect=fake_deliver), patch.dict(os.environ, {'API_TOKEN': '', 'WEBHOOK_ALLOWED_HOSTS': 'backend.example.com'}):
+            with TestClient(api.app) as client:
+                for _ in range(100):
+                    if q.ready: break
+                    time.sleep(.01)
+                response = client.post('/api/v1/images/async', json={**PAYLOAD, 'webhook': {'url': 'https://backend.example.com/hook'}})
+                self.assertEqual(response.status_code, 202)
+                self.assertTrue(delivered.wait(2))
+                self.assertEqual(received[0]['event'], 'job.failed')
+                self.assertIsNone(received[0]['result'])
+                self.assertNotIn('internal error', received[0]['error'])
+
     def test_concurrent_requests_wait_for_fifo(self):
         started, release = threading.Event(), threading.Event()
         order, responses = [], {}
@@ -162,5 +213,23 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(item['media_type'], 'image/png')
                 self.assertEqual(Image.open(io.BytesIO(base64.b64decode(item['b64_json']))).size, (4, 4))
                 self.assertEqual(client.get('/dashboard/api/summary', headers=headers).json()['counts']['completed'], 1)
+
+class WebhookTests(unittest.TestCase):
+    def test_signature_retry_and_redirect_rejection(self):
+        calls = []
+        class Response:
+            status = 302
+            def close(self): pass
+        class Pool:
+            def __init__(self, **kwargs): pass
+            def request(self, method, url, body, headers, **kwargs):
+                calls.append((body, headers, kwargs)); return Response()
+            def clear(self): pass
+        with patch('webhook.urllib3.PoolManager', Pool), patch('webhook.time.sleep'), patch.dict(os.environ, {'WEBHOOK_SECRET':'abc', 'WEBHOOK_RETRIES':'2'}):
+            self.assertFalse(webhook.deliver('https://example.com/hook', {'job_id':'123'}))
+        self.assertEqual(len(calls), 2)
+        body, headers, options = calls[0]
+        self.assertEqual(headers['X-Webhook-Signature'], 'sha256=' + hmac.new(b'abc', body, hashlib.sha256).hexdigest())
+        self.assertFalse(options['redirect'])
 
 if __name__ == '__main__': unittest.main()

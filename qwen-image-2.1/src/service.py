@@ -14,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 
 import urllib3
 from PIL import Image, UnidentifiedImageError
+import webhook
 
 MODEL = 'qwen/qwen-image-2.1'
 SIZES_2K = {'1:1': (2048, 2048), '4:3': (2400, 1792), '3:4': (1792, 2400), '3:2': (2528, 1696), '2:3': (1696, 2528), '16:9': (2752, 1536), '9:16': (1536, 2752)}
@@ -207,6 +208,8 @@ class Job:
     error: str | None = None
     error_code: int = 500
     disconnected: bool = False
+    webhook_url: str | None = None
+    webhook_status: str | None = None
     done: threading.Event = field(default_factory=threading.Event)
 
 
@@ -236,13 +239,13 @@ class QueueManager:
                 self._finish(job, 'failed', 'Serviço encerrado.', 503)
             self.lock.notify_all()
 
-    def submit(self, values):
+    def submit(self, values, webhook_url=None):
         with self.lock:
             if not self.ready or self.stopping:
                 raise RuntimeError('Modelo ainda não está pronto.')
             if len(self.queue) >= self.max_queue and (self.current is not None or self.queue):
                 raise OverflowError('Fila cheia.')
-            job = Job(values)
+            job = Job(values, webhook_url=webhook_url, webhook_status='pending' if webhook_url else None)
             self.queue.append(job)
             self.lock.notify()
             return job
@@ -293,11 +296,42 @@ class QueueManager:
                     job.result = None if job.disconnected else result
                     self._finish(job, 'completed')
                     self.current = None
+                if job.webhook_url:
+                    self._deliver_async(job)
             except Exception as exc:
                 LOG.exception('Falha no job %s', job.id)
                 with self.lock:
                     self._finish(job, 'failed', str(exc) if isinstance(exc, InputError) else 'Falha na geração da imagem.', 400 if isinstance(exc, InputError) else 500)
                     self.current = None
+                if job.webhook_url:
+                    self._deliver_async(job)
+
+    def _deliver_async(self, job):
+        payload = {'event': 'job.completed' if job.status == 'completed' else 'job.failed',
+                   'job_id': job.id, 'status': job.status,
+                   'result': {'created': int(job.finished_at), 'data': [{'b64_json': job.result, 'media_type': 'image/png'}]} if job.status == 'completed' else None,
+                   'error': job.error}
+        def run():
+            try:
+                sent = webhook.deliver(job.webhook_url, payload)
+            except Exception:
+                LOG.exception('Falha inesperada no webhook do job %s', job.id)
+                sent = False
+            with self.lock:
+                job.webhook_status = 'delivered' if sent else 'failed'
+        threading.Thread(target=run, daemon=True).start()
+
+    def job_status(self, job_id):
+        with self.lock:
+            jobs = ([self.current] if self.current else []) + list(self.queue) + list(self.history)
+            job = next ( (j for j in jobs if j.id == job_id and j.webhook_url), None)
+            if not job:
+                return None
+            position = next((i + 1 for i, j in enumerate(self.queue) if j.id == job_id), None)
+            return {'job_id': job.id, 'status': job.status, 'queue_position': position,
+                    'progress': {'phase': job.phase, 'step': job.step, 'total_steps': job.total_steps},
+                    'webhook_status': job.webhook_status, 'error': job.error,
+                    'result': {'created': int(job.finished_at), 'data': [{'b64_json': job.result, 'media_type': 'image/png'}]} if job.status == 'completed' else None}
 
     def summary(self):
         with self.lock:

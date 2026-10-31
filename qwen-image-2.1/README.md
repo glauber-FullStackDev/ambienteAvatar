@@ -1,6 +1,6 @@
 # Qwen-Image-2.1 — API síncrona e dashboard
 
-Serviço independente para geração e edição de imagens com o checkpoint oficial `Qwen/Qwen-Image-2.1`. Expõe a Image API do OpenRouter e um painel de acompanhamento, sem depender dos workers LTX.
+Serviço independente para geração e edição de imagens com o checkpoint oficial `Qwen/Qwen-Image-2.1`. Expõe a Image API síncrona do OpenRouter, uma rota assíncrona com webhook e um painel de acompanhamento, sem depender dos workers LTX.
 
 **Licença:** os pesos oficiais estão sujeitos à [Qwen Research License](https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE), que permite pesquisa e avaliação não comercial; uso comercial requer licença separada.
 
@@ -8,7 +8,7 @@ Serviço independente para geração e edição de imagens com o checkpoint ofic
 
 - Linux, Docker com Compose, NVIDIA Container Toolkit e GPU NVIDIA com CUDA e BF16. O alvo é 16 GB de VRAM, **ainda não validado**: offload, resolução, número de referências e memória RAM do host afetam o resultado. Se faltar VRAM, experimente `CPU_OFFLOAD=sequential`; pode ser muito mais lento. Se ainda falhar, será necessária mais VRAM ou uma solução de quantização validada.
 - Espaço em disco e RAM suficientes para o modelo completo (que inclui encoder visual, transformer e VAE). O primeiro boot baixa os pesos; pode demorar e precisa de acesso ao Hugging Face. O volume `/data` conserva o cache. Uma revisão do modelo pode ser definida por `HF_MODEL_REVISION`; fixe também `DIFFUSERS_REV` no build para reproduzir uma versão validada.
-- A fila e o histórico vivem na memória. Um reinício interrompe as chamadas e apaga o histórico; o cliente precisa reenviar. Se um cliente desconectar na fila, a solicitação é removida; se já estiver em execução, a GPU termina o trabalho e o resultado é descartado.
+- A fila, o histórico e os resultados assíncronos vivem na memória. Um reinício interrompe jobs e entregas pendentes e apaga os resultados; o cliente precisa reenviar. Na rota síncrona, se um cliente desconectar na fila, a solicitação é removida; se já estiver em execução, a GPU termina o trabalho e o resultado é descartado.
 - Configure timeout do cliente, balanceador e proxy para cobrir **espera na fila e inferência**, potencialmente dezenas de minutos com offload. Chamadas simultâneas mantêm conexões abertas. Execute apenas um processo Uvicorn por GPU: múltiplos workers teriam filas independentes e carregariam o modelo várias vezes.
 
 ## Iniciar
@@ -49,6 +49,26 @@ docker run --gpus all -p 8001:8000 -v qwen-models:/data \
 `API_TOKEN` vazio desabilita autenticação; use um token e HTTPS via proxy em exposição fora de ambiente confiável. O HTML do painel e `/health` são públicos; dados do painel, descoberta e geração exigem `Authorization: Bearer <token>` quando configurado. O painel guarda o token na sessão do navegador.
 
 ## API
+
+### API assíncrona com webhook
+
+Para uso através do Cloudflare Tunnel, configure `WEBHOOK_ALLOWED_HOSTS` com uma lista de hosts de destino HTTPS separados por vírgulas, por exemplo `backend.example.com` ou `backend.example.com:8443`. Configure também `WEBHOOK_SECRET` para assinar as mensagens. Reinicie o container com essas variáveis; URLs fora da lista são recusadas. O destino precisa aceitar POST JSON de alguns megabytes.
+
+```bash
+curl --max-time 30 https://seu-dominio/api/v1/images/async \
+  -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"model":"qwen/qwen-image-2.1","prompt":"Uma capivara lendo um livro","resolution":"1K","webhook":{"url":"https://backend.example.com/webhooks/qwen"}}'
+```
+
+O retorno imediato é HTTP 202, por exemplo `{"job_id":"...","status":"queued","status_url":"/api/v1/images/jobs/..."}`. O cliente deve guardar o `job_id`; a confirmação significa aceitação na fila, não conclusão da geração. A fila cheia retorna 429 e o modelo indisponível retorna 503. O endpoint usa os mesmos campos de imagem da rota síncrona, mais o objeto obrigatório `webhook`.
+
+Ao terminar, o serviço envia ao endereço cadastrado um POST com `event: "job.completed"`, `job_id`, `status: "completed"`, `error: null` e `result` no formato `{"created": ..., "data": [{"b64_json": "...", "media_type": "image/png"}]}`. Em caso de erro, envia `event: "job.failed"`, `status: "failed"`, `result: null` e `error`. O recebedor deve retornar 2xx e tratar duplicatas pelo `job_id`: falhas de entrega são tentadas novamente, sem bloquear a GPU. Os POSTs não seguem redirecionamentos.
+
+Quando `WEBHOOK_SECRET` estiver definido, o cabeçalho `X-Webhook-Signature` contém `sha256=<hex>` do HMAC-SHA256 do corpo HTTP bruto. O recebedor deve conferir a assinatura antes de processar o evento. Se não for configurado segredo, a mensagem não é assinada.
+
+`GET /api/v1/images/jobs/{job_id}`, autenticado com o mesmo token, retorna status, progresso, estado do webhook (`pending`, `delivered` ou `failed`), erro e resultado quando concluído. Serve como alternativa quando a entrega falhar. Os resultados ficam limitados às últimas `HISTORY_SIZE` entradas e desaparecem ao reiniciar; imagens em base64 ocupam RAM enquanto retidas. Um webhook pode chegar antes do cliente terminar de processar o HTTP 202.
+
+### API síncrona compatível com OpenRouter
 
 O endpoint `POST /api/v1/images` é síncrono: retorna somente após geração ou falha. Solicitações simultâneas aguardam em FIFO; fila cheia responde HTTP 429. O retorno contém `created` e `data`, com `b64_json` e `media_type: image/png`. Erros retornam `error.message` e `error.code`; o serviço não inventa custos nem contagem de tokens.
 
@@ -96,6 +116,10 @@ Campos suportados: `model` e `prompt` obrigatórios; `seed`; `resolution` (`1K` 
 | `MAX_REQUEST_BYTES` | `157286400` | Limite do corpo HTTP |
 | `MAX_REFERENCE_BYTES` | `10485760` | Limite por imagem de referência |
 | `MAX_REFERENCE_PIXELS` | `40000000` | Limite de pixels por referência |
+| `WEBHOOK_ALLOWED_HOSTS` | vazio | Hosts HTTPS permitidos para webhooks, separados por vírgula; vazio desabilita envio assíncrono |
+| `WEBHOOK_SECRET` | vazio | Segredo HMAC-SHA256 para assinatura do corpo do webhook |
+| `WEBHOOK_RETRIES` | `5` | Número total de tentativas de entrega |
+| `WEBHOOK_TIMEOUT` | `10` | Timeout de cada tentativa em segundos |
 
 Referências remotas usam conexão direta a IP público validado, recusam endereços privados e verificam cada redirecionamento. Os limites não substituem controles de rede e autenticação da implantação.
 

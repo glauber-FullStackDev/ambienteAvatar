@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from service import InputError, MODEL, QueueManager, SIZES, validate
+from webhook import validate_url
 
 manager = QueueManager()
 
@@ -109,3 +110,43 @@ async def images(request: Request):
         with manager.lock:
             if job.done.is_set():
                 job.result = None
+
+
+@app.post('/api/v1/images/async')
+async def images_async(request: Request):
+    if not authorized(request):
+        return error('Não autorizado.', 401)
+    try:
+        limit = int(os.getenv('MAX_REQUEST_BYTES', str(150 * 1024 * 1024)))
+        if int(request.headers.get('content-length', '0')) > limit:
+            return error('Corpo da solicitação excede o limite.', 413)
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > limit:
+                return error('Corpo da solicitação excede o limite.', 413)
+        import json
+        payload = json.loads(body)
+        if not isinstance(payload, dict):
+            raise InputError('O corpo deve ser um objeto JSON.')
+        hook = payload.pop('webhook', None)
+        if not isinstance(hook, dict) or set(hook) != {'url'} or not validate_url(hook['url']):
+            raise InputError('webhook.url deve usar HTTPS e constar em WEBHOOK_ALLOWED_HOSTS.')
+        values = validate(payload)
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
+        return error(str(exc) if isinstance(exc, InputError) else 'JSON inválido.', 400)
+    try:
+        job = manager.submit(values, webhook_url=hook['url'])
+    except OverflowError as exc:
+        return error(str(exc), 429)
+    except RuntimeError as exc:
+        return error(str(exc), 503)
+    return JSONResponse(status_code=202, content={'job_id': job.id, 'status': 'queued', 'status_url': f'/api/v1/images/jobs/{job.id}'})
+
+
+@app.get('/api/v1/images/jobs/{job_id}')
+def image_job(job_id: str, request: Request):
+    if not authorized(request):
+        return error('Não autorizado.', 401)
+    state = manager.job_status(job_id)
+    return state if state else error('Solicitação não encontrada ou expirada.', 404)
