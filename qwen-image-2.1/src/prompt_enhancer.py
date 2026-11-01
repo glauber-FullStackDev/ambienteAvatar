@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import re
 import socket
 import subprocess
 import time
@@ -95,10 +96,20 @@ def _stop(process):
             process.wait(timeout=5)
 
 
+def _ensure_cuda(binary):
+    result = subprocess.run([binary, '--list-devices'], capture_output=True, text=True, timeout=30, check=False)
+    output = result.stdout + '\n' + result.stderr
+    if result.returncode != 0 or not re.search(r'(?m)^\s*CUDA\d+:', output):
+        LOG.error('llama-server não detectou dispositivo CUDA. Saída: %s', output.strip())
+        raise RuntimeError('llama-server não detectou GPU CUDA; verifique os logs e as bibliotecas do driver.')
+
+
 def enhance(prompt, images):
     from huggingface_hub import hf_hub_download
 
     started = time.monotonic()
+    binary = os.getenv('LLAMA_SERVER_PATH', '/opt/llama/bin/llama-server')
+    _ensure_cuda(binary)
     kind = 'i2i' if images else 't2i'
     repo = os.getenv('PROMPT_ENHANCER_GGUF_REPO', GGUF_REPO)
     revision = os.getenv('PROMPT_ENHANCER_GGUF_REVISION', GGUF_REVISION)
@@ -110,7 +121,7 @@ def enhance(prompt, images):
     system_prompt = Path(hf_hub_download(source_repo, 'system_prompt.txt', revision=SOURCE_REVISIONS[kind])).read_text(encoding='utf-8').strip()
     port = _port()
     base = f'http://127.0.0.1:{port}'
-    command = [os.getenv('LLAMA_SERVER_PATH', '/opt/llama/bin/llama-server'), '-m', model,
+    command = [binary, '-m', model,
                '--host', '127.0.0.1', '--port', str(port), '-ngl', '99', '-fa', 'on',
                '--fit', 'off', '-c', os.getenv('PROMPT_ENHANCER_CONTEXT_SIZE', '24576'),
                '--parallel', '1', '--jinja', '--reasoning-format', 'none', '--spec-type', 'draft-mtp']

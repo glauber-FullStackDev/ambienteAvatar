@@ -284,6 +284,13 @@ class WebhookTests(unittest.TestCase):
         self.assertFalse(options['redirect'])
 
 class LlamaEnhancerTests(unittest.TestCase):
+    def test_cuda_preflight_rejects_missing_gpu(self):
+        with patch('prompt_enhancer.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout='Available devices:\n  (none)', stderr='')):
+            with self.assertRaisesRegex(RuntimeError, 'não detectou GPU CUDA'):
+                prompt_enhancer._ensure_cuda('/opt/llama/llama-server')
+        with patch('prompt_enhancer.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout='Available devices:\n  CUDA0: NVIDIA GPU', stderr='')):
+            prompt_enhancer._ensure_cuda('/opt/llama/llama-server')
+
     def test_process_is_stopped_after_generation_failure(self):
         class Process:
             returncode = None
@@ -302,7 +309,7 @@ class LlamaEnhancerTests(unittest.TestCase):
             file.write_text('system', encoding='utf-8')
             fake_hub = SimpleNamespace(hf_hub_download=lambda *args, **kwargs: str(file))
             process = Process()
-            with patch.dict(sys.modules, {'huggingface_hub': fake_hub}), patch('prompt_enhancer.subprocess.Popen', return_value=process), patch('prompt_enhancer.urllib3.PoolManager', Pool), patch('prompt_enhancer._port', return_value=12345):
+            with patch.dict(sys.modules, {'huggingface_hub': fake_hub}), patch('prompt_enhancer._ensure_cuda'), patch('prompt_enhancer.subprocess.Popen', return_value=process), patch('prompt_enhancer.urllib3.PoolManager', Pool), patch('prompt_enhancer._port', return_value=12345):
                 with self.assertRaisesRegex(RuntimeError, 'HTTP 500'):
                     prompt_enhancer.enhance('x', [])
             self.assertTrue(process.stopped)
@@ -330,7 +337,7 @@ class LlamaEnhancerTests(unittest.TestCase):
                 downloads.append((repo, filename, revision))
                 return str(prompt_file if filename == 'system_prompt.txt' else Path(directory) / filename)
             fake_hub = SimpleNamespace(hf_hub_download=download)
-            with patch.dict(sys.modules, {'huggingface_hub': fake_hub}), patch('prompt_enhancer.subprocess.Popen', Process), patch('prompt_enhancer.urllib3.PoolManager', Pool), patch('prompt_enhancer._port', return_value=12345):
+            with patch.dict(sys.modules, {'huggingface_hub': fake_hub}), patch('prompt_enhancer._ensure_cuda'), patch('prompt_enhancer.subprocess.Popen', Process), patch('prompt_enhancer.urllib3.PoolManager', Pool), patch('prompt_enhancer._port', return_value=12345):
                 self.assertEqual(prompt_enhancer.enhance('um gato', []), 'melhorado')
                 self.assertEqual(prompt_enhancer.enhance('mude o fundo', [Image.new('RGB', (2, 2))]), 'melhorado')
         self.assertTrue(all(process.stopped for process in processes))

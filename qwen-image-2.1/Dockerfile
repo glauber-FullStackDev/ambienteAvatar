@@ -21,9 +21,13 @@ COPY --from=llama-build /opt/llama/bin /opt/llama/bin
 # O binário oficial é compilado para glibc Ubuntu 24.04; isole seu loader e
 # bibliotecas sem alterar a glibc do PyTorch (Ubuntu 22.04).
 COPY --from=llama-build /lib/x86_64-linux-gnu /opt/llama/runtime
-RUN printf '%s\n' '#!/bin/sh' 'exec /opt/llama/runtime/ld-linux-x86-64.so.2 --library-path /opt/llama/bin:/opt/llama/runtime:/opt/conda/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/opt/conda/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/nvidia/lib64:/usr/lib/x86_64-linux-gnu /opt/llama/bin/llama-server "$@"' > /opt/llama/llama-server \
+RUN printf '%s\n' '#!/bin/sh' 'cd /opt/llama/bin || exit 1' 'exec /opt/llama/runtime/ld-linux-x86-64.so.2 --library-path /opt/llama/bin:/opt/llama/runtime:/opt/conda/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/opt/conda/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/nvidia/lib64:/usr/lib/x86_64-linux-gnu /opt/llama/bin/llama-server "$@"' > /opt/llama/llama-server \
     && chmod +x /opt/llama/llama-server \
-    && /opt/llama/llama-server --version
+    && /opt/llama/llama-server --version \
+    && (/opt/llama/llama-server -m /tmp/modelo-inexistente.gguf -ngl 0 --port 0 -lv 4 > /tmp/llama-smoke.log 2>&1 || true) \
+    && cat /tmp/llama-smoke.log \
+    && grep -q 'failed to open GGUF file' /tmp/llama-smoke.log \
+    && ! grep -q 'no backends are loaded' /tmp/llama-smoke.log
 COPY src/ ./
 ENV HF_HOME=/data/huggingface PYTHONUNBUFFERED=1 LLAMA_SERVER_PATH=/opt/llama/llama-server
 EXPOSE 8000
