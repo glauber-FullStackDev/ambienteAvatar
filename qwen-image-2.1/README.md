@@ -8,6 +8,7 @@ Serviço independente para geração e edição de imagens com o checkpoint ofic
 
 - Linux, Docker com Compose, NVIDIA Container Toolkit e GPU NVIDIA com CUDA e BF16. O alvo é 16 GB de VRAM, **ainda não validado**: offload, resolução, número de referências e memória RAM do host afetam o resultado. Se faltar VRAM, experimente `CPU_OFFLOAD=sequential`; pode ser muito mais lento. Se ainda falhar, será necessária mais VRAM ou uma solução de quantização validada.
 - Espaço em disco e RAM suficientes para o modelo completo (que inclui encoder visual, transformer e VAE). O primeiro boot baixa os pesos; pode demorar e precisa de acesso ao Hugging Face. O volume `/data` conserva o cache. Uma revisão do modelo pode ser definida por `HF_MODEL_REVISION`; fixe também `DIFFUSERS_REV` no build para reproduzir uma versão validada.
+- O melhorador de prompts está **ativado por padrão** e usa os checkpoints oficiais de 9B do Qwen: `Qwen-Image-2.1-PE-T2I` para texto e `Qwen-Image-2.1-PE-I2I` quando há referências. Os pesos de cada modalidade são baixados no primeiro uso para o cache persistente. O modelo é carregado antes de cada geração e liberado antes da difusão, dividindo os pesos entre GPU e RAM; isso aumenta significativamente o uso de RAM, armazenamento e tempo. Essa combinação ainda não foi validada na GPU de 16 GB. Se faltar memória ou quiser desativá-la, recrie o container com `PROMPT_ENHANCER_ENABLED=false`. Os checkpoints também usam a licença Qwen Research.
 - A fila, o histórico e os resultados assíncronos vivem na memória. Um reinício interrompe jobs e entregas pendentes e apaga os resultados; o cliente precisa reenviar. Na rota síncrona, se um cliente desconectar na fila, a solicitação é removida; se já estiver em execução, a GPU termina o trabalho e o resultado é descartado.
 - Configure timeout do cliente, balanceador e proxy para cobrir **espera na fila e inferência**, potencialmente dezenas de minutos com offload. Chamadas simultâneas mantêm conexões abertas. Execute apenas um processo Uvicorn por GPU: múltiplos workers teriam filas independentes e carregariam o modelo várias vezes.
 
@@ -88,6 +89,8 @@ curl --max-time 3600 http://localhost:8001/api/v1/images \
 
 Campos suportados: `model` e `prompt` obrigatórios; `seed`; `resolution` (`1K` padrão ou `2K`); `aspect_ratio` (`1:1`, `4:3`, `3:4`, `3:2`, `2:3`, `16:9`, `9:16`); `size` (nível ou dimensão exata da tabela); `n=1`; `output_format=png`; e até 10 `input_references`. `stream=true` e outros parâmetros não são suportados. As dimensões 2K são as recomendadas pelo modelo, e as 1K são versões reduzidas para múltiplos de 32. Todas são configurações disponíveis, não garantias de que caibam em 16 GB.
 
+Quando ativado, o melhorador reescreve o prompt antes da geração ou edição, sem alterar as dimensões escolhidas pelo cliente. O dashboard mostra a fase “Melhorando prompt”. Se o modelo não puder ser carregado ou não retornar um prompt válido, a solicitação falha explicitamente; o serviço não usa o prompt original silenciosamente. A semente da imagem não garante a mesma reescrita, pois o melhorador usa amostragem própria.
+
 | Proporção | 1K | 2K |
 | --- | --- | --- |
 | 1:1 | 1024x1024 | 2048x2048 |
@@ -108,6 +111,11 @@ Campos suportados: `model` e `prompt` obrigatórios; `seed`; `resolution` (`1K` 
 | `MAX_QUEUE_SIZE` | `10` | Máximo de solicitações aguardando; `0` não permite espera |
 | `HISTORY_SIZE` | `100` | Número máximo de entradas mantidas no painel |
 | `CPU_OFFLOAD` | `model` | `model` ou `sequential` |
+| `PROMPT_ENHANCER_ENABLED` | `true` | Reescrita automática de prompts; `false` desativa |
+| `PROMPT_ENHANCER_GPU_MEMORY` | `10GiB` | Limite de GPU para posicionamento dos pesos do melhorador; ativações exigem memória adicional |
+| `PROMPT_ENHANCER_MAX_TOKENS` | `16256` texto / `24000` edição | Limite de tokens gerados para a reescrita |
+| `PROMPT_ENHANCER_T2I_MODEL` / `PROMPT_ENHANCER_EDIT_MODEL` | checkpoints oficiais PE | Sobrescrevem os modelos de geração e edição |
+| `PROMPT_ENHANCER_REVISION` | `main` | Revisão dos checkpoints do melhorador |
 | `INFERENCE_STEPS` | `40` | Passos de inferência, se o checkpoint não definir seu próprio cronograma |
 | `HF_HOME` | `/data/huggingface` | Cache persistente dos pesos |
 | `HF_MODEL_ID` | `Qwen/Qwen-Image-2.1` | Checkpoint Diffusers |

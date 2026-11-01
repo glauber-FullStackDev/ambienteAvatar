@@ -15,6 +15,7 @@ from urllib.parse import urljoin, urlsplit
 import urllib3
 from PIL import Image, UnidentifiedImageError
 import webhook
+import prompt_enhancer
 
 MODEL = 'qwen/qwen-image-2.1'
 SIZES_2K = {'1:1': (2048, 2048), '4:3': (2400, 1792), '3:4': (1792, 2400), '3:2': (2528, 1696), '2:3': (1696, 2528), '16:9': (2752, 1536), '9:16': (1536, 2752)}
@@ -170,10 +171,15 @@ class Pipeline:
         if hasattr(self.pipe, 'enable_vae_tiling'):
             self.pipe.enable_vae_tiling()
         self.steps = int(os.getenv('INFERENCE_STEPS', '40'))
+        self.enhancer_enabled = prompt_enhancer.enabled()
 
     def generate(self, values, progress):
         progress('loading_references', None, None)
         images = [load_reference(url) for url in values['references']]
+        prompt = values['prompt']
+        if self.enhancer_enabled:
+            progress('enhancing_prompt', None, None)
+            prompt = prompt_enhancer.enhance(prompt, images)
         seed = values['seed'] if values['seed'] is not None else int.from_bytes(os.urandom(8), 'big') % (2**63)
         generator = self.torch.Generator(device='cpu').manual_seed(seed)
         def callback(pipe, step, timestep, tensors):
@@ -183,7 +189,7 @@ class Pipeline:
                 progress('decoding', None, None)
             return tensors
         progress('preparing', None, None)
-        kwargs = dict(prompt=values['prompt'], width=values['width'], height=values['height'], num_inference_steps=self.steps, generator=generator, callback_on_step_end=callback)
+        kwargs = dict(prompt=prompt, width=values['width'], height=values['height'], num_inference_steps=self.steps, generator=generator, callback_on_step_end=callback)
         if images:
             kwargs['image'] = images if len(images) > 1 else images[0]
         result = self.pipe(**kwargs).images[0]

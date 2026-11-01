@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image
@@ -17,7 +18,8 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import api
 import webhook
-from service import InputError, MODEL, QueueManager, fetch_url, load_reference, validate
+import prompt_enhancer
+from service import InputError, MODEL, Pipeline, QueueManager, fetch_url, load_reference, validate
 
 PAYLOAD = {'model': MODEL, 'prompt': 'uma paisagem'}
 
@@ -29,6 +31,21 @@ class FakePipeline:
         return base64.b64encode(data.getvalue()).decode()
 
 class ValidationTests(unittest.TestCase):
+    def test_enhancer_parses_rewritten_prompt_and_rejects_incomplete_output(self):
+        self.assertEqual(prompt_enhancer.parse_rewrite('reasoning</think>\n{"rewritten_prompt":"Detailed scene", "wh_ratio":"16:9"}'), 'Detailed scene')
+        self.assertEqual(prompt_enhancer.parse_rewrite('```json\n{"rewritten_prompt":"  A cat  "}\n```'), 'A cat')
+        for text in ('<think>unfinished', '{"wh_ratio":"1:1"}', 'invalid'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                prompt_enhancer.parse_rewrite(text)
+
+    def test_enhancer_enabled_by_default_and_configurable(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(prompt_enhancer.enabled())
+        with patch.dict(os.environ, {'PROMPT_ENHANCER_ENABLED': 'false'}):
+            self.assertFalse(prompt_enhancer.enabled())
+        with patch.dict(os.environ, {'PROMPT_ENHANCER_ENABLED': 'invalid'}), self.assertRaises(ValueError):
+            prompt_enhancer.enabled()
+
     def test_dimensions_and_conflicts(self):
         self.assertEqual((validate(PAYLOAD)['width'], validate(PAYLOAD)['height']), (1024, 1024))
         self.assertEqual(validate({**PAYLOAD, 'size': '2752x1536'})['height'], 1536)
@@ -62,6 +79,39 @@ class ValidationTests(unittest.TestCase):
                 fetch_url('https://example.com/image')
 
 class QueueTests(unittest.TestCase):
+    def test_pipeline_passes_enhanced_prompt_to_diffusion(self):
+        calls, phases = [], []
+        class Generator:
+            def __init__(self, device): pass
+            def manual_seed(self, seed): return self
+        class Diffusion:
+            def __call__(self, **kwargs):
+                calls.append(kwargs)
+                return SimpleNamespace(images=[Image.new('RGB', (2, 2))])
+        pipeline = Pipeline.__new__(Pipeline)
+        pipeline.torch = SimpleNamespace(Generator=Generator)
+        pipeline.pipe = Diffusion()
+        pipeline.steps = 40
+        pipeline.enhancer_enabled = True
+        with patch('service.prompt_enhancer.enhance', return_value='Prompt melhorado') as enhancer:
+            pipeline.generate(validate(PAYLOAD), lambda *p: phases.append(p))
+        enhancer.assert_called_once_with(PAYLOAD['prompt'], [])
+        self.assertEqual(calls[0]['prompt'], 'Prompt melhorado')
+        self.assertIn(('enhancing_prompt', None, None), phases)
+        pipeline.enhancer_enabled = False
+        with patch('service.prompt_enhancer.enhance') as enhancer:
+            pipeline.generate(validate(PAYLOAD), lambda *p: None)
+        enhancer.assert_not_called()
+        self.assertEqual(calls[-1]['prompt'], PAYLOAD['prompt'])
+        pipeline.enhancer_enabled = True
+        reference = Image.new('RGB', (3, 3))
+        values = validate({**PAYLOAD, 'input_references': [{'type': 'image_url', 'image_url': {'url': 'https://example.com/ref.png'}}]})
+        with patch('service.load_reference', return_value=reference), patch('service.prompt_enhancer.enhance', return_value='Edição aprimorada') as enhancer:
+            pipeline.generate(values, lambda *p: None)
+        enhancer.assert_called_once_with(PAYLOAD['prompt'], [reference])
+        self.assertEqual(calls[-1]['prompt'], 'Edição aprimorada')
+        self.assertIs(calls[-1]['image'], reference)
+
     def test_fifo_limit_progress_and_disconnect(self):
         started, release = threading.Event(), threading.Event()
         order = []
