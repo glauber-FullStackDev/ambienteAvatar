@@ -179,6 +179,7 @@ class Pipeline:
         prompt = values['prompt']
         if self.enhancer_enabled:
             progress('enhancing_prompt', None, None)
+            self.torch.cuda.empty_cache()
             prompt = prompt_enhancer.enhance(prompt, images)
         seed = values['seed'] if values['seed'] is not None else int.from_bytes(os.urandom(8), 'big') % (2**63)
         generator = self.torch.Generator(device='cpu').manual_seed(seed)

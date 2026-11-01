@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import time
+import tempfile
 import unittest
 import hashlib
 import hmac
@@ -89,7 +90,7 @@ class QueueTests(unittest.TestCase):
                 calls.append(kwargs)
                 return SimpleNamespace(images=[Image.new('RGB', (2, 2))])
         pipeline = Pipeline.__new__(Pipeline)
-        pipeline.torch = SimpleNamespace(Generator=Generator)
+        pipeline.torch = SimpleNamespace(Generator=Generator, cuda=SimpleNamespace(empty_cache=lambda: None))
         pipeline.pipe = Diffusion()
         pipeline.steps = 40
         pipeline.enhancer_enabled = True
@@ -281,5 +282,65 @@ class WebhookTests(unittest.TestCase):
         body, headers, options = calls[0]
         self.assertEqual(headers['X-Webhook-Signature'], 'sha256=' + hmac.new(b'abc', body, hashlib.sha256).hexdigest())
         self.assertFalse(options['redirect'])
+
+class LlamaEnhancerTests(unittest.TestCase):
+    def test_process_is_stopped_after_generation_failure(self):
+        class Process:
+            returncode = None
+            def __init__(self, *args, **kwargs): self.stopped = False
+            def poll(self): return None if not self.stopped else 0
+            def terminate(self): self.stopped = True
+            def wait(self, timeout): return 0
+        class Pool:
+            def __init__(self, **kwargs): pass
+            def clear(self): pass
+            def request(self, method, url, **kwargs):
+                if method == 'GET': return SimpleNamespace(status=200)
+                return SimpleNamespace(status=500, data=b'error')
+        with tempfile.TemporaryDirectory() as directory:
+            file = Path(directory) / 'file'
+            file.write_text('system', encoding='utf-8')
+            fake_hub = SimpleNamespace(hf_hub_download=lambda *args, **kwargs: str(file))
+            process = Process()
+            with patch.dict(sys.modules, {'huggingface_hub': fake_hub}), patch('prompt_enhancer.subprocess.Popen', return_value=process), patch('prompt_enhancer.urllib3.PoolManager', Pool), patch('prompt_enhancer._port', return_value=12345):
+                with self.assertRaisesRegex(RuntimeError, 'HTTP 500'):
+                    prompt_enhancer.enhance('x', [])
+            self.assertTrue(process.stopped)
+
+    def test_gguf_modes_cleanup_and_multimodal_payload(self):
+        downloads, commands, requests, processes = [], [], [], []
+        class Process:
+            returncode = None
+            def __init__(self, command, **kwargs):
+                commands.append(command); processes.append(self); self.stopped = False
+            def poll(self): return None if not self.stopped else 0
+            def terminate(self): self.stopped = True
+            def wait(self, timeout): return 0
+        class Pool:
+            def __init__(self, **kwargs): pass
+            def clear(self): pass
+            def request(self, method, url, **kwargs):
+                if method == 'GET': return SimpleNamespace(status=200)
+                requests.append(json.loads(kwargs['body']))
+                return SimpleNamespace(status=200, data=json.dumps({'choices': [{'finish_reason': 'stop', 'message': {'content': '<think>x</think>{"rewritten_prompt":"melhorado"}'}}]}).encode())
+        with tempfile.TemporaryDirectory() as directory:
+            prompt_file = Path(directory) / 'system_prompt.txt'
+            prompt_file.write_text('instrução', encoding='utf-8')
+            def download(repo, filename, revision):
+                downloads.append((repo, filename, revision))
+                return str(prompt_file if filename == 'system_prompt.txt' else Path(directory) / filename)
+            fake_hub = SimpleNamespace(hf_hub_download=download)
+            with patch.dict(sys.modules, {'huggingface_hub': fake_hub}), patch('prompt_enhancer.subprocess.Popen', Process), patch('prompt_enhancer.urllib3.PoolManager', Pool), patch('prompt_enhancer._port', return_value=12345):
+                self.assertEqual(prompt_enhancer.enhance('um gato', []), 'melhorado')
+                self.assertEqual(prompt_enhancer.enhance('mude o fundo', [Image.new('RGB', (2, 2))]), 'melhorado')
+        self.assertTrue(all(process.stopped for process in processes))
+        self.assertIn('pe_t2i.mtp.Q4_K_M.gguf', downloads[0][1])
+        self.assertTrue(any('pe_i2i.mtp.Q4_K_M.gguf' in item[1] for item in downloads))
+        self.assertIn('--mmproj', commands[1])
+        self.assertIn('--spec-type', commands[0])
+        self.assertNotIn('--mmproj', commands[0])
+        content = requests[1]['messages'][1]['content']
+        self.assertTrue(content[0]['image_url']['url'].startswith('data:image/png;base64,'))
+        self.assertEqual(content[1]['text'], 'mude o fundo')
 
 if __name__ == '__main__': unittest.main()
