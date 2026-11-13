@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import api
 import webhook
-from service import InputError, MODEL, MODEL_ALIAS, Pipeline, QueueManager, fetch_url, load_reference, validate
+from service import InputError, MODEL, MODEL_ALIAS, Pipeline, QueueManager, build_workflow, fetch_url, load_reference, validate
 
 PAYLOAD = {'model': MODEL, 'prompt': 'uma paisagem'}
 
@@ -71,62 +71,52 @@ class ValidationTests(unittest.TestCase):
                 fetch_url('https://example.com/image')
 
 class QueueTests(unittest.TestCase):
-    def test_pipeline_runs_upsampler_before_diffusion_with_references(self):
-        calls, seeds, phases = [], [], []
-        class Generator:
-            def __init__(self, device): pass
-            def manual_seed(self, seed): seeds.append(seed); return self
-        pipeline = Pipeline.__new__(Pipeline)
-        pipeline.torch = SimpleNamespace(Generator=Generator)
-        refs = [Image.new('RGB', (3, 3)), Image.new('RGB', (4, 4))]
-        values = validate({**PAYLOAD, 'model': MODEL_ALIAS, 'seed': 42, 'resolution': '2K',
-                           'input_references': [{'type': 'image_url', 'image_url': {'url': 'https://example.com/a'}},
-                                                {'type': 'image_url', 'image_url': {'url': 'https://example.com/b'}}]})
-        def diffusion(prompt, images, values, generator):
-            calls.append((prompt, images, values))
-            return Image.new('RGB', (2, 2))
-        with patch('service.load_reference', side_effect=refs), \
-             patch.object(pipeline, '_upsample', return_value='expanded caption') as upsample, \
-             patch.object(pipeline, '_generate_image', side_effect=diffusion):
-            result = pipeline.generate(values, lambda *p: phases.append(p))
-        upsample.assert_called_once_with(PAYLOAD['prompt'], refs)
-        self.assertEqual(Image.open(io.BytesIO(base64.b64decode(result))).format, 'PNG')
-        self.assertEqual(seeds, [42])
-        self.assertEqual(calls[0][0], 'expanded caption')
-        self.assertEqual(calls[0][1], refs)
-        self.assertEqual((calls[0][2]['width'], calls[0][2]['height']), (2048, 2048))
-        self.assertIn(('enhancing_prompt', None, None), phases)
+    def test_workflow_passes_all_references_and_preserves_dimensions(self):
+        values = validate({**PAYLOAD, 'seed': 42, 'resolution': '2K', 'aspect_ratio': '16:9'})
+        names = [f'reference-{i}.png' for i in range(10)]
+        graph = build_workflow(values, names, {'t2i': 't2i system', 'i2i': 'edit system'})
+        self.assertEqual(graph['5']['inputs']['system_prompt'], 'edit system')
+        self.assertIn('User request: ' + PAYLOAD['prompt'], graph['5']['inputs']['prompt'])
+        self.assertEqual(graph['5']['inputs']['image'], ['13', 0])
+        self.assertEqual(graph['12']['inputs']['images.image9'], ['109', 0])
+        self.assertEqual(graph['13']['inputs']['images.image9'], ['109', 0])
+        self.assertEqual(graph['9']['inputs']['positive'], ['12', 0])
+        self.assertEqual(graph['8']['inputs']['width'], 2752)
+        self.assertEqual(graph['8']['inputs']['height'], 1536)
+        self.assertEqual(graph['9']['inputs']['seed'], 42)
+        self.assertEqual(graph['1']['inputs']['unet_name'], 'flux3-image-klein-int8-convrot.safetensors')
+        self.assertEqual(graph['2']['inputs']['clip_name'], 'qwen3vl_4b_int8_convrot.safetensors')
+        self.assertEqual(graph['4']['inputs']['clip_name'], 'qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors')
+        plain = build_workflow(values, [], {'t2i': 't2i system', 'i2i': 'edit system'})
+        self.assertEqual(plain['5']['inputs']['system_prompt'], 't2i system')
+        self.assertNotIn('12', plain)
+        self.assertEqual(plain['9']['inputs']['positive'], ['6', 0])
 
-    def test_upsampler_respects_limits_and_cleans_up(self):
-        import types
-        events = []
-        class Model:
-            @classmethod
-            def from_pretrained(cls, model_id, **kwargs):
-                events.append(kwargs)
-                return cls()
-        class Processor:
-            @classmethod
-            def from_pretrained(cls, model_id): return cls()
-        fake_transformers = types.ModuleType('transformers')
-        fake_transformers.AutoModelForMultimodalLM = Model
-        fake_transformers.AutoProcessor = Processor
-        pup = types.ModuleType('diffusers.modular_pipelines.flux3.prompt_upsampler')
-        pup.upsample_prompt = lambda model, processor, prompt, images, max_new_tokens: 'caption'
+    def test_generation_submits_workflow_and_returns_png(self):
+        calls = []
+        image = io.BytesIO()
+        Image.new('RGB', (2, 2)).save(image, 'PNG')
+        class Http:
+            def request(self, method, url, **kwargs):
+                calls.append((method, url, kwargs))
+                if url.endswith('/prompt'):
+                    return SimpleNamespace(status=200, data=b'{"prompt_id":"abc"}')
+                if '/history/' in url:
+                    return SimpleNamespace(status=200, data=b'{"abc":{"outputs":{"11":{"images":[{"filename":"x.png","type":"temp"}]}}}}')
+                return SimpleNamespace(status=200, data=image.getvalue())
         pipeline = Pipeline.__new__(Pipeline)
-        pipeline.torch = SimpleNamespace(bfloat16='bf16', cuda=SimpleNamespace(
-            mem_get_info=lambda: (7 * 1024**3, 16 * 1024**3), empty_cache=lambda: events.append('clear')))
-        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {'FLUX_OFFLOAD_DIR': folder}, clear=True), \
-             patch.dict(sys.modules, {'transformers': fake_transformers,
-                                      'diffusers': types.ModuleType('diffusers'),
-                                      'diffusers.modular_pipelines': types.ModuleType('diffusers.modular_pipelines'),
-                                      'diffusers.modular_pipelines.flux3': types.ModuleType('diffusers.modular_pipelines.flux3'),
-                                      'diffusers.modular_pipelines.flux3.prompt_upsampler': pup}):
-            self.assertEqual(pipeline._upsample('test', []), 'caption')
-            self.assertEqual(events[0]['device_map'], 'auto')
-            self.assertEqual(events[0]['max_memory'], {0: '5GiB', 'cpu': '8GiB'})
-            self.assertEqual(list(Path(folder).iterdir()), [])
-        self.assertEqual(events[-1], 'clear')
+        pipeline.url = 'http://127.0.0.1:8188'
+        pipeline.http = Http()
+        pipeline.prompts = {'t2i': 't2i', 'i2i': 'i2i'}
+        pipeline.process = SimpleNamespace(poll=lambda: None)
+        with tempfile.TemporaryDirectory() as folder:
+            pipeline.input_dir = Path(folder)
+            pipeline.base = Path(folder)
+            result = pipeline.generate(validate({**PAYLOAD, 'seed': 42}), lambda *p: None)
+        self.assertEqual(Image.open(io.BytesIO(base64.b64decode(result))).format, 'PNG')
+        sent = json.loads(calls[0][2]['body'])['prompt']
+        self.assertEqual(sent['9']['inputs']['seed'], 42)
+        self.assertEqual(sent['5']['inputs']['prompt'], PAYLOAD['prompt'])
 
     def test_fifo_limit_progress_and_disconnect(self):
         started, release = threading.Event(), threading.Event()

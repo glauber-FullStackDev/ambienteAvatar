@@ -1,22 +1,24 @@
-# FLUX 3 Image Klein — API local
+# FLUX 3 Image Klein quantizado — API local
 
-Serviço independente para geração e edição com o checkpoint destilado `black-forest-labs/flux-3-image-klein`. Mantém o contrato HTTP da API `qwen-image-2.1`: geração síncrona, fila, webhook, painel, os mesmos parâmetros, tamanhos e resposta PNG em base64. O campo `model` aceita tanto `black-forest-labs/flux-3-image-klein` como o alias `qwen/qwen-image-2.1`; ambos usam FLUX internamente.
+Serviço de geração e edição de imagens com a mesma API HTTP do `qwen-image-2.1`: geração síncrona, fila, webhook, painel, parâmetros, tamanhos e resposta PNG em base64. O campo `model` aceita `black-forest-labs/flux-3-image-klein` e o alias `qwen/qwen-image-2.1`. Ambos usam FLUX.
 
-O modelo suporta texto e até dez referências. Usa o pipeline modular Diffusers. O prompt upsampler oficial é executado em uma etapa separada, com distribuição de camadas entre GPU, RAM e disco; seus pesos são descarregados antes da geração da imagem. Isso reduz picos de VRAM, mas aumenta o tempo de resposta e requer espaço livre adicional em disco. O modelo usa a [FLUX Kommunity License](https://huggingface.co/black-forest-labs/flux-3-image-klein); confira seus termos para o seu uso. O acesso aos pesos exige aceitar as condições no Hugging Face e fornecer um token autorizado; confira também o acesso ao repositório do upsampler.
+O backend usa ComfyUI v0.41.3 em uma porta interna local e os quatro arquivos oficiais da [Black Forest Labs para ComfyUI](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy): gerador INT8 ConvRot (5,8 GB), encoder INT8 (4,9 GB), expansor de prompt W4A8 (6,7 GB) e VAE (0,3 GB). O expansor recebe o prompt e as referências antes da geração. O ComfyUI inicia com `--lowvram` e `--disable-smart-memory`, para transferir componentes agressivamente da GPU para a RAM entre operações; isso pode reduzir a velocidade e não elimina o consumo de memória para ativações. Os arquivos totalizam aproximadamente 17,7 GB; isso não representa a VRAM total necessária em execução.
+
+O primeiro início baixa os arquivos. Acesse o repositório do modelo, aceite as condições para a conta do token e use um `HF_TOKEN` com acesso ao repositório restrito. Aceitar apenas as condições do repositório BF16 pode não liberar o repositório `flux-3-image-klein-comfy`. Os pesos têm a [FLUX Kommunity License](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/LICENSE.md); verifique os termos aplicáveis.
 
 ## Executar
 
-É necessária GPU NVIDIA com CUDA e BF16, Docker com NVIDIA Container Toolkit, RAM e espaço em disco suficientes para o modelo e seus componentes. O offload automático reduz a pressão na GPU, mas esta integração não foi validada em GPU de 16 GB: resolução, referências e upsampler podem exigir mais memória. O primeiro carregamento baixa os pesos e pode demorar.
+É necessária GPU NVIDIA CUDA compatível, Docker com NVIDIA Container Toolkit e RAM e disco suficientes. A integração quantizada não foi validada na GPU de destino; tamanho da saída, referências e outras aplicações que ocupem VRAM afetam o consumo. Reserve espaço para os pesos novos além dos arquivos BF16 já existentes no volume e da imagem Docker.
 
 ```bash
 cd flux-3-image-klein
 export HF_TOKEN=seu_token_hugging_face
 export API_TOKEN=um_token_para_sua_api
-docker compose up --build -d
-docker compose logs -f
+sudo --preserve-env=HF_TOKEN,API_TOKEN docker compose up --build -d
+sudo docker compose logs -f
 ```
 
-A porta padrão é `8001`, configurável em `compose.yaml`. Consulte `GET /health` para verificar se o modelo carregou; o painel está em `/dashboard`. A API começa a aceitar trabalhos quando o worker estiver pronto. O cache persistente fica no volume Docker `flux-3-models`.
+A porta é `8001` no servidor e `8000` no container. O processo ComfyUI só escuta em `127.0.0.1:8188` dentro do container. Os arquivos ficam no volume `flux-3-models`. Consulte `/health`: `ready: true` indica que os pesos foram baixados e o ComfyUI iniciou; a primeira geração ainda pode exigir carregamento dos modelos.
 
 ```bash
 curl http://localhost:8001/api/v1/images \
@@ -24,10 +26,10 @@ curl http://localhost:8001/api/v1/images \
   -d '{"model":"qwen/qwen-image-2.1","prompt":"Uma capivara lendo em uma biblioteca","resolution":"1K","aspect_ratio":"1:1","seed":42}'
 ```
 
-Para edição, inclua `input_references` com até 10 objetos `{"type":"image_url","image_url":{"url":"https://example.com/foto.png"}}`; também são aceitas data URLs base64, como na Qwen. Para associar imagens no prompt, use `<ref_image_0>`, `<ref_image_1>`, etc. Os valores de `resolution`, `aspect_ratio`, `size`, `n`, `output_format`, `seed` e `stream` seguem a validação da Qwen. Veja os exemplos e o contrato completo em [Qwen Image 2.1](../qwen-image-2.1/README.md).
+Para edição, envie até dez objetos em `input_references`, cada um com `{"type":"image_url","image_url":{"url":"https://example.com/foto.png"}}`. URLs públicas e data URLs base64 seguem a validação da Qwen. Referências são processadas na ordem enviada; o lote passado ao expansor pode ser redimensionado para dimensões comuns pelo ComfyUI. Veja o contrato HTTP completo em [Qwen Image 2.1](../qwen-image-2.1/README.md).
 
-As rotas `/api/v1/images/async`, `/api/v1/images/jobs/{job_id}`, `/api/v1/images/models` e `/api/v1/images/models/{model_id}/endpoints` também são mantidas. O webhook exige `WEBHOOK_ALLOWED_HOSTS`, conforme a documentação da Qwen. A listagem informa ambos os identificadores. O painel mostra a fase de amostragem sem progresso por etapa, pois o pipeline modular usado aqui não fornece o mesmo callback da Qwen.
+As rotas `/api/v1/images/async`, `/api/v1/images/jobs/{job_id}`, `/api/v1/images/models` e `/api/v1/images/models/{model_id}/endpoints` são mantidas. O webhook exige `WEBHOOK_ALLOWED_HOSTS`. Para solicitações demoradas atrás de um proxy com limite de tempo, use a rota assíncrona com webhook; a rota síncrona depende do limite de espera do proxy.
 
-As variáveis de fila, autenticação, limites de requisição/referência e webhook são as mesmas do compose da Qwen. `INFERENCE_STEPS` tem padrão 16; `HF_MODEL_ID` e `HF_MODEL_REVISION` configuram o checkpoint. `DIFFUSERS_REV` é um argumento de build Docker para fixar uma revisão do Diffusers; o padrão `main` pode mudar. O upsampler usa por padrão até 6 GiB de GPU e 8 GiB de RAM para seus pesos, configuráveis com `FLUX_UPSAMPLER_GPU_GIB` e `FLUX_UPSAMPLER_CPU_GIB`. Ele reserva ao menos 2 GiB de VRAM livre e pode usar disco temporariamente em `FLUX_OFFLOAD_DIR` (padrão `/data/flux-offload`); reserve até cerca de 20 GB adicionais. `FLUX_UPSAMPLER_MAX_TOKENS` limita a expansão (padrão 1024). Os modelos são descarregados entre etapas e recarregados a cada solicitação, o que pode ser lento. Não usa as variáveis `PROMPT_ENHANCER_*` da Qwen. A geração ainda precisa ser validada na GPU de destino; outras aplicações usando VRAM podem impedir a geração.
+`INFERENCE_STEPS` tem padrão 16; `COMFY_MODEL_REVISION` fixa a revisão dos arquivos do Hugging Face e `GENERATION_TIMEOUT` limita em segundos a espera pelo ComfyUI (padrão 3600). `COMFY_REV` é argumento de build e o padrão é `v0.41.3`. As variáveis antigas do Diffusers e `FLUX_UPSAMPLER_*` não são usadas. O progresso por etapa no painel não é detalhado.
 
-O workflow `.github/workflows/publish-flux-3-image-klein.yml` testa a API e publica a imagem no GHCR em push para `main` com alterações nesta pasta. A imagem é `ghcr.io/glauber-fullstackdev/ambienteavatar-flux-3-image-klein:latest`, depois que a publicação concluir.
+O workflow `.github/workflows/publish-flux-3-image-klein.yml` testa e publica a imagem no GHCR em push para `main` quando há alterações em `flux-3-image-klein/**`.

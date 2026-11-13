@@ -1,17 +1,19 @@
 import base64
 import binascii
-import gc
 import io
 import ipaddress
 import logging
+import json
 import os
 import socket
+import subprocess
 import threading
 import time
 import uuid
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlsplit
+from pathlib import Path
+from urllib.parse import urlencode, urljoin, urlsplit
 
 import urllib3
 from PIL import Image, UnidentifiedImageError
@@ -158,87 +160,158 @@ def load_reference(url):
         raise InputError('Imagem de referência inválida.') from exc
 
 
+COMFY_REPO = 'black-forest-labs/flux-3-image-klein-comfy'
+COMFY_FILES = (
+    'diffusion_models/flux3-image-klein-int8-convrot.safetensors',
+    'text_encoders/qwen3vl_4b_int8_convrot.safetensors',
+    'text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors',
+    'vae/flux2-vae.safetensors',
+)
+
+
+def build_workflow(values, image_names, prompts):
+    def node(name, inputs): return {'class_type': name, 'inputs': inputs}
+    nodes = {
+        '1': node('UNETLoader', {'unet_name': COMFY_FILES[0].split('/')[-1], 'weight_dtype': 'default'}),
+        '2': node('CLIPLoader', {'clip_name': COMFY_FILES[1].split('/')[-1], 'type': 'flux3', 'device': 'default'}),
+        '3': node('VAELoader', {'vae_name': COMFY_FILES[3].split('/')[-1]}),
+        '4': node('CLIPLoader', {'clip_name': COMFY_FILES[2].split('/')[-1], 'type': 'flux3', 'device': 'default'}),
+        '5': node('TextGenerate', {'clip': ['4', 0], 'prompt': values['prompt'],
+                    'system_prompt': prompts['i2i' if image_names else 't2i'], 'max_length': 1024,
+                    'sampling_mode': 'off', 'thinking': False, 'use_default_template': True, 'mtp': 'off'}),
+        '6': node('CLIPTextEncode', {'clip': ['2', 0], 'text': ['5', 0]}),
+        '7': node('ConditioningZeroOut', {'conditioning': ['6', 0]}),
+        '8': node('EmptyFlux2LatentImage', {'width': values['width'], 'height': values['height'], 'batch_size': 1}),
+        '9': node('KSampler', {'model': ['1', 0], 'positive': ['6', 0], 'negative': ['7', 0],
+                    'latent_image': ['8', 0], 'seed': values['seed'], 'steps': 16, 'cfg': 1.0,
+                    'sampler_name': 'euler', 'scheduler': 'simple', 'denoise': 1.0}),
+        '10': node('VAEDecode', {'samples': ['9', 0], 'vae': ['3', 0]}),
+        '11': node('PreviewImage', {'images': ['10', 0]}),
+    }
+    if image_names:
+        nodes['5']['inputs']['prompt'] = ('Reference images follow in order (the first image, the second image, ...).\n'
+                                         + 'User request: ' + values['prompt'] + '\nOutput the caption.')
+        inputs = {'positive': ['6', 0], 'negative': ['7', 0], 'vae': ['3', 0],
+                  'resolution': 'resize', 'resolution.megapixels': 1.0}
+        batch = {}
+        for i, name in enumerate(image_names):
+            key = str(100 + i)
+            nodes[key] = node('LoadImage', {'image': name})
+            inputs[f'images.image{i}'] = [key, 0]
+            batch[f'images.image{i}'] = [key, 0]
+        nodes['12'] = node('ReferenceMultiLatent', inputs)
+        nodes['13'] = node('BatchImagesNode', batch)
+        nodes['5']['inputs']['image'] = ['13', 0]
+        nodes['9']['inputs'].update({'positive': ['12', 0], 'negative': ['12', 1]})
+    return nodes
+
+
 class Pipeline:
     def __init__(self):
-        import torch
-        from diffusers import ModularPipeline
-        if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
-            raise RuntimeError('GPU NVIDIA CUDA com suporte a BF16 é necessária.')
-        self.torch = torch
-        self.model_id = os.getenv('HF_MODEL_ID', 'black-forest-labs/flux-3-image-klein')
-        self.revision = os.getenv('HF_MODEL_REVISION', 'main')
-        self.steps = int(os.getenv('INFERENCE_STEPS', '16'))
-        # Resolve configuration up front; model weights are loaded per stage.
-        ModularPipeline.from_pretrained(self.model_id, revision=self.revision)
-
-    def _upsample(self, prompt, images):
-        import tempfile
-        from transformers import AutoModelForMultimodalLM, AutoProcessor
-        from diffusers.modular_pipelines.flux3.prompt_upsampler import upsample_prompt
-        model_id = os.getenv('FLUX_UPSAMPLER_MODEL_ID', 'black-forest-labs/flux-3-image-klein-pup')
-        gpu_gib = int(os.getenv('FLUX_UPSAMPLER_GPU_GIB', '6'))
-        cpu_gib = int(os.getenv('FLUX_UPSAMPLER_CPU_GIB', '8'))
-        if gpu_gib < 1 or cpu_gib < 1:
-            raise ValueError('Os limites de memória do upsampler devem ser positivos.')
-        free, _ = self.torch.cuda.mem_get_info()
-        available = (free - 2 * 1024**3) // 1024**3
-        if available < 1:
-            raise RuntimeError('GPU sem memória livre suficiente para o upsampler; libere VRAM de outros processos.')
-        gpu_gib = min(gpu_gib, available)
-        offload_root = os.getenv('FLUX_OFFLOAD_DIR', '/data/flux-offload')
-        os.makedirs(offload_root, exist_ok=True)
-        processor = AutoProcessor.from_pretrained(model_id)
-        # Temporary disk-offload files are cleaned after each request; the HF cache remains.
-        with tempfile.TemporaryDirectory(prefix='pup-', dir=offload_root) as folder:
-            model = None
-            try:
-                model = AutoModelForMultimodalLM.from_pretrained(
-                    model_id, dtype=self.torch.bfloat16, device_map='auto',
-                    max_memory={0: f'{gpu_gib}GiB', 'cpu': f'{cpu_gib}GiB'},
-                    offload_folder=folder,
-                )
-                return upsample_prompt(model, processor, prompt, images=images,
-                                       max_new_tokens=int(os.getenv('FLUX_UPSAMPLER_MAX_TOKENS', '1024')))
-            finally:
-                del model
-                gc.collect()
-                self.torch.cuda.empty_cache()
-
-    def _generate_image(self, prompt, images, values, generator):
-        from diffusers import ComponentsManager, ModularPipeline
-        manager = ComponentsManager()
-        manager.enable_auto_cpu_offload(device='cuda')
-        initial = ModularPipeline.from_pretrained(self.model_id, revision=self.revision)
-        blocks = initial.blocks
-        blocks.sub_blocks.pop('prompt_upsampler')
-        pipe = ModularPipeline(blocks=blocks, pretrained_model_name_or_path=self.model_id,
-                               components_manager=manager, revision=self.revision)
+        import atexit
+        from huggingface_hub import hf_hub_download
+        self.base = Path(os.getenv('COMFY_DATA_DIR', '/data/comfy'))
+        self.input_dir = self.base / 'input'
+        self.input_dir.mkdir(parents=True, exist_ok=True)
+        models = self.base / 'models'
+        for filename in COMFY_FILES:
+            hf_hub_download(COMFY_REPO, filename, local_dir=str(models),
+                            revision=os.getenv('COMFY_MODEL_REVISION', 'main'))
+        self.prompts = json.loads(Path(__file__).with_name('flux_prompts.json').read_text(encoding='utf-8'))
+        self.http = urllib3.PoolManager(timeout=urllib3.Timeout(connect=5, read=30), retries=False)
+        self.url = 'http://127.0.0.1:8188'
+        self.process = subprocess.Popen(['python', '/opt/ComfyUI/main.py', '--listen', '127.0.0.1',
+                                         '--port', '8188', '--base-directory', str(self.base),
+                                         '--disable-auto-launch', '--disable-all-custom-nodes',
+                                         '--lowvram', '--disable-smart-memory'])
+        atexit.register(self.close)
         try:
-            pipe.load_components(dtype={'vae': self.torch.float32, 'default': self.torch.bfloat16}, revision=self.revision)
-            kwargs = dict(prompt=prompt, width=values['width'], height=values['height'],
-                          num_inference_steps=self.steps, generator=generator, output='images')
-            if images:
-                kwargs['image'] = images if len(images) > 1 else images[0]
-            return pipe(**kwargs)[0]
-        finally:
-            manager.disable_auto_cpu_offload()
-            del pipe, blocks, initial, manager
-            gc.collect()
-            self.torch.cuda.empty_cache()
+            deadline = time.monotonic() + 180
+            while time.monotonic() < deadline:
+                if self.process.poll() is not None:
+                    raise RuntimeError('ComfyUI encerrou durante a inicialização; consulte os logs.')
+                try:
+                    response = self.http.request('GET', self.url + '/object_info')
+                    if response.status == 200:
+                        available = json.loads(response.data)
+                        required = {'TextGenerate', 'ReferenceMultiLatent', 'BatchImagesNode', 'EmptyFlux2LatentImage'}
+                        if not required.issubset(available):
+                            raise RuntimeError('A versão do ComfyUI não contém os nós necessários para FLUX 3.')
+                        return
+                except urllib3.exceptions.HTTPError:
+                    pass
+                time.sleep(1)
+            raise RuntimeError('ComfyUI não iniciou dentro do tempo limite.')
+        except Exception:
+            self.close()
+            raise
+
+    def close(self):
+        process = getattr(self, 'process', None)
+        if process and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
 
     def generate(self, values, progress):
+        names = []
         progress('loading_references', None, None)
-        images = [load_reference(url) for url in values['references']]
-        progress('enhancing_prompt', None, None)
-        prompt = self._upsample(values['prompt'], images)
-        seed = values['seed'] if values['seed'] is not None else int.from_bytes(os.urandom(8), 'big') % (2**63)
-        generator = self.torch.Generator(device='cpu').manual_seed(seed)
-        progress('sampling', None, None)
-        result = self._generate_image(prompt, images, values, generator)
-        progress('encoding', None, None)
-        output = io.BytesIO()
-        result.save(output, format='PNG')
-        return base64.b64encode(output.getvalue()).decode('ascii')
+        try:
+            for url in values['references']:
+                name = f'flux-reference-{uuid.uuid4().hex}.png'
+                names.append(name)
+                load_reference(url).convert('RGB').save(self.input_dir / name, format='PNG')
+            data = dict(values)
+            data['seed'] = values['seed'] if values['seed'] is not None else int.from_bytes(os.urandom(8), 'big') % 2**63
+            workflow = build_workflow(data, names, self.prompts)
+            workflow['9']['inputs']['steps'] = int(os.getenv('INFERENCE_STEPS', '16'))
+            progress('preparing', None, None)
+            response = self.http.request('POST', self.url + '/prompt',
+                                         body=json.dumps({'prompt': workflow}).encode(),
+                                         headers={'Content-Type': 'application/json'})
+            if response.status != 200:
+                LOG.error('ComfyUI recusou workflow (%s): %s', response.status, response.data[:4000].decode(errors='replace'))
+                raise RuntimeError('ComfyUI recusou o workflow; consulte os logs.')
+            prompt_id = json.loads(response.data)['prompt_id']
+            progress('sampling', None, None)
+            deadline = time.monotonic() + int(os.getenv('GENERATION_TIMEOUT', '3600'))
+            while time.monotonic() < deadline:
+                if self.process.poll() is not None:
+                    raise RuntimeError('ComfyUI encerrou durante a geração.')
+                response = self.http.request('GET', self.url + '/history/' + prompt_id)
+                if response.status != 200:
+                    raise RuntimeError('Falha ao consultar o resultado do ComfyUI.')
+                history = json.loads(response.data).get(prompt_id)
+                if history:
+                    if history.get('status', {}).get('status_str') == 'error':
+                        LOG.error('Erro do ComfyUI: %s', history.get('status'))
+                        raise RuntimeError('ComfyUI falhou na geração; consulte os logs.')
+                    images = history.get('outputs', {}).get('11', {}).get('images', [])
+                    if not images:
+                        raise RuntimeError('ComfyUI não retornou imagem.')
+                    image = images[0]
+                    query = urlencode({'filename': image['filename'], 'subfolder': image.get('subfolder', ''), 'type': image.get('type', 'temp')})
+                    result = self.http.request('GET', self.url + '/view?' + query)
+                    if image.get('type', 'temp') == 'temp':
+                        temp_dir = (self.base / 'temp').resolve()
+                        temp_file = (temp_dir / image.get('subfolder', '') / image['filename']).resolve()
+                        if temp_file.is_relative_to(temp_dir) and temp_file != temp_dir:
+                            temp_file.unlink(missing_ok=True)
+                    if result.status != 200:
+                        raise RuntimeError('Não foi possível obter imagem do ComfyUI.')
+                    progress('encoding', None, None)
+                    with Image.open(io.BytesIO(result.data)) as output_image:
+                        output = io.BytesIO()
+                        output_image.save(output, format='PNG')
+                    return base64.b64encode(output.getvalue()).decode('ascii')
+                time.sleep(1)
+            raise RuntimeError('Geração excedeu o tempo limite.')
+        finally:
+            for name in names:
+                (self.input_dir / name).unlink(missing_ok=True)
 
 
 @dataclass
@@ -331,6 +404,8 @@ class QueueManager:
                 while not self.queue and not self.stopping:
                     self.lock.wait()
                 if self.stopping:
+                    if hasattr(pipeline, 'close'):
+                        pipeline.close()
                     return
                 job = self.queue.popleft()
                 self.current = job
