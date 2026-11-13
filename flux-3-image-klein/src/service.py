@@ -164,22 +164,17 @@ COMFY_REPO = 'black-forest-labs/flux-3-image-klein-comfy'
 COMFY_FILES = (
     'diffusion_models/flux3-image-klein-int8-convrot.safetensors',
     'text_encoders/qwen3vl_4b_int8_convrot.safetensors',
-    'text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors',
     'vae/flux2-vae.safetensors',
 )
 
 
-def build_workflow(values, image_names, prompts):
+def build_workflow(values, image_names):
     def node(name, inputs): return {'class_type': name, 'inputs': inputs}
     nodes = {
         '1': node('UNETLoader', {'unet_name': COMFY_FILES[0].split('/')[-1], 'weight_dtype': 'default'}),
         '2': node('CLIPLoader', {'clip_name': COMFY_FILES[1].split('/')[-1], 'type': 'flux3', 'device': 'default'}),
-        '3': node('VAELoader', {'vae_name': COMFY_FILES[3].split('/')[-1]}),
-        '4': node('CLIPLoader', {'clip_name': COMFY_FILES[2].split('/')[-1], 'type': 'flux3', 'device': 'default'}),
-        '5': node('TextGenerate', {'clip': ['4', 0], 'prompt': values['prompt'],
-                    'system_prompt': prompts['i2i' if image_names else 't2i'], 'max_length': 1024,
-                    'sampling_mode': 'off', 'thinking': False, 'use_default_template': True, 'mtp': 'off'}),
-        '6': node('CLIPTextEncode', {'clip': ['2', 0], 'text': ['5', 0]}),
+        '3': node('VAELoader', {'vae_name': COMFY_FILES[2].split('/')[-1]}),
+        '6': node('CLIPTextEncode', {'clip': ['2', 0], 'text': values['prompt']}),
         '7': node('ConditioningZeroOut', {'conditioning': ['6', 0]}),
         '8': node('EmptyFlux2LatentImage', {'width': values['width'], 'height': values['height'], 'batch_size': 1}),
         '9': node('KSampler', {'model': ['1', 0], 'positive': ['6', 0], 'negative': ['7', 0],
@@ -189,19 +184,13 @@ def build_workflow(values, image_names, prompts):
         '11': node('PreviewImage', {'images': ['10', 0]}),
     }
     if image_names:
-        nodes['5']['inputs']['prompt'] = ('Reference images follow in order (the first image, the second image, ...).\n'
-                                         + 'User request: ' + values['prompt'] + '\nOutput the caption.')
         inputs = {'positive': ['6', 0], 'negative': ['7', 0], 'vae': ['3', 0],
                   'resolution': 'resize', 'resolution.megapixels': 1.0}
-        batch = {}
         for i, name in enumerate(image_names):
             key = str(100 + i)
             nodes[key] = node('LoadImage', {'image': name})
             inputs[f'images.image{i}'] = [key, 0]
-            batch[f'images.image{i}'] = [key, 0]
         nodes['12'] = node('ReferenceMultiLatent', inputs)
-        nodes['13'] = node('BatchImagesNode', batch)
-        nodes['5']['inputs']['image'] = ['13', 0]
         nodes['9']['inputs'].update({'positive': ['12', 0], 'negative': ['12', 1]})
     return nodes
 
@@ -217,7 +206,6 @@ class Pipeline:
         for filename in COMFY_FILES:
             hf_hub_download(COMFY_REPO, filename, local_dir=str(models),
                             revision=os.getenv('COMFY_MODEL_REVISION', 'main'))
-        self.prompts = json.loads(Path(__file__).with_name('flux_prompts.json').read_text(encoding='utf-8'))
         self.http = urllib3.PoolManager(timeout=urllib3.Timeout(connect=5, read=30), retries=False)
         self.url = 'http://127.0.0.1:8188'
         self.process = subprocess.Popen(['python', '/opt/ComfyUI/main.py', '--listen', '127.0.0.1',
@@ -234,7 +222,7 @@ class Pipeline:
                     response = self.http.request('GET', self.url + '/object_info')
                     if response.status == 200:
                         available = json.loads(response.data)
-                        required = {'TextGenerate', 'ReferenceMultiLatent', 'BatchImagesNode', 'EmptyFlux2LatentImage'}
+                        required = {'ReferenceMultiLatent', 'EmptyFlux2LatentImage'}
                         if not required.issubset(available):
                             raise RuntimeError('A versão do ComfyUI não contém os nós necessários para FLUX 3.')
                         return
@@ -266,7 +254,7 @@ class Pipeline:
                 load_reference(url).convert('RGB').save(self.input_dir / name, format='PNG')
             data = dict(values)
             data['seed'] = values['seed'] if values['seed'] is not None else int.from_bytes(os.urandom(8), 'big') % 2**63
-            workflow = build_workflow(data, names, self.prompts)
+            workflow = build_workflow(data, names)
             workflow['9']['inputs']['steps'] = int(os.getenv('INFERENCE_STEPS', '16'))
             progress('preparing', None, None)
             response = self.http.request('POST', self.url + '/prompt',

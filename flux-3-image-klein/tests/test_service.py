@@ -74,21 +74,18 @@ class QueueTests(unittest.TestCase):
     def test_workflow_passes_all_references_and_preserves_dimensions(self):
         values = validate({**PAYLOAD, 'seed': 42, 'resolution': '2K', 'aspect_ratio': '16:9'})
         names = [f'reference-{i}.png' for i in range(10)]
-        graph = build_workflow(values, names, {'t2i': 't2i system', 'i2i': 'edit system'})
-        self.assertEqual(graph['5']['inputs']['system_prompt'], 'edit system')
-        self.assertIn('User request: ' + PAYLOAD['prompt'], graph['5']['inputs']['prompt'])
-        self.assertEqual(graph['5']['inputs']['image'], ['13', 0])
+        graph = build_workflow(values, names)
+        self.assertEqual(graph['6']['inputs']['text'], PAYLOAD['prompt'])
+        self.assertNotIn('TextGenerate', [node['class_type'] for node in graph.values()])
         self.assertEqual(graph['12']['inputs']['images.image9'], ['109', 0])
-        self.assertEqual(graph['13']['inputs']['images.image9'], ['109', 0])
         self.assertEqual(graph['9']['inputs']['positive'], ['12', 0])
         self.assertEqual(graph['8']['inputs']['width'], 2752)
         self.assertEqual(graph['8']['inputs']['height'], 1536)
         self.assertEqual(graph['9']['inputs']['seed'], 42)
         self.assertEqual(graph['1']['inputs']['unet_name'], 'flux3-image-klein-int8-convrot.safetensors')
         self.assertEqual(graph['2']['inputs']['clip_name'], 'qwen3vl_4b_int8_convrot.safetensors')
-        self.assertEqual(graph['4']['inputs']['clip_name'], 'qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors')
-        plain = build_workflow(values, [], {'t2i': 't2i system', 'i2i': 'edit system'})
-        self.assertEqual(plain['5']['inputs']['system_prompt'], 't2i system')
+        plain = build_workflow(values, [])
+        self.assertEqual(plain['6']['inputs']['text'], PAYLOAD['prompt'])
         self.assertNotIn('12', plain)
         self.assertEqual(plain['9']['inputs']['positive'], ['6', 0])
 
@@ -107,7 +104,6 @@ class QueueTests(unittest.TestCase):
         pipeline = Pipeline.__new__(Pipeline)
         pipeline.url = 'http://127.0.0.1:8188'
         pipeline.http = Http()
-        pipeline.prompts = {'t2i': 't2i', 'i2i': 'i2i'}
         pipeline.process = SimpleNamespace(poll=lambda: None)
         with tempfile.TemporaryDirectory() as folder:
             pipeline.input_dir = Path(folder)
@@ -116,7 +112,7 @@ class QueueTests(unittest.TestCase):
         self.assertEqual(Image.open(io.BytesIO(base64.b64decode(result))).format, 'PNG')
         sent = json.loads(calls[0][2]['body'])['prompt']
         self.assertEqual(sent['9']['inputs']['seed'], 42)
-        self.assertEqual(sent['5']['inputs']['prompt'], PAYLOAD['prompt'])
+        self.assertEqual(sent['6']['inputs']['text'], PAYLOAD['prompt'])
 
     def test_fifo_limit_progress_and_disconnect(self):
         started, release = threading.Event(), threading.Event()
