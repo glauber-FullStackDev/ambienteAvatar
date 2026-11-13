@@ -7,6 +7,7 @@ services:
       API_TOKEN: ${API_TOKEN:-}
       MAX_QUEUE_SIZE: ${MAX_QUEUE_SIZE:-10}
       HISTORY_SIZE: ${HISTORY_SIZE:-100}
+      FLUX_PROMPT_UPSAMPLER: ${FLUX_PROMPT_UPSAMPLER:-false}
       INFERENCE_STEPS: ${INFERENCE_STEPS:-16}
       HF_MODEL_ID: ${HF_MODEL_ID:-black-forest-labs/flux-3-image-klein}
       HF_MODEL_REVISION: ${HF_MODEL_REVISION:-main}

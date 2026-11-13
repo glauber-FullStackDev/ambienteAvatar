@@ -166,11 +166,18 @@ class Pipeline:
         self.torch = torch
         self.components = ComponentsManager()
         self.components.enable_auto_cpu_offload(device='cuda')
+        model_id = os.getenv('HF_MODEL_ID', 'black-forest-labs/flux-3-image-klein')
+        revision = os.getenv('HF_MODEL_REVISION', 'main')
         self.pipe = ModularPipeline.from_pretrained(
-            os.getenv('HF_MODEL_ID', 'black-forest-labs/flux-3-image-klein'),
-            revision=os.getenv('HF_MODEL_REVISION', 'main'),
-            components_manager=self.components,
+            model_id, revision=revision, components_manager=self.components,
         )
+        upsampler = os.getenv('FLUX_PROMPT_UPSAMPLER', 'false').strip().lower()
+        if upsampler not in {'true', 'false', '1', '0'}:
+            raise ValueError('FLUX_PROMPT_UPSAMPLER deve ser true ou false.')
+        if upsampler in {'false', '0'}:
+            blocks = self.pipe.blocks
+            blocks.sub_blocks.pop('prompt_upsampler')
+            self.pipe = blocks.init_pipeline(model_id, components_manager=self.components, revision=revision)
         self.pipe.load_components(dtype={'vae': torch.float32, 'default': torch.bfloat16})
         self.steps = int(os.getenv('INFERENCE_STEPS', '16'))
 
