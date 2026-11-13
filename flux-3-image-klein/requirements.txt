@@ -1,0 +1,7 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+pillow>=11,<13
+urllib3>=2.2,<3
+accelerate>=1.10,<2
+transformers>=5.17,<6
+huggingface_hub[hf_xet]>=1,<2
