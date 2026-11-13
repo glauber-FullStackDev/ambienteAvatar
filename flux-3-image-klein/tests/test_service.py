@@ -71,32 +71,62 @@ class ValidationTests(unittest.TestCase):
                 fetch_url('https://example.com/image')
 
 class QueueTests(unittest.TestCase):
-    def test_pipeline_passes_prompt_dimensions_seed_and_references(self):
-        calls, seeds = [], []
+    def test_pipeline_runs_upsampler_before_diffusion_with_references(self):
+        calls, seeds, phases = [], [], []
         class Generator:
-            def __init__(self, device): self.device = device
+            def __init__(self, device): pass
             def manual_seed(self, seed): seeds.append(seed); return self
-        class Diffusion:
-            def __call__(self, **kwargs):
-                calls.append(kwargs)
-                return [Image.new('RGB', (2, 2))]
         pipeline = Pipeline.__new__(Pipeline)
         pipeline.torch = SimpleNamespace(Generator=Generator)
-        pipeline.pipe = Diffusion()
-        pipeline.steps = 16
         refs = [Image.new('RGB', (3, 3)), Image.new('RGB', (4, 4))]
         values = validate({**PAYLOAD, 'model': MODEL_ALIAS, 'seed': 42, 'resolution': '2K',
                            'input_references': [{'type': 'image_url', 'image_url': {'url': 'https://example.com/a'}},
                                                 {'type': 'image_url', 'image_url': {'url': 'https://example.com/b'}}]})
-        with patch('service.load_reference', side_effect=refs):
-            result = pipeline.generate(values, lambda *p: None)
+        def diffusion(prompt, images, values, generator):
+            calls.append((prompt, images, values))
+            return Image.new('RGB', (2, 2))
+        with patch('service.load_reference', side_effect=refs), \
+             patch.object(pipeline, '_upsample', return_value='expanded caption') as upsample, \
+             patch.object(pipeline, '_generate_image', side_effect=diffusion):
+            result = pipeline.generate(values, lambda *p: phases.append(p))
+        upsample.assert_called_once_with(PAYLOAD['prompt'], refs)
         self.assertEqual(Image.open(io.BytesIO(base64.b64decode(result))).format, 'PNG')
         self.assertEqual(seeds, [42])
-        self.assertEqual(calls[0]['prompt'], PAYLOAD['prompt'])
-        self.assertEqual((calls[0]['width'], calls[0]['height']), (2048, 2048))
-        self.assertEqual(calls[0]['image'], refs)
-        self.assertEqual(calls[0]['num_inference_steps'], 16)
-        self.assertEqual(calls[0]['output'], 'images')
+        self.assertEqual(calls[0][0], 'expanded caption')
+        self.assertEqual(calls[0][1], refs)
+        self.assertEqual((calls[0][2]['width'], calls[0][2]['height']), (2048, 2048))
+        self.assertIn(('enhancing_prompt', None, None), phases)
+
+    def test_upsampler_respects_limits_and_cleans_up(self):
+        import types
+        events = []
+        class Model:
+            @classmethod
+            def from_pretrained(cls, model_id, **kwargs):
+                events.append(kwargs)
+                return cls()
+        class Processor:
+            @classmethod
+            def from_pretrained(cls, model_id): return cls()
+        fake_transformers = types.ModuleType('transformers')
+        fake_transformers.AutoModelForMultimodalLM = Model
+        fake_transformers.AutoProcessor = Processor
+        pup = types.ModuleType('diffusers.modular_pipelines.flux3.prompt_upsampler')
+        pup.upsample_prompt = lambda model, processor, prompt, images, max_new_tokens: 'caption'
+        pipeline = Pipeline.__new__(Pipeline)
+        pipeline.torch = SimpleNamespace(bfloat16='bf16', cuda=SimpleNamespace(
+            mem_get_info=lambda: (7 * 1024**3, 16 * 1024**3), empty_cache=lambda: events.append('clear')))
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {'FLUX_OFFLOAD_DIR': folder}, clear=True), \
+             patch.dict(sys.modules, {'transformers': fake_transformers,
+                                      'diffusers': types.ModuleType('diffusers'),
+                                      'diffusers.modular_pipelines': types.ModuleType('diffusers.modular_pipelines'),
+                                      'diffusers.modular_pipelines.flux3': types.ModuleType('diffusers.modular_pipelines.flux3'),
+                                      'diffusers.modular_pipelines.flux3.prompt_upsampler': pup}):
+            self.assertEqual(pipeline._upsample('test', []), 'caption')
+            self.assertEqual(events[0]['device_map'], 'auto')
+            self.assertEqual(events[0]['max_memory'], {0: '5GiB', 'cpu': '8GiB'})
+            self.assertEqual(list(Path(folder).iterdir()), [])
+        self.assertEqual(events[-1], 'clear')
 
     def test_fifo_limit_progress_and_disconnect(self):
         started, release = threading.Event(), threading.Event()

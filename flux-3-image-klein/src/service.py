@@ -1,5 +1,6 @@
 import base64
 import binascii
+import gc
 import io
 import ipaddress
 import logging
@@ -160,39 +161,80 @@ def load_reference(url):
 class Pipeline:
     def __init__(self):
         import torch
-        from diffusers import ComponentsManager, ModularPipeline
+        from diffusers import ModularPipeline
         if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
             raise RuntimeError('GPU NVIDIA CUDA com suporte a BF16 é necessária.')
         self.torch = torch
-        self.components = ComponentsManager()
-        self.components.enable_auto_cpu_offload(device='cuda')
-        model_id = os.getenv('HF_MODEL_ID', 'black-forest-labs/flux-3-image-klein')
-        revision = os.getenv('HF_MODEL_REVISION', 'main')
-        self.pipe = ModularPipeline.from_pretrained(
-            model_id, revision=revision, components_manager=self.components,
-        )
-        upsampler = os.getenv('FLUX_PROMPT_UPSAMPLER', 'false').strip().lower()
-        if upsampler not in {'true', 'false', '1', '0'}:
-            raise ValueError('FLUX_PROMPT_UPSAMPLER deve ser true ou false.')
-        if upsampler in {'false', '0'}:
-            blocks = self.pipe.blocks
-            blocks.sub_blocks.pop('prompt_upsampler')
-            self.pipe = blocks.init_pipeline(model_id, components_manager=self.components, revision=revision)
-        self.pipe.load_components(dtype={'vae': torch.float32, 'default': torch.bfloat16})
+        self.model_id = os.getenv('HF_MODEL_ID', 'black-forest-labs/flux-3-image-klein')
+        self.revision = os.getenv('HF_MODEL_REVISION', 'main')
         self.steps = int(os.getenv('INFERENCE_STEPS', '16'))
+        # Resolve configuration up front; model weights are loaded per stage.
+        ModularPipeline.from_pretrained(self.model_id, revision=self.revision)
+
+    def _upsample(self, prompt, images):
+        import tempfile
+        from transformers import AutoModelForMultimodalLM, AutoProcessor
+        from diffusers.modular_pipelines.flux3.prompt_upsampler import upsample_prompt
+        model_id = os.getenv('FLUX_UPSAMPLER_MODEL_ID', 'black-forest-labs/flux-3-image-klein-pup')
+        gpu_gib = int(os.getenv('FLUX_UPSAMPLER_GPU_GIB', '6'))
+        cpu_gib = int(os.getenv('FLUX_UPSAMPLER_CPU_GIB', '8'))
+        if gpu_gib < 1 or cpu_gib < 1:
+            raise ValueError('Os limites de memória do upsampler devem ser positivos.')
+        free, _ = self.torch.cuda.mem_get_info()
+        available = (free - 2 * 1024**3) // 1024**3
+        if available < 1:
+            raise RuntimeError('GPU sem memória livre suficiente para o upsampler; libere VRAM de outros processos.')
+        gpu_gib = min(gpu_gib, available)
+        offload_root = os.getenv('FLUX_OFFLOAD_DIR', '/data/flux-offload')
+        os.makedirs(offload_root, exist_ok=True)
+        processor = AutoProcessor.from_pretrained(model_id)
+        # Temporary disk-offload files are cleaned after each request; the HF cache remains.
+        with tempfile.TemporaryDirectory(prefix='pup-', dir=offload_root) as folder:
+            model = None
+            try:
+                model = AutoModelForMultimodalLM.from_pretrained(
+                    model_id, dtype=self.torch.bfloat16, device_map='auto',
+                    max_memory={0: f'{gpu_gib}GiB', 'cpu': f'{cpu_gib}GiB'},
+                    offload_folder=folder,
+                )
+                return upsample_prompt(model, processor, prompt, images=images,
+                                       max_new_tokens=int(os.getenv('FLUX_UPSAMPLER_MAX_TOKENS', '1024')))
+            finally:
+                del model
+                gc.collect()
+                self.torch.cuda.empty_cache()
+
+    def _generate_image(self, prompt, images, values, generator):
+        from diffusers import ComponentsManager, ModularPipeline
+        manager = ComponentsManager()
+        manager.enable_auto_cpu_offload(device='cuda')
+        initial = ModularPipeline.from_pretrained(self.model_id, revision=self.revision)
+        blocks = initial.blocks
+        blocks.sub_blocks.pop('prompt_upsampler')
+        pipe = ModularPipeline(blocks=blocks, pretrained_model_name_or_path=self.model_id,
+                               components_manager=manager, revision=self.revision)
+        try:
+            pipe.load_components(dtype={'vae': self.torch.float32, 'default': self.torch.bfloat16}, revision=self.revision)
+            kwargs = dict(prompt=prompt, width=values['width'], height=values['height'],
+                          num_inference_steps=self.steps, generator=generator, output='images')
+            if images:
+                kwargs['image'] = images if len(images) > 1 else images[0]
+            return pipe(**kwargs)[0]
+        finally:
+            manager.disable_auto_cpu_offload()
+            del pipe, blocks, initial, manager
+            gc.collect()
+            self.torch.cuda.empty_cache()
 
     def generate(self, values, progress):
         progress('loading_references', None, None)
         images = [load_reference(url) for url in values['references']]
+        progress('enhancing_prompt', None, None)
+        prompt = self._upsample(values['prompt'], images)
         seed = values['seed'] if values['seed'] is not None else int.from_bytes(os.urandom(8), 'big') % (2**63)
         generator = self.torch.Generator(device='cpu').manual_seed(seed)
-        progress('preparing', None, None)
-        kwargs = dict(prompt=values['prompt'], width=values['width'], height=values['height'],
-                      num_inference_steps=self.steps, generator=generator, output='images')
-        if images:
-            kwargs['image'] = images if len(images) > 1 else images[0]
         progress('sampling', None, None)
-        result = self.pipe(**kwargs)[0]
+        result = self._generate_image(prompt, images, values, generator)
         progress('encoding', None, None)
         output = io.BytesIO()
         result.save(output, format='PNG')
