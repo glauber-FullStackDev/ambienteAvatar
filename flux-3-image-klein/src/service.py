@@ -162,8 +162,8 @@ def load_reference(url):
 
 COMFY_REPO = 'black-forest-labs/flux-3-image-klein-comfy'
 COMFY_FILES = (
-    'diffusion_models/flux3-image-klein-int8-convrot.safetensors',
-    'text_encoders/qwen3vl_4b_int8_convrot.safetensors',
+    'diffusion_models/flux3-image-klein-bf16.safetensors',
+    'text_encoders/qwen3vl_4b_bf16.safetensors',
     'vae/flux2-vae.safetensors',
 )
 

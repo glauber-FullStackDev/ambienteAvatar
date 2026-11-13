@@ -1,14 +1,14 @@
-# FLUX 3 Image Klein quantizado — API local
+# FLUX 3 Image Klein BF16 — API local
 
 Serviço de geração e edição de imagens com a mesma API HTTP do `qwen-image-2.1`: geração síncrona, fila, webhook, painel, parâmetros, tamanhos e resposta PNG em base64. O campo `model` aceita `black-forest-labs/flux-3-image-klein` e o alias `qwen/qwen-image-2.1`. Ambos usam FLUX.
 
-O backend usa ComfyUI v0.41.3 em uma porta interna local e os quatro arquivos oficiais da [Black Forest Labs para ComfyUI](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy): gerador INT8 ConvRot (5,8 GB), encoder INT8 (4,9 GB) e VAE (0,3 GB). O prompt é enviado diretamente ao encoder, sem expansor ou reescrita. O ComfyUI inicia com `--lowvram` e `--disable-smart-memory`, para transferir componentes agressivamente da GPU para a RAM entre operações; isso pode reduzir a velocidade e não elimina o consumo de memória para ativações. Os arquivos totalizam aproximadamente 11 GB; isso não representa a VRAM total necessária em execução.
+O backend usa ComfyUI v0.41.3 em uma porta interna local e os três arquivos oficiais da [Black Forest Labs para ComfyUI](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy): gerador destilado BF16 (11,1 GB), encoder BF16 (8,9 GB) e VAE (0,3 GB). O prompt é enviado diretamente ao encoder, sem expansor ou reescrita. O ComfyUI inicia com `--lowvram` e `--disable-smart-memory`, para transferir componentes agressivamente da GPU para a RAM entre operações; isso pode reduzir a velocidade e não elimina o consumo de memória para ativações. Os arquivos totalizam aproximadamente 20,3 GB; isso não representa a VRAM total necessária em execução.
 
 O primeiro início baixa os arquivos. O expansor da versão anterior não é mais usado nem baixado; uma cópia que já exista no volume permanece em disco até ser removida manualmente. Acesse o repositório do modelo, aceite as condições para a conta do token e use um `HF_TOKEN` com acesso ao repositório restrito. Aceitar apenas as condições do repositório BF16 pode não liberar o repositório `flux-3-image-klein-comfy`. Os pesos têm a [FLUX Kommunity License](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/LICENSE.md); verifique os termos aplicáveis.
 
 ## Executar
 
-É necessária GPU NVIDIA CUDA compatível, Docker com NVIDIA Container Toolkit e RAM e disco suficientes. A integração quantizada não foi validada na GPU de destino; tamanho da saída, referências e outras aplicações que ocupem VRAM afetam o consumo. Reserve espaço para os pesos novos além dos arquivos BF16 já existentes no volume e da imagem Docker.
+É necessária GPU NVIDIA CUDA compatível, Docker com NVIDIA Container Toolkit e RAM e disco suficientes. A integração BF16 não foi validada na GPU de destino; tamanho da saída, referências e outras aplicações que ocupem VRAM afetam o consumo. Reserve espaço para os pesos novos, além dos arquivos antigos que já existam no volume e da imagem Docker.
 
 ```bash
 cd flux-3-image-klein
