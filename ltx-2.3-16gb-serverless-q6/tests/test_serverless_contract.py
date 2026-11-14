@@ -201,12 +201,12 @@ class WebhookAllowListTests(unittest.TestCase):
 
 
 class ComfyLaunchTests(unittest.TestCase):
-    def test_default_uses_explicit_low_vram_and_reservation(self) -> None:
+    def test_default_matches_original_worker_memory_settings(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             command = _comfyui_command()
-        self.assertIn("--disable-dynamic-vram", command)
-        self.assertIn("--lowvram", command)
-        self.assertEqual(command[command.index("--reserve-vram") + 1], "1.5")
+        self.assertNotIn("--disable-dynamic-vram", command)
+        self.assertNotIn("--lowvram", command)
+        self.assertNotIn("--reserve-vram", command)
         self.assertEqual(command[command.index("--listen") + 1], "127.0.0.1")
 
     def test_extra_arguments_and_listen_are_configurable(self) -> None:

@@ -390,10 +390,8 @@ def _comfyui_alive() -> bool:
 
 
 def _comfyui_command() -> list[str]:
-    """Build the worker command with explicit CPU offload for small GPUs."""
-    extra_args = os.environ.get(
-        "COMFYUI_ARGS", "--disable-dynamic-vram --lowvram --reserve-vram 1.5"
-    )
+    """Use the original worker memory defaults unless explicitly overridden."""
+    extra_args = os.environ.get("COMFYUI_ARGS", "")
     return [
         sys.executable, str(COMFYUI_HOME / "main.py"),
         "--listen", os.environ.get("COMFYUI_LISTEN", "127.0.0.1"),
