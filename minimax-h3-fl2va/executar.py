@@ -38,7 +38,6 @@ def main():
     p.add_argument('--quality', action='store_true', help='Usa o grafo base de 20 passos sem LoRA')
     p.add_argument('--output-path', type=Path, required=True, help='Caminho dentro do container')
     p.add_argument('--timeout', type=int, default=14400)
-    p.add_argument('--gguf', action='store_true', help='Usar conversões GGUF: suporte ainda não validado')
     a = p.parse_args()
     if a.steps is None: a.steps = 20 if a.quality else 4
     if not a.quality and a.steps != 4: p.error('Turbo 4 requer quatro passos; use --quality para outro número')
@@ -62,9 +61,6 @@ def main():
     graph['11']['inputs']['noise_seed'] = a.seed
     graph['13']['inputs']['steps'] = a.steps
     graph['18']['inputs']['filename_prefix'] = 'h3/' + task
-    if a.gguf:
-        graph['1'] = {'class_type':'UnetLoaderGGUF','inputs':{'unet_name':'minimax_h3_fl2va_pruned-Q4_K.gguf'}}
-        graph['2'] = {'class_type':'CLIPLoaderGGUF','inputs':{'clip_name':'qwen3vl_32b_minimax_h3-Q2_K_M.gguf','type':'minimax'}}
     info = request('/object_info')
     missing = sorted({n['class_type'] for n in graph.values()} - set(info))
     if missing: raise RuntimeError('Nós ausentes: ' + ', '.join(missing))

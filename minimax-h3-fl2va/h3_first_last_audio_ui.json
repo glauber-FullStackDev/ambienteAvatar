@@ -4,7 +4,7 @@
   "nodes": [
     {
       "id": 1,
-      "type": "UNETLoader",
+      "type": "UnetLoaderGGUF",
       "pos": [
         0,
         0
@@ -27,16 +27,15 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "UNETLoader"
+        "Node name for S&R": "UnetLoaderGGUF"
       },
       "widgets_values": [
-        "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
-        "default"
+        "minimax_h3_fl2va_pruned-Q4_K.gguf"
       ]
     },
     {
       "id": 2,
-      "type": "CLIPLoader",
+      "type": "CLIPLoaderGGUF",
       "pos": [
         390,
         0
@@ -59,12 +58,11 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "CLIPLoader"
+        "Node name for S&R": "CLIPLoaderGGUF"
       },
       "widgets_values": [
-        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
-        "minimax",
-        "default"
+        "qwen3vl_32b_minimax_h3-Q2_K_M.gguf",
+        "minimax"
       ]
     },
     {

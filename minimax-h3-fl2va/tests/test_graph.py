@@ -25,9 +25,6 @@ class GraphContract(unittest.TestCase):
                 if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
                     self.assertIn(value[0], g)
 
-
-if __name__ == '__main__': unittest.main()
-
 class TurboContract(unittest.TestCase):
     def test_fl2va_lora_and_sigma_are_connected(self):
         g = json.loads((ROOT / 'h3_first_last_audio_turbo4_api.json').read_text())
@@ -39,3 +36,33 @@ class TurboContract(unittest.TestCase):
         self.assertEqual(g['13']['inputs']['model'], ['20', 0])
         self.assertEqual(g['13']['inputs']['steps'], 4)
         self.assertEqual(g['12']['inputs']['sampler_name'], 'euler')
+
+
+class QuantizationContract(unittest.TestCase):
+    def test_both_graphs_and_ui_use_q4(self):
+        for name in ('h3_first_last_audio_api.json', 'h3_first_last_audio_turbo4_api.json'):
+            graph = json.loads((ROOT / name).read_text())
+            self.assertEqual(graph['1']['class_type'], 'UnetLoaderGGUF')
+            self.assertEqual(graph['1']['inputs']['unet_name'], 'minimax_h3_fl2va_pruned-Q4_K.gguf')
+            self.assertEqual(graph['2']['class_type'], 'CLIPLoaderGGUF')
+        ui = json.loads((ROOT / 'h3_first_last_audio_ui.json').read_text())
+        models = {node['id']: node for node in ui['nodes']}
+        self.assertEqual(models[1]['type'], 'UnetLoaderGGUF')
+        self.assertEqual(models[1]['widgets_values'][0], 'minimax_h3_fl2va_pruned-Q4_K.gguf')
+        self.assertEqual(models[2]['type'], 'CLIPLoaderGGUF')
+
+    def test_download_list_excludes_int8_diffusion(self):
+        import runpy
+        import sys
+        import types
+        from unittest.mock import patch
+        downloads = []
+        fake = types.ModuleType('huggingface_hub')
+        fake.hf_hub_download = lambda **kwargs: downloads.append(kwargs['filename'])
+        with patch.dict(sys.modules, {'huggingface_hub': fake}), patch.object(sys, 'argv', ['baixar_modelos.py']):
+            runpy.run_path(str(ROOT / 'baixar_modelos.py'), run_name='__main__')
+        self.assertIn('minimax_h3_fl2va_pruned-Q4_K.gguf', downloads)
+        self.assertFalse(any('fl2va_pruned_int8' in filename for filename in downloads))
+
+
+if __name__ == '__main__': unittest.main()

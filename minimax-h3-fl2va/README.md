@@ -6,7 +6,7 @@ O padrão solicitado é **Turbo FL2VA de 4 passos**, LoRA `minimax_h3_fl2v_turbo
 
 ## Publicação e início
 
-O workflow `.github/workflows/publish-minimax-h3-fl2va.yml` está preparado para testar e publicar no GHCR em push para `main` com mudanças nesta pasta. Nenhuma imagem foi publicada nesta sessão. Após o push e o sucesso do GitHub Actions, no Ubuntu com NVIDIA Container Toolkit:
+O workflow `.github/workflows/publish-minimax-h3-fl2va.yml` está preparado para testar e publicar no GHCR em push para `main` com mudanças nesta pasta. A imagem deve ser reconstruída e publicada novamente para incorporar alterações. Após o push e o sucesso do GitHub Actions, no Ubuntu com NVIDIA Container Toolkit:
 
 ```bash
 cd minimax-h3-fl2va
@@ -21,7 +21,7 @@ Os volumes nomeados `h3-models`, `h3-input`, `h3-output`, `h3-user`, `h3-cache` 
 
 ## Modelos
 
-Confira espaço livre **no armazenamento do Docker** antes de baixar. O conjunto INT8 oficial inclui um modelo principal de cerca de 19,5 GiB, um encoder de cerca de 14,6 GiB, VAEs, LoRA e cache; o download e a instalação podem precisar de espaço adicional considerável. O script usa `hf_hub_download` com cache persistente e retomada; os arquivos são provenientes de `Comfy-Org/MiniMax-H3` e `lightx2v/Minimax-h3-Turbo`. Confira as licenças dos respectivos repositórios e forneça `HF_TOKEN` se exigido.
+Confira espaço livre **no armazenamento do Docker** antes de baixar. O único modelo principal baixado é `minimax_h3_fl2va_pruned-Q4_K.gguf` (~10,64 GiB). O download também inclui componentes necessários: encoder `qwen3vl_32b_minimax_h3-Q2_K_M.gguf` (~12,20 GiB), VAEs de vídeo e áudio oficiais e a LoRA Turbo FL2VA de 4 passos. É necessário espaço adicional para cache e arquivos temporários. O script usa `hf_hub_download` com cache persistente e retomada. Confira as licenças dos repositórios [Unsloth](https://huggingface.co/unsloth/MiniMax-H3-GGUF), [Comfy-Org](https://huggingface.co/Comfy-Org/MiniMax-H3) e [LightX2V](https://huggingface.co/lightx2v/Minimax-h3-Turbo); forneça `HF_TOKEN` se exigido.
 
 ```bash
 docker compose exec comfyui python /opt/pipeline/baixar_modelos.py
@@ -29,7 +29,7 @@ docker compose exec comfyui python /opt/pipeline/baixar_modelos.py
 docker compose restart
 ```
 
-Para testar a alternativa GGUF, passe `--gguf` ao download e ao executor: ela usa `unsloth/MiniMax-H3-GGUF`, FL2VA pruned Q4_K e Qwen3-VL Q2_K_M, mais os VAEs oficiais. É diferente de Q4_K_M e Q2_K citados no pedido original. O loader ComfyUI-GGUF foi incluído, mas **essa combinação e a aplicação da LoRA sobre ela não foram verificadas**. O INT8 oficial é maior que a VRAM e usa offload (`--lowvram --disable-smart-memory`); tanto ele quanto a alternativa GGUF podem falhar por VRAM, RAM ou incompatibilidade. As revisões dos repositórios de pesos ainda seguem `main` e devem ser fixadas após validação.
+O Q4_K e o encoder Q2_K_M usam ComfyUI-GGUF. A combinação com o H3, a LoRA e os 16 GB ainda não foi validada: o tamanho do arquivo não é o pico de VRAM e o offload continua necessário. O download pode ser executado com `--sem-turbo` caso se queira apenas o grafo de qualidade. Os pesos seguem a revisão `main` dos repositórios e devem ser fixados após validação. Não há download automático do modelo principal INT8.
 
 ## Executar via API local do ComfyUI
 
@@ -48,7 +48,7 @@ docker compose cp comfyui:/opt/ComfyUI/output/resultado_gerado.mp4 ./resultado_g
 docker compose cp comfyui:/opt/ComfyUI/output/resultado_audio_gerado.wav ./resultado_audio_gerado.wav
 ```
 
-Acrescente `--quality` para o grafo sem LoRA ou `--gguf` para a alternativa GGUF. Opções `--width`, `--height`, `--steps`, `--seed` e `--timeout` são configuráveis; Turbo exige quatro passos. O padrão é 576×1024, 124 frames, 24 fps (~5,17 s). Áudio maior que essa duração é recusado para não cortar a fala; áudios menores recebem silêncio no final. O áudio de guia é convertido para WAV 32 kHz. O MP4 final usa a gravação original codificada em AAC, sem alterar velocidade ou tonalidade; o arquivo de diagnóstico contém o áudio gerado. O WAV de diagnóstico é extraído desse MP4 e, portanto, reflete a codificação do vídeo de diagnóstico. Isso não garante sincronia labial.
+Acrescente `--quality` para o grafo sem LoRA; o Q4_K GGUF é usado por padrão. Opções `--width`, `--height`, `--steps`, `--seed` e `--timeout` são configuráveis; Turbo exige quatro passos. O padrão é 576×1024, 124 frames, 24 fps (~5,17 s). Áudio maior que essa duração é recusado para não cortar a fala; áudios menores recebem silêncio no final. O áudio de guia é convertido para WAV 32 kHz. O MP4 final usa a gravação original codificada em AAC, sem alterar velocidade ou tonalidade; o arquivo de diagnóstico contém o áudio gerado. O WAV de diagnóstico é extraído desse MP4 e, portanto, reflete a codificação do vídeo de diagnóstico. Isso não garante sincronia labial.
 
 `h3_first_last_audio_ui.json` é um rascunho importável na interface para Turbo; escolha imagens e áudio em seus nós e confira conexões e modelos. A importação precisa ser verificada na versão real. Os grafos API são `h3_first_last_audio_turbo4_api.json` e `h3_first_last_audio_api.json` (qualidade). Não há suporte implementado a ajuste para exatamente 5,0 s. O primeiro frame é esticado à tela e o último sofre recorte central na implementação H3: use imagens na proporção de saída.
 
@@ -56,4 +56,4 @@ Acrescente `--quality` para o grafo sem LoRA ou `--gguf` para a alternativa GGUF
 
 `python3 diagnostico.py --comfy-url http://127.0.0.1:8190 --models /caminho/modelos > diagnostico.json` reúne informações somente de leitura. Os modelos em volumes Docker podem não estar visíveis nesse caminho no host. Revise o relatório antes de compartilhá-lo.
 
-Faltam build e teste em GPU, verificação de `/object_info` e da importação, seleção e validação da quantização, geração de exemplo com voz em português, inspeção visual do primeiro e último frames, sincronia labial e medições de pico de VRAM/RAM e tempo. O resultado do teste estrutural do grafo não comprova essas propriedades.
+Faltam build e teste em GPU, verificação de `/object_info` e da importação, validação da quantização, geração de exemplo com voz em português, inspeção visual do primeiro e último frames, sincronia labial e medições de pico de VRAM/RAM e tempo. O resultado do teste estrutural do grafo não comprova essas propriedades.
