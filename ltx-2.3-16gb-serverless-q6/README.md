@@ -18,6 +18,8 @@ O DiT Q5_K_M ocupa cerca de 15,9 GB (14,8 GiB) em disco. O conjunto de modelos o
 
 Para build local, a partir da raiz do repositório: `docker build -f ltx-2.3-16gb-serverless-q6/Dockerfile -t ambienteavatar-ltx23-16gb-serverless-q6:local .`
 
+O worker inicia o ComfyUI com `--disable-dynamic-vram --lowvram --reserve-vram 1.5`: o modo de baixa VRAM descarrega modelos para a RAM e reserva 1,5 GB de VRAM. Isso pode reduzir a velocidade e não garante ausência de OOM nas ativações, no upscale ou no decode; resolução e duração também afetam o pico. `COMFYUI_ARGS` substitui esses argumentos quando definido; por exemplo, `--disable-dynamic-vram --novram --reserve-vram 1.5` para testar um modo mais conservador.
+
 ## Diferenças contratuais vs worker Vast (`ltx-2.3-serverless-vast`)
 
 | Campo | Vast | Esta variante |
@@ -234,6 +236,7 @@ MinIO (fallback caso o webhook falhe).
 | `RUNSYNC_WAIT_SECONDS` | não | `85` | quanto `/{endpointId}/runsync` espera bloqueado |
 | `COMFYUI_PORT` | não | `8188` | porta do ComfyUI (WebSocket de progresso) |
 | `COMFYUI_LISTEN` | não | `127.0.0.1` | para publicar a interface no Docker, use `0.0.0.0` e vincule a porta ao localhost do host |
+| `COMFYUI_ARGS` | não | `--disable-dynamic-vram --lowvram --reserve-vram 1.5` | argumentos adicionais ao iniciar o ComfyUI; substitui o padrão inteiro |
 | `MODELS_ROOT` | não | `/data` | volume persistente dos modelos |
 | `LTX23_GGUF_QUANT` | não | `Q5_K_M` | fixado em Q5_K_M; outros valores causam erro no bootstrap |
 | `HF_TOKEN` | não | — | token HF (repos públicos não exigem) |

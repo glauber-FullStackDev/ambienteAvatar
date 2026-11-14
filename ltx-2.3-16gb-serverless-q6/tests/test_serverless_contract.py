@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVERLESS = ROOT / "ltx-2.3-16gb-serverless-q6"
@@ -16,6 +17,7 @@ from handler import (  # noqa: E402
     DEFAULT_PROMPT,
     InputError,
     validate_input,
+    _comfyui_command,
 )
 from jobs import JobRecord  # noqa: E402
 from webhook import build_payload, url_allowed  # noqa: E402
@@ -196,6 +198,24 @@ class WebhookAllowListTests(unittest.TestCase):
 
     def test_default_unset_rejects_unknown(self) -> None:
         self.assertFalse(url_allowed("https://anywhere.invalid/hook"))
+
+
+class ComfyLaunchTests(unittest.TestCase):
+    def test_default_uses_explicit_low_vram_and_reservation(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            command = _comfyui_command()
+        self.assertIn("--disable-dynamic-vram", command)
+        self.assertIn("--lowvram", command)
+        self.assertEqual(command[command.index("--reserve-vram") + 1], "1.5")
+        self.assertEqual(command[command.index("--listen") + 1], "127.0.0.1")
+
+    def test_extra_arguments_and_listen_are_configurable(self) -> None:
+        with patch.dict(os.environ, {"COMFYUI_ARGS": "--novram --reserve-vram 2", "COMFYUI_LISTEN": "0.0.0.0"}):
+            command = _comfyui_command()
+        self.assertIn("--novram", command)
+        self.assertNotIn("--lowvram", command)
+        self.assertEqual(command[command.index("--reserve-vram") + 1], "2")
+        self.assertEqual(command[command.index("--listen") + 1], "0.0.0.0")
 
 
 class ImageContractTests(unittest.TestCase):

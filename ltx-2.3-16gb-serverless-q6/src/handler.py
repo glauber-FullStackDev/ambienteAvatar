@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -388,11 +389,24 @@ def _comfyui_alive() -> bool:
         return False
 
 
+def _comfyui_command() -> list[str]:
+    """Build the worker command with explicit CPU offload for small GPUs."""
+    extra_args = os.environ.get(
+        "COMFYUI_ARGS", "--disable-dynamic-vram --lowvram --reserve-vram 1.5"
+    )
+    return [
+        sys.executable, str(COMFYUI_HOME / "main.py"),
+        "--listen", os.environ.get("COMFYUI_LISTEN", "127.0.0.1"),
+        "--port", os.environ.get("COMFYUI_PORT", "8188"),
+        "--preview-method", "none", *shlex.split(extra_args),
+    ]
+
+
 def _launch_comfyui() -> None:
     global _COMFYUI_PROC
     log_path = Path("/var/log/portal/comfyui-serverless.log")
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, str(COMFYUI_HOME / "main.py"), "--listen", os.environ.get("COMFYUI_LISTEN", "127.0.0.1"), "--port", os.environ.get("COMFYUI_PORT", "8188"), "--preview-method", "none"]
+    command = _comfyui_command()
     with log_path.open("ab") as log_file:
         _COMFYUI_PROC = subprocess.Popen(command, cwd=COMFYUI_HOME, stdout=log_file, stderr=subprocess.STDOUT)
     deadline = time.monotonic() + int(os.environ.get("COMFY_STARTUP_TIMEOUT_SECONDS", "21600"))
