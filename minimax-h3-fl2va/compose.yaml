@@ -1,0 +1,21 @@
+services:
+  comfyui:
+    image: ${H3_IMAGE:-ghcr.io/glauber-fullstackdev/ambienteavatar-minimax-h3-fl2va:latest}
+    build: .
+    gpus: all
+    ports:
+      - "${H3_BIND:-127.0.0.1}:${H3_PORT:-8190}:8188"
+    volumes:
+      - h3-models:/opt/ComfyUI/models
+      - h3-input:/opt/ComfyUI/input
+      - h3-output:/opt/ComfyUI/output
+      - h3-user:/opt/ComfyUI/user
+      - h3-cache:/data/cache
+    shm_size: 8gb
+    restart: unless-stopped
+volumes:
+  h3-models:
+  h3-input:
+  h3-output:
+  h3-user:
+  h3-cache:
