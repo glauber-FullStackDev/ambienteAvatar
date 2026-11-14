@@ -18,6 +18,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 import urllib3
 from PIL import Image, UnidentifiedImageError
 import webhook
+from reuse_encoder import reuse_cached_encoder
 
 MODEL = 'black-forest-labs/flux-3-image-klein'
 MODEL_ALIAS = 'qwen/qwen-image-2.1'
@@ -204,6 +205,8 @@ class Pipeline:
         self.input_dir.mkdir(parents=True, exist_ok=True)
         models = self.base / 'models'
         for filename in COMFY_FILES:
+            if filename == COMFY_FILES[1] and reuse_cached_encoder(os.getenv('HF_HOME', '/data/huggingface'), models / filename):
+                continue
             hf_hub_download(COMFY_REPO, filename, local_dir=str(models),
                             revision=os.getenv('COMFY_MODEL_REVISION', 'main'))
         self.http = urllib3.PoolManager(timeout=urllib3.Timeout(connect=5, read=30), retries=False)
