@@ -1,7 +1,7 @@
-# LTX 2.3 GGUF Q5_K_M 16 GB — Worker local (API HTTP + Webhook)
+# LTX 2.3 GGUF Q4_K_M 16 GB — Worker local (API HTTP + Webhook)
 
 Imagem Docker para rodar **em máquina local (GPU 16 GB)** o workflow LTX 2.3
-IA2V Personal LoRA na variante **GGUF Q5_K_M**, em cópia separada de `../ltx-2.3-16gb-serverless/`, com uma
+IA2V Personal LoRA na variante **GGUF Q4_K_M**, em cópia separada de `../ltx-2.3-16gb-serverless/`, com uma
 **API HTTP assíncrona** e **feedback por webhook**.
 
 - **Esqueleto** (handler, validação, ciclo de vida do ComfyUI, upload MinIO):
@@ -9,12 +9,12 @@ IA2V Personal LoRA na variante **GGUF Q5_K_M**, em cópia separada de `../ltx-2.
 - **Contrato de API/webhook**: `../ltx-2.3-serverless-vast/` (`POST /submit`,
   `POST /status`, eventos `job.started`/`job.completed`/`job.failed`,
   assinatura HMAC, espelho de status no MinIO).
-- **Modelos e workflow**: scripts em `model_scripts/` e assets compartilhados de `ltx-2.3-16gb/` (GGUF ~27 GiB baixados no boot para
+- **Modelos e workflow**: scripts em `model_scripts/` e assets compartilhados de `ltx-2.3-16gb/` (GGUF ~26 GiB baixados no boot para
   `$MODELS_ROOT`, nunca assados na imagem).
 
-O nome histórico da pasta e da imagem contém `q6`, mas esta versão usa Q5_K_M. Nenhum dos paths de origem é alterado.
+O nome histórico da pasta e da imagem contém `q6`, mas esta versão usa Q4_K_M. Nenhum dos paths de origem é alterado.
 
-O DiT Q5_K_M ocupa cerca de 15,9 GB (14,8 GiB) em disco. O conjunto de modelos ocupa aproximadamente 27 GiB; use volume com espaço adicional para cache e saídas e preferencialmente 64 GB de RAM. Em GPU de 16 GB haverá transferência entre RAM e VRAM; velocidade, qualidade e capacidade dependem do hardware e precisam ser validadas. O perfil de decode foi herdado da versão Q4 e ainda não foi validado em Q5.
+O DiT Q4_K_M ocupa cerca de 14,2 GB (13,2 GiB) em disco. O conjunto de modelos ocupa aproximadamente 26 GiB; use volume com espaço adicional para cache e saídas e preferencialmente 64 GB de RAM. Em GPU de 16 GB haverá transferência entre RAM e VRAM; velocidade, qualidade e capacidade dependem do hardware e precisam ser validadas. O perfil de decode foi herdado da versão Q4 original; o fluxo com imagem final precisa ser validado em GPU de 16 GB.
 
 Para build local, a partir da raiz do repositório: `docker build -f ltx-2.3-16gb-serverless-q6/Dockerfile -t ambienteavatar-ltx23-16gb-serverless-q6:local .`
 
@@ -47,7 +47,7 @@ docker run -d --gpus all -p 8000:8000 \
   ghcr.io/glauber-fullstackdev/ambienteavatar-ltx23-16gb-serverless-q6:latest
 ```
 
-No primeiro boot o worker baixa os ~27 GiB de modelos para `$MODELS_ROOT`
+No primeiro boot o worker baixa os ~26 GiB de modelos para `$MODELS_ROOT`
 (volume montado) antes de expor jobs — acompanhe por `GET /health`
 (`startup_done` / `comfyui`).
 
@@ -61,7 +61,7 @@ Para testar diretamente no ComfyUI, adicione ao `docker run`:
 -e COMFYUI_LISTEN=0.0.0.0 -p 127.0.0.1:8188:8188
 ```
 
-Após o bootstrap, abra `http://127.0.0.1:8188` na máquina que executa Docker e carregue o workflow `ltx23_q5_first_last_audio` na lista de workflows. Selecione as imagens inicial e final e o áudio. A interface opera no mesmo ComfyUI usado pela API; evite submeter trabalhos simultâneos enquanto mede desempenho. O ComfyUI não usa o `API_TOKEN` da API: mantenha a porta vinculada ao localhost ou use um túnel SSH autenticado para máquina remota. O workflow é copiado para a pasta de usuário na primeira inicialização, sem sobrescrever edições existentes.
+Após o bootstrap, abra `http://127.0.0.1:8188` na máquina que executa Docker e carregue o workflow `ltx23_q4_first_last_audio` na lista de workflows. Selecione as imagens inicial e final e o áudio. A interface opera no mesmo ComfyUI usado pela API; evite submeter trabalhos simultâneos enquanto mede desempenho. O ComfyUI não usa o `API_TOKEN` da API: mantenha a porta vinculada ao localhost ou use um túnel SSH autenticado para máquina remota. O workflow é copiado para a pasta de usuário na primeira inicialização, sem sobrescrever edições existentes.
 
 ## API
 
@@ -238,7 +238,7 @@ MinIO (fallback caso o webhook falhe).
 | `COMFYUI_LISTEN` | não | `127.0.0.1` | para publicar a interface no Docker, use `0.0.0.0` e vincule a porta ao localhost do host |
 | `COMFYUI_ARGS` | não | `--disable-dynamic-vram --lowvram --reserve-vram 1.5` | argumentos adicionais ao iniciar o ComfyUI; substitui o padrão inteiro |
 | `MODELS_ROOT` | não | `/data` | volume persistente dos modelos |
-| `LTX23_GGUF_QUANT` | não | `Q5_K_M` | fixado em Q5_K_M; outros valores causam erro no bootstrap |
+| `LTX23_GGUF_QUANT` | não | `Q4_K_M` | fixado em Q4_K_M; outros valores causam erro no bootstrap |
 | `HF_TOKEN` | não | — | token HF (repos públicos não exigem) |
 | `LOG_VRAM_PEAK` | não | `0` | loga pico de VRAM por job |
 | `COMFY_TIMEOUT_SECONDS` | não | `21600` | timeout de execução por job |

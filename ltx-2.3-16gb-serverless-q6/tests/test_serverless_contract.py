@@ -228,7 +228,7 @@ class ImageContractTests(unittest.TestCase):
     def test_image_targets_the_gguf_16gb_workflow(self) -> None:
         dockerfile = (SERVERLESS / "Dockerfile").read_text(encoding="utf-8")
         self.assertIn("video_ltx2_3_ia2v_personal_lora_16gb_api.json", dockerfile)
-        self.assertIn("LTX23_GGUF_QUANT=Q5_K_M", dockerfile)
+        self.assertIn("LTX23_GGUF_QUANT=Q4_K_M", dockerfile)
         self.assertIn("PERSONAL_WORKFLOW_SHA256=a410e101", dockerfile)
 
     def test_image_does_not_bake_models(self) -> None:
