@@ -1,4 +1,4 @@
-name: Build and publish LTX 2.3 GGUF Q6 16GB Serverless image
+name: Build and publish LTX 2.3 GGUF Q5 16GB Serverless image
 
 on:
   push:
@@ -55,13 +55,14 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
+            type=raw,value=q5
             type=raw,value=v1.0
             type=raw,value=latest
             type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
             type=sha,format=long
           labels: |
-            org.opencontainers.image.title=LTX 2.3 IA2V GGUF Q6 16GB Serverless
-            org.opencontainers.image.description=Local Docker API worker (FastAPI) for LTX 2.3 IA2V Personal LoRA with the GGUF Q6 model set, MinIO output and completion webhook
+            org.opencontainers.image.title=LTX 2.3 IA2V GGUF Q5 16GB Serverless
+            org.opencontainers.image.description=Local Docker API worker (FastAPI) for LTX 2.3 IA2V Personal LoRA with the GGUF Q5 model set, MinIO output and completion webhook
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 

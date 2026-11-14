@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Download the GGUF 16 GB model set used by the IA2V API workflow (~29 GiB).
+"""Download the GGUF 16 GB model set used by the IA2V API workflow (~27 GiB).
 
 Reuses the pinned downloader from ../model_scripts/download_models.py
 (repositorios unsloth + Gemma QAT, tudo publico):
 
-- DiT LTX-2.3-22B-distilled-1.1 em GGUF (LTX23_GGUF_QUANT, fixado em Q6_K)
+- DiT LTX-2.3-22B-distilled-1.1 em GGUF (LTX23_GGUF_QUANT, fixado em Q5_K_M)
   -> models/diffusion_models;
 - Gemma 3 12B QAT GGUF (UD-Q4_K_XL) + embeddings connectors -> models/text_encoders;
 - video VAE e audio VAE standalone -> models/vae;

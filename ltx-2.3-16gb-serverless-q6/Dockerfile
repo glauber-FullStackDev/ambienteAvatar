@@ -14,7 +14,7 @@ ENV COMFYUI_HOME=/opt/ComfyUI \
     COMFYUI_MODELS=/opt/ComfyUI/models \
     COMFYUI_PORT=8188 \
     LTX_IMAGE_SHA=${LTX_IMAGE_SHA} \
-    LTX23_GGUF_QUANT=Q6_K \
+    LTX23_GGUF_QUANT=Q5_K_M \
     MODELS_ROOT=/data \
     WORKFLOW_PATH=/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_16gb_api.json \
     DEFAULT_IA2V_PERSONAL_LORA_WORKFLOW=/opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_16gb.json \
@@ -56,7 +56,7 @@ COPY ltx-2.3-16gb/assets/video_ltx2_3_ia2v_personal_source.json /opt/ltx23-asset
 COPY ltx-2.3-16gb-serverless-q6/requirements.txt /opt/serverless/requirements.txt
 COPY ltx-2.3-16gb-serverless-q6/src/ /opt/serverless/src/
 
-# Os modelos GGUF (~29 GiB) NAO entram na imagem: o bootstrap baixa no boot do
+# Os modelos GGUF (~27 GiB) NAO entram na imagem: o bootstrap baixa no boot do
 # worker para $MODELS_ROOT (volume montado), como no worker Runpod.
 RUN pip install "huggingface_hub[hf_xet]>=0.34,<2" -r /opt/serverless/requirements.txt \
     && chmod +x /opt/ltx23-scripts/*.py /opt/ltx23-scripts/*.sh \
@@ -86,7 +86,7 @@ RUN pip install "huggingface_hub[hf_xet]>=0.34,<2" -r /opt/serverless/requiremen
         --output /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_16gb_api.json \
     && python /opt/ltx23-scripts/build_transition_ui.py \
         --source /opt/defaults/workflows/video_ltx2_3_ia2v_personal_lora_16gb.json \
-        --output /opt/defaults/workflows/ltx23_q6_first_last_audio.json \
+        --output /opt/defaults/workflows/ltx23_q5_first_last_audio.json \
     && python -m compileall -q /opt/serverless/src /opt/ltx23-scripts \
     && python /opt/ltx23-scripts/check_dependencies.py \
     && python /opt/ltx23-scripts/smoke_core_nodes.py \

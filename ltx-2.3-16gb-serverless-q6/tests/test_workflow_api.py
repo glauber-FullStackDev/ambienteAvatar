@@ -38,11 +38,11 @@ class WorkflowApiTests(unittest.TestCase):
     def test_download_selection_matches_workflow_and_rejects_other_quants(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             quant = download_models.selected_quant()
-        self.assertEqual(quant, "Q6_K")
+        self.assertEqual(quant, "Q5_K_M")
         model = download_models.model_files(quant)[0]
         self.assertEqual(Path(model.relative_path).name, self.template["317"]["inputs"]["unet_name"])
-        self.assertEqual(model.size, 17_774_906_400)
-        self.assertEqual(model.sha256, "ece6e49954f60ca894ab59270c08c706f970dcee3df0aba10ad2893eeabee48a")
+        self.assertEqual(model.size, 15_930_424_352)
+        self.assertEqual(model.sha256, "5be111c2880b06569b182ab7b1917b613535e8b62f386f7782e988cd7db1b693")
         with patch.dict("os.environ", {"LTX23_GGUF_QUANT": "Q4_K_M"}):
             with self.assertRaises(SystemExit):
                 download_models.selected_quant()
@@ -51,7 +51,7 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(self.template["317"]["class_type"], "UnetLoaderGGUF")
         self.assertEqual(
             self.template["317"]["inputs"]["unet_name"],
-            "ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
+            "ltx-2.3-22b-distilled-1.1-Q5_K_M.gguf",
         )
         self.assertEqual(self.template["318"]["class_type"], "DualCLIPLoaderGGUF")
         self.assertEqual(self.template["335"]["class_type"], "VAELoaderKJ")

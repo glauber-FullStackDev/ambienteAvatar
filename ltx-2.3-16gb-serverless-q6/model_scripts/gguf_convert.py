@@ -24,7 +24,7 @@ from copy import deepcopy
 from workflow_utils import link_map, next_node_id, one
 
 
-GGUF_UNET_FILE = "ltx-2.3-22b-distilled-1.1-Q6_K.gguf"
+GGUF_UNET_FILE = "ltx-2.3-22b-distilled-1.1-Q5_K_M.gguf"
 GEMMA_GGUF_FILE = "gemma-3-12b-it-qat-UD-Q4_K_XL.gguf"
 CONNECTORS_FILE = "ltx-2.3-22b-distilled_embeddings_connectors.safetensors"
 VIDEO_VAE_FILE = "ltx-2.3-22b-distilled_video_vae.safetensors"

@@ -334,7 +334,7 @@ def _configure_model_storage() -> None:
     """Symlink ComfyUI models into the persistent MODELS_ROOT volume.
 
     Em máquina local o diretório $MODELS_ROOT (padrão /data) deve estar em um
-    volume montado para que os ~29 GiB de modelos sobrevivam à recriação do
+    volume montado para que os ~27 GiB de modelos sobrevivam à recriação do
     container.  Sem volume, o disco do container serve de fallback efêmero.
     """
     if not MODELS_ROOT.is_dir():
@@ -437,8 +437,8 @@ def _ensure_comfyui() -> None:
 def start_comfyui() -> None:
     _configure_model_storage()
     _ensure_personal_lora()
-    ui_source = Path("/opt/defaults/workflows/ltx23_q6_first_last_audio.json")
-    ui_target = COMFYUI_HOME / "user/default/workflows/ltx23_q6_first_last_audio.json"
+    ui_source = Path("/opt/defaults/workflows/ltx23_q5_first_last_audio.json")
+    ui_target = COMFYUI_HOME / "user/default/workflows/ltx23_q5_first_last_audio.json"
     if ui_source.is_file() and not ui_target.exists():
         ui_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ui_source, ui_target)

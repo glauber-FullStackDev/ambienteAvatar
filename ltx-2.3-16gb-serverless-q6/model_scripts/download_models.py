@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Baixa os modelos GGUF fixados da variante LTX 2.3 16 GB (~29 GiB).
+"""Baixa os modelos GGUF fixados da variante LTX 2.3 16 GB (~27 GiB).
 
 Pacote (repositorio unsloth/LTX-2.3-GGUF + gemma QAT), tudo publico:
 
-- DiT LTX-2.3-22B-distilled-1.1 em GGUF Q6_K (fixo) -> models/diffusion_models;
+- DiT LTX-2.3-22B-distilled-1.1 em GGUF Q5_K_M (fixo) -> models/diffusion_models;
 - Gemma 3 12B QAT GGUF (UD-Q4_K_XL) -> models/text_encoders;
 - embeddings connectors standalone -> models/text_encoders;
 - video VAE e audio VAE standalone -> models/vae;
@@ -63,7 +63,7 @@ GGUF_QUANTS = {
     "Q5_K_M": (
         "distilled-1.1/ltx-2.3-22b-distilled-1.1-Q5_K_M.gguf",
         15_930_424_352,
-        "",
+        "5be111c2880b06569b182ab7b1917b613535e8b62f386f7782e988cd7db1b693",
     ),
     "Q6_K": (
         "distilled-1.1/ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
@@ -71,7 +71,7 @@ GGUF_QUANTS = {
         "ece6e49954f60ca894ab59270c08c706f970dcee3df0aba10ad2893eeabee48a",
     ),
 }
-DEFAULT_GGUF_QUANT = "Q6_K"
+DEFAULT_GGUF_QUANT = "Q5_K_M"
 
 GEMMA_GGUF_FILE = "gemma-3-12b-it-qat-UD-Q4_K_XL.gguf"
 CONNECTORS_FILE = "ltx-2.3-22b-distilled_embeddings_connectors.safetensors"
@@ -81,10 +81,10 @@ AUDIO_VAE_FILE = "ltx-2.3-22b-distilled_audio_vae.safetensors"
 
 def selected_quant() -> str:
     quant = os.environ.get("LTX23_GGUF_QUANT", DEFAULT_GGUF_QUANT).upper()
-    if quant != "Q6_K":
+    if quant != "Q5_K_M":
         raise SystemExit(
             f"LTX23_GGUF_QUANT invalido: {quant!r}. "
-            "Esta imagem requer Q6_K, conforme o workflow fixo."
+            "Esta imagem requer Q5_K_M, conforme o workflow fixo."
         )
     return quant
 
@@ -99,7 +99,7 @@ def model_files(quant: str) -> tuple[ModelFile, ...]:
         "Q5_K_M": (
             "ltx-2.3-22b-distilled-1.1-Q5_K_M.gguf",
             15_930_424_352,
-            "",
+            "5be111c2880b06569b182ab7b1917b613535e8b62f386f7782e988cd7db1b693",
         ),
         "Q6_K": (
             "ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
