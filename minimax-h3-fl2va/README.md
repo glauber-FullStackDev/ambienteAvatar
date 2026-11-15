@@ -19,9 +19,28 @@ Imagem prevista: `ghcr.io/glauber-fullstackdev/ambienteavatar-minimax-h3-fl2va:l
 
 Os volumes nomeados `h3-models`, `h3-input`, `h3-output`, `h3-user`, `h3-cache` são próprios do projeto Compose; a instalação existente não é alterada. A GPU é compartilhada: o Compose não impede concorrência com outros serviços. Execute somente uma geração por vez e confira VRAM disponível antes de iniciar.
 
+## Experimentos inspirados no vídeo do Willian IA
+
+O arquivo `workflows-video/fasth3-omni-r2v.json` adapta o template oficial R2V para experimentar o FastH3 Omni citado no [vídeo](https://www.youtube.com/watch?v=aetuL154-pE). Não é uma cópia verificada do arquivo do autor. O grafo possui entradas para primeiro frame, último frame e áudio de guia, conectadas por nós `MiniMaxH3AddGuide`. Os arquivos devem ser selecionados na interface. O áudio orienta a geração e não garante reprodução idêntica ou sincronia labial.
+
+* `fasth3-omni-r2v.json`: modelo NVFP4 QAD, encoder NVFP4 AWQ, oito passos, Euler, shift vídeo 12 / áudio 3, conforme a [página do FastVideo](https://huggingface.co/FastVideo/FastH3-Omni-NVFP4-QAD-Comfy). A RTX 5060 Ti é da geração Blackwell, compatível com NVFP4.
+
+Reconstrua a imagem para incluir o arquivo e baixe o perfil FastH3. O modelo ocupa cerca de 13,8 GB e o encoder 15,7 GB em disco, além dos VAEs, cache e espaço temporário. A execução requer offload entre VRAM e RAM; com 16 GB de VRAM e 40 GB de RAM, comece pela resolução de 864×480 e cerca de cinco segundos já configurada no workflow. Não há garantia de que caiba na memória disponível em todos os sistemas: outros processos e a resolução afetam o pico. A quantização pode alterar a qualidade; tempo, qualidade e uso de memória precisam ser medidos.
+
+```bash
+cd minimax-h3-fl2va
+docker compose up --build -d
+docker compose exec comfyui python /opt/pipeline/baixar_modelos.py --perfil fasth3
+docker compose restart
+```
+
+Abra `http://127.0.0.1:8190` e importe o JSON de `workflows-video/` pelo navegador, ou copie o arquivo da imagem para o host, por exemplo `docker compose cp comfyui:/opt/pipeline/workflows-video/fasth3-omni-r2v.json .`. Selecione primeiro frame, último frame e áudio nos nós correspondentes, confira os nomes dos modelos e execute. O nó de áudio corta o guia à duração disponível do vídeo; use um áudio de até aproximadamente cinco segundos na duração padrão. Os tempos e a viabilidade em 16 GB dependem do hardware e do offload.
+
+O grafo é experimental: ainda não foi importado ou executado na versão fixada do ComfyUI, e a combinação de FastH3 Omni com guias, seu consumo e qualidade precisam ser verificados em GPU. Os modelos seguem a revisão `main`. Consulte as licenças dos respectivos repositórios.
+
 ## Modelos
 
-Confira espaço livre **no armazenamento do Docker** antes de baixar. O único modelo principal baixado é `minimax_h3_fl2va_pruned-Q4_K.gguf` (~10,64 GiB). O download também inclui componentes necessários: encoder `qwen3vl_32b_minimax_h3-Q2_K_M.gguf` (~12,20 GiB), VAEs de vídeo e áudio oficiais e a LoRA Turbo FL2VA de 4 passos. É necessário espaço adicional para cache e arquivos temporários. O script usa `hf_hub_download` com cache persistente e retomada. Confira as licenças dos repositórios [Unsloth](https://huggingface.co/unsloth/MiniMax-H3-GGUF), [Comfy-Org](https://huggingface.co/Comfy-Org/MiniMax-H3) e [LightX2V](https://huggingface.co/lightx2v/Minimax-h3-Turbo); forneça `HF_TOKEN` se exigido.
+Para o perfil padrão FL2VA, confira espaço livre **no armazenamento do Docker** antes de baixar. O modelo principal é `minimax_h3_fl2va_pruned-Q4_K.gguf` (~10,64 GiB). O download também inclui componentes necessários: encoder `qwen3vl_32b_minimax_h3-Q2_K_M.gguf` (~12,20 GiB), VAEs de vídeo e áudio oficiais e a LoRA Turbo FL2VA de 4 passos. É necessário espaço adicional para cache e arquivos temporários. O script usa `hf_hub_download` com cache persistente e retomada. Confira as licenças dos repositórios [Unsloth](https://huggingface.co/unsloth/MiniMax-H3-GGUF), [Comfy-Org](https://huggingface.co/Comfy-Org/MiniMax-H3) e [LightX2V](https://huggingface.co/lightx2v/Minimax-h3-Turbo); forneça `HF_TOKEN` se exigido.
 
 ```bash
 docker compose exec comfyui python /opt/pipeline/baixar_modelos.py
@@ -29,7 +48,7 @@ docker compose exec comfyui python /opt/pipeline/baixar_modelos.py
 docker compose restart
 ```
 
-O Q4_K e o encoder Q2_K_M usam ComfyUI-GGUF. O arquivo Unsloth presente no servidor contém sua própria torre visual; a detecção em CPU confirmou Qwen3-VL 32B, embora o carregamento completo e a geração ainda precisem ser testados. A combinação com o H3, a LoRA e os 16 GB ainda não foi validada: o tamanho do arquivo não é o pico de VRAM e o offload continua necessário. O download pode ser executado com `--sem-turbo` caso se queira apenas o grafo de qualidade. Os pesos seguem a revisão `main` dos repositórios e devem ser fixados após validação. Não há download automático do modelo principal INT8.
+O Q4_K e o encoder Q2_K_M usam ComfyUI-GGUF. O arquivo Unsloth presente no servidor contém sua própria torre visual; a detecção em CPU confirmou Qwen3-VL 32B, embora o carregamento completo e a geração ainda precisem ser testados. A combinação com o H3, a LoRA e os 16 GB ainda não foi validada: o tamanho do arquivo não é o pico de VRAM e o offload continua necessário. O download pode ser executado com `--sem-turbo` caso se queira apenas o grafo de qualidade. Os pesos seguem a revisão `main` dos repositórios e devem ser fixados após validação. O perfil padrão não baixa o modelo principal INT8.
 
 ## Executar via API local do ComfyUI
 

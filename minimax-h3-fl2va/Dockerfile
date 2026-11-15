@@ -9,6 +9,7 @@ COPY gguf-minimax-h3.patch /tmp/gguf-minimax-h3.patch
 RUN git -C /opt/ComfyUI/custom_nodes/ComfyUI-GGUF apply --check /tmp/gguf-minimax-h3.patch && git -C /opt/ComfyUI/custom_nodes/ComfyUI-GGUF apply /tmp/gguf-minimax-h3.patch
 RUN pip install --no-cache-dir -r /opt/ComfyUI/requirements.txt -r /opt/ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt 'huggingface_hub[cli]>=0.30,<2'
 COPY h3_first_last_audio*_api.json /opt/pipeline/
+COPY workflows-video/ /opt/pipeline/workflows-video/
 COPY executar.py baixar_modelos.py /opt/pipeline/
 WORKDIR /opt/ComfyUI
 ENV PYTHONUNBUFFERED=1 HF_HOME=/data/cache/huggingface
