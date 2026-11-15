@@ -1,6 +1,6 @@
 # MiniMax H3 FL2VA — ComfyUI independente
 
-Imagem Docker do ComfyUI com grafo de primeiro/último frame e áudio de guia. **Estado: desenvolvimento; build da imagem, importação do workflow, carregamento dos modelos e geração real ainda não validados.** Não há confirmação de funcionamento em 16 GB nem avaliação de identidade ou lip-sync. O serviço é independente e usa volumes próprios. ComfyUI e ComfyUI-GGUF têm commits fixados no Dockerfile; os pesos são baixados separadamente.
+Imagem Docker do ComfyUI com grafo de primeiro/último frame e áudio de guia. **Estado: desenvolvimento; build da imagem, importação do workflow, carregamento dos modelos e geração real ainda não validados.** Não há confirmação de funcionamento em 16 GB nem avaliação de identidade ou lip-sync. O serviço é independente e usa volumes próprios. ComfyUI e ComfyUI-GGUF têm commits fixados no Dockerfile; os pesos são baixados separadamente. A imagem aplica uma adaptação do [patch proposto #481](https://github.com/city96/ComfyUI-GGUF/pull/481) para reconhecer H3 e o encoder Unsloth sem metadados, preservando sua torre visual. A detecção de ambos foi verificada em CPU com os arquivos reais; a geração continua pendente. Para reduzir pressão sobre RAM e evitar conflitos de gerenciamento de memória, o processo inicia com `--disable-pinned-memory` e `--disable-dynamic-vram`.
 
 O padrão solicitado é **Turbo FL2VA de 4 passos**, LoRA `minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors`, Euler, scheduler simple, shift vídeo 6 / áudio 3, força 1. O autor informa treinamento a 768p; a resolução de teste 576×1024 é experimental. Há também um grafo de qualidade sem LoRA, com `res_multistep` e 20 passos. As referências oficiais são [LightX2V](https://github.com/ModelTC/Minimax-H3-Turbo), [nós H3 do ComfyUI](https://github.com/Comfy-Org/ComfyUI/blob/master/comfy_extras/nodes_minimax_h3.py) e [guia de execução local](https://github.com/MiniMax-AI/awesome-minimax-h3-integration/blob/main/docs/run-h3-locally.md). A LoRA é FL2VA, não a Ref2VA.
 
@@ -29,7 +29,7 @@ docker compose exec comfyui python /opt/pipeline/baixar_modelos.py
 docker compose restart
 ```
 
-O Q4_K e o encoder Q2_K_M usam ComfyUI-GGUF. A combinação com o H3, a LoRA e os 16 GB ainda não foi validada: o tamanho do arquivo não é o pico de VRAM e o offload continua necessário. O download pode ser executado com `--sem-turbo` caso se queira apenas o grafo de qualidade. Os pesos seguem a revisão `main` dos repositórios e devem ser fixados após validação. Não há download automático do modelo principal INT8.
+O Q4_K e o encoder Q2_K_M usam ComfyUI-GGUF. O arquivo Unsloth presente no servidor contém sua própria torre visual; a detecção em CPU confirmou Qwen3-VL 32B, embora o carregamento completo e a geração ainda precisem ser testados. A combinação com o H3, a LoRA e os 16 GB ainda não foi validada: o tamanho do arquivo não é o pico de VRAM e o offload continua necessário. O download pode ser executado com `--sem-turbo` caso se queira apenas o grafo de qualidade. Os pesos seguem a revisão `main` dos repositórios e devem ser fixados após validação. Não há download automático do modelo principal INT8.
 
 ## Executar via API local do ComfyUI
 
